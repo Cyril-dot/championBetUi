@@ -133,7 +133,6 @@ const LIGUE_1_TEAMS = new Set([
   'Angers', 'Auxerre', 'Saint-Etienne',
 ]);
 
-// Champions League teams: all top-6 league teams combined
 const CHAMPIONS_LEAGUE_TEAMS = new Set([
   ...PREMIER_LEAGUE_TEAMS,
   ...LA_LIGA_TEAMS,
@@ -151,30 +150,18 @@ const LEAGUE_TEAM_MAP: Record<string, Set<string>> = {
   'Champions League': CHAMPIONS_LEAGUE_TEAMS,
 };
 
-// ---------------------------------------------------------------------------
-// NEW: Check if a match truly belongs to a top-6 league by verifying teams
-// ---------------------------------------------------------------------------
 function hasVerifiedTeam(m: EnrichedMatch, leagueLabel: string): boolean {
   const teamSet = LEAGUE_TEAM_MAP[leagueLabel];
-  if (!teamSet) return true; // no team-set defined → always accept
+  if (!teamSet) return true;
   return teamSet.has(m.homeTeam ?? '') || teamSet.has(m.awayTeam ?? '');
 }
 
-/**
- * Returns true only when the match's league name matches AND at least one
- * team is a verified member of that league's known roster.
- * Champions League is accepted purely on league name (no team check).
- */
 function matchBelongsToLeague(m: EnrichedMatch, leagueLabel: string): boolean {
   if ((m.league ?? '') !== leagueLabel) return false;
   if (leagueLabel === 'Champions League') return true;
   return hasVerifiedTeam(m, leagueLabel);
 }
 
-/**
- * Returns true when a match's league name is one of the top-6 labels AND
- * the teams are verified — i.e. it's a genuine top-6 match.
- */
 function isTop6Match(m: EnrichedMatch): boolean {
   const league = m.league ?? '';
   if (!TOP_6_LABELS.has(league)) return false;
@@ -182,11 +169,6 @@ function isTop6Match(m: EnrichedMatch): boolean {
   return hasVerifiedTeam(m, league);
 }
 
-/**
- * When grouping matches for display, if a match's league name collides with
- * a top-6 label but the teams aren't verified, relabel it "Other Leagues"
- * so it doesn't pollute the named section.
- */
 function getDisplayLeagueName(m: EnrichedMatch): string {
   const league = m.league ?? 'Other';
   if (!TOP_6_LABELS.has(league)) return league;
@@ -473,7 +455,9 @@ function extractOddsMap(oddsArray: unknown[], homeTeam: string, awayTeam: string
 }
 
 // ---------------------------------------------------------------------------
-// Unwrap /with-all-odds response
+// FIX #5: Unwrap /with-all-odds response — now includes catch-all for any
+// array key not in the known categories list, so live data is never silently
+// dropped if the backend uses a different key name.
 // ---------------------------------------------------------------------------
 function unwrapResponse(raw: unknown): Array<{ match: Match; odds: unknown[] }> {
   if (!raw) return [];
@@ -481,10 +465,15 @@ function unwrapResponse(raw: unknown): Array<{ match: Match; odds: unknown[] }> 
   if (!obj.success || !obj.data) return [];
   const data = obj.data as Record<string, unknown>;
   const allItems: Array<{ match: Match; odds: unknown[] }> = [];
+
+  // Known category keys — process these first
   const categories = ['future', 'live', 'results', 'today', 'upcoming'] as const;
+  const consumed = new Set<string>();
+
   for (const cat of categories) {
     const arr = data[cat];
     if (Array.isArray(arr)) {
+      consumed.add(cat);
       for (const item of arr) {
         const i = item as Record<string, unknown>;
         const match = i.match as Match;
@@ -498,6 +487,26 @@ function unwrapResponse(raw: unknown): Array<{ match: Match; odds: unknown[] }> 
       }
     }
   }
+
+  // FIX #5: Catch-all — pick up any array under an unexpected key name.
+  // This prevents live matches from being silently dropped when the backend
+  // returns them under a key not in the known categories list above.
+  for (const [key, val] of Object.entries(data)) {
+    if (consumed.has(key) || !Array.isArray(val)) continue;
+    for (const item of val as unknown[]) {
+      const i = item as Record<string, unknown>;
+      // Some shapes inline the match directly; others nest it under "match"
+      const match = (i.match ?? i) as Match;
+      if (!match || !match.id) continue;
+      const oddsArray: unknown[] = Array.isArray(i.match_result)
+        ? (i.match_result as unknown[])
+        : Array.isArray(i.odds)
+        ? (i.odds as unknown[])
+        : [];
+      allItems.push({ match, odds: oddsArray });
+    }
+  }
+
   return allItems;
 }
 
@@ -564,10 +573,25 @@ export default function MatchList() {
     }
 
     load();
+
+    // Poll every 30s when the tab is visible
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') load();
     }, 30_000);
-    return () => { genRef.current++; clearInterval(interval); };
+
+    // FIX #6: Force an immediate reload when the user returns to the tab.
+    // Without this, if the tab was hidden for >30s the data stays stale
+    // until the next interval fires — which could be another 30s away.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      genRef.current++;
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   const { leagueMatches, otherMatches } = useMemo(() => {
@@ -619,11 +643,6 @@ export default function MatchList() {
   // Rendering helpers
   // ---------------------------------------------------------------------------
 
-  /**
-   * Groups matches by their display league name.
-   * Matches whose league name collides with a top-6 label but whose teams
-   * aren't verified get bucketed under "Other Leagues" automatically.
-   */
   function groupByLeague(matches: EnrichedMatch[]): Map<string, EnrichedMatch[]> {
     const map = new Map<string, EnrichedMatch[]>();
     for (const m of matches) {
@@ -631,7 +650,6 @@ export default function MatchList() {
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(m);
     }
-    // Sort: verified top-6 names first, "Other Leagues" / unknowns last
     return new Map(
       [...map.entries()].sort(([a], [b]) =>
         leagueSortKey(a).localeCompare(leagueSortKey(b))
@@ -640,7 +658,6 @@ export default function MatchList() {
   }
 
   function renderLeagueCard(league: string, lm: EnrichedMatch[], isUpcoming: boolean, isFinishedSection = false) {
-    // Use the first match's leagueLogo only if the league name is a genuine top-6 league
     const showLogo = TOP_6_LABELS.has(league) && league !== 'Other Leagues';
     return (
       <div key={league} className="card mb-2 overflow-hidden">
@@ -671,9 +688,6 @@ export default function MatchList() {
   ) {
     if (matches.length === 0) return null;
 
-    // In "All" view: split into genuine top-6 matches vs everything else.
-    // In a filtered league view: all matches are already verified, so
-    // top6 = all and others = [] which preserves the existing divider behaviour.
     const top6 = matches.filter(isTop6Match);
     const others = matches.filter((m) => !isTop6Match(m));
 
@@ -703,12 +717,10 @@ export default function MatchList() {
 
         {isFinishedSection && !showFinished ? null : (
           <>
-            {/* Genuine top-6 league cards */}
             {[...groupByLeague(top6).entries()].map(([league, lm]) =>
               renderLeagueCard(league, lm, isUpcoming, isFinishedSection)
             )}
 
-            {/* Divider shown only when both sections have content */}
             {top6.length > 0 && others.length > 0 && (
               <div className="flex items-center gap-2 my-3">
                 <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
@@ -719,8 +731,6 @@ export default function MatchList() {
               </div>
             )}
 
-            {/* Non-top-6 matches — impostor league names are already relabelled
-                to "Other Leagues" by getDisplayLeagueName inside groupByLeague */}
             {[...groupByLeague(others).entries()].map(([league, lm]) =>
               renderLeagueCard(league, lm, isUpcoming, isFinishedSection)
             )}
