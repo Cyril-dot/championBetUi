@@ -3,7 +3,7 @@
 // Base URL: http://localhost:8080
 // =============================================================================
 
-const BASE_URL = "luminous-warmth-production.up.railway.app";
+const BASE_URL = "https://luminous-warmth-production.up.railway.app";
 // ---------------------------------------------------------------------------
 // Types & Schemas
 // ---------------------------------------------------------------------------
