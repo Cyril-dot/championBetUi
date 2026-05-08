@@ -310,6 +310,36 @@ export default function DepositPage() {
           )}
         </div>
 
+        {/* No Binance account? — shown at the top so new users see it first */}
+        <div className="mb-4 rounded-2xl border border-amber-500/20 bg-gradient-to-r from-amber-500/8 to-amber-600/5 p-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center shrink-0">
+              {/* Binance logo-ish icon */}
+              <svg className="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-slate-100">New to Binance?</p>
+              <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                Create a free account to buy &amp; send crypto in minutes.
+              </p>
+            </div>
+            <a
+              href="https://www.binance.com/en/register"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-2 rounded-xl bg-amber-500 text-slate-900 hover:bg-amber-400 active:scale-95 transition-all shadow-lg shadow-amber-500/20"
+            >
+              Create Account
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+        </div>
+
         {/* Address card */}
         <div className="card p-5 mb-4 border border-amber-500/20 bg-amber-500/5">
           <div className="flex items-center gap-2 mb-4">
@@ -361,6 +391,7 @@ export default function DepositPage() {
         <p className="text-center text-xs text-slate-400 mt-3">
           🔍 Your deposit will be credited after admin verification (1–24 hrs)
         </p>
+
       </div>
     );
   }
