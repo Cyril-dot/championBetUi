@@ -40,6 +40,7 @@ export type MatchSource =
   | "VIRTUAL"
   | "ADMIN_CREATED"
   | "LIVESCORE";
+export type BinanceDepositStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export interface GrantedAuthority {
   authority: string;
@@ -343,6 +344,29 @@ export interface ReferredUserDTO {
   lifetimeCommission?: number;
 }
 
+// ── Binance / Crypto deposit ──────────────────────────────────────────────────
+
+export interface BinanceDeposit {
+  id: string;
+  userId: string;
+  txid: string;
+  cryptoAmount: number;
+  coin: string;
+  network: string;
+  expectedGhsAmount: number;
+  creditedGhsAmount?: number;
+  senderAddress?: string;
+  screenshotUrl?: string;
+  userNote?: string;
+  status: BinanceDepositStatus;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  adminNote?: string;
+  walletTransactionId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // Request DTOs
 // ---------------------------------------------------------------------------
@@ -457,6 +481,19 @@ export interface CreateBookingRequest {
   selections?: Record<string, unknown>[];
   maxRedemptions?: number;
   expiresAt?: string;
+}
+
+// ── Binance deposit request DTOs ──────────────────────────────────────────────
+
+export interface BinanceDepositSubmitRequest {
+  txid: string;
+  cryptoAmount: number;
+  coin: string;
+  network: string;
+  expectedGhsAmount: number;
+  senderAddress?: string;
+  screenshotUrl?: string;
+  userNote?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -672,6 +709,67 @@ export const deposits = {
   /** POST /api/wallet/deposit/paystack/init */
   paystackInit: (body: Record<string, unknown>) =>
     http.post<ApiResponse<Record<string, unknown>>>("/api/wallet/deposit/paystack/init", body),
+
+  // ── Binance / Crypto deposits ─────────────────────────────────────────────
+
+  /** POST /api/wallet/binance-deposits
+   *  Submit a crypto payment proof for admin review.
+   */
+  binanceSubmit: (body: BinanceDepositSubmitRequest) =>
+    http.post<ApiResponse<BinanceDeposit>>("/api/wallet/binance-deposits", body),
+
+  /** GET /api/wallet/binance-deposits
+   *  List the current user's own Binance deposit history.
+   */
+  getBinanceDeposits: (page = 0, size = 20) =>
+    http.get<ApiResponse<PageResponse<BinanceDeposit>>>(
+      `/api/wallet/binance-deposits${qs({ page, size })}`
+    ),
+
+  // ── Super-admin Binance deposit management ────────────────────────────────
+
+  /** GET /api/admin/binance-deposits
+   *  All deposits — newest first (super-admin only).
+   */
+  adminGetAllBinanceDeposits: (page = 0, size = 20) =>
+    http.get<ApiResponse<PageResponse<BinanceDeposit>>>(
+      `/api/admin/binance-deposits${qs({ page, size })}`
+    ),
+
+  /** GET /api/admin/binance-deposits/pending
+   *  Pending queue — oldest first (super-admin only).
+   */
+  adminGetPendingBinanceDeposits: (page = 0, size = 20) =>
+    http.get<ApiResponse<PageResponse<BinanceDeposit>>>(
+      `/api/admin/binance-deposits/pending${qs({ page, size })}`
+    ),
+
+  /** GET /api/admin/binance-deposits/:id
+   *  Single deposit detail (super-admin only).
+   */
+  adminGetBinanceDeposit: (id: string) =>
+    http.get<ApiResponse<BinanceDeposit>>(`/api/admin/binance-deposits/${id}`),
+
+  /** POST /api/admin/binance-deposits/:id/approve
+   *  Approve and credit the user's wallet (super-admin only).
+   */
+  adminApproveBinanceDeposit: (
+    id: string,
+    body: { creditedGhsAmount: number; adminNote?: string }
+  ) =>
+    http.post<ApiResponse<BinanceDeposit>>(
+      `/api/admin/binance-deposits/${id}/approve`,
+      body
+    ),
+
+  /** POST /api/admin/binance-deposits/:id/reject
+   *  Reject a deposit (super-admin only).
+   */
+  adminRejectBinanceDeposit: (id: string, body: { adminNote: string }) =>
+    http.post<ApiResponse<BinanceDeposit>>(
+      `/api/admin/binance-deposits/${id}/reject`,
+      body
+    ),
 };
 
 // =============================================================================

@@ -34,6 +34,25 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 
 // ---------------------------------------------------------------------------
+// Global CSS required — add to your stylesheet or @layer utilities:
+//
+// @keyframes slideInFromLeft {
+//   from { transform: translateX(-100%); opacity: 0; }
+//   to   { transform: translateX(0);     opacity: 1; }
+// }
+// .animate-slide-in-left {
+//   animation: slideInFromLeft 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+// }
+// @keyframes fadeInBackdrop {
+//   from { opacity: 0; }
+//   to   { opacity: 1; }
+// }
+// .animate-fade-backdrop {
+//   animation: fadeInBackdrop 0.25s ease both;
+// }
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 function formatCurrency(amount: number, currency = 'GHS') {
@@ -140,13 +159,22 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Admin Upgrade Modal — redesigned, mobile-first
+// Admin Upgrade Modal — slides in LEFT → RIGHT, mobile-first
 // ---------------------------------------------------------------------------
+const PERKS = [
+  { icon: <BarChartIcon sx={{ fontSize: 16 }} />,    label: 'Analytics Dashboard',   desc: 'Real-time revenue & user stats'       },
+  { icon: <PsychologyIcon sx={{ fontSize: 16 }} />,  label: 'AI Predictions Engine', desc: 'Generate & publish match insights'    },
+  { icon: <QrCodeIcon sx={{ fontSize: 16 }} />,      label: 'Booking Code Access',   desc: 'Create & manage booking codes'        },
+  { icon: <GroupAddIcon sx={{ fontSize: 16 }} />,    label: 'Affiliate Tools',       desc: 'Referral links & commission tracking' },
+  { icon: <PaymentsIcon sx={{ fontSize: 16 }} />,    label: 'Withdrawal Management', desc: 'Approve & reject user withdrawals'    },
+  { icon: <ChatIcon sx={{ fontSize: 16 }} />,        label: 'Upgrade Chat Support',  desc: 'Direct chat with super admins'        },
+];
+
 function AdminUpgradeModal({ onClose }: { onClose: () => void }) {
   const { showToast } = useAppStore();
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-  const [step, setStep] = useState<'overview' | 'confirm'>('overview');
+  const [done, setDone]       = useState(false);
+  const [step, setStep]       = useState<'overview' | 'confirm'>('overview');
 
   const handleUpgrade = async () => {
     setLoading(true);
@@ -154,14 +182,8 @@ function AdminUpgradeModal({ onClose }: { onClose: () => void }) {
       const res = await adminUpgrade.initPaystack();
       if (res.success && res.data) {
         const d = res.data as Record<string, unknown>;
-        if (typeof d.authorizationUrl === 'string') {
-          window.location.href = d.authorizationUrl;
-          return;
-        }
-        if (typeof d.authorization_url === 'string') {
-          window.location.href = d.authorization_url;
-          return;
-        }
+        if (typeof d.authorizationUrl === 'string') { window.location.href = d.authorizationUrl; return; }
+        if (typeof d.authorization_url === 'string') { window.location.href = d.authorization_url; return; }
       }
       setDone(true);
       showToast('Upgrade request initiated!', 'success');
@@ -172,31 +194,33 @@ function AdminUpgradeModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const PERKS = [
-    { icon: <BarChartIcon sx={{ fontSize: 16 }} />,     label: 'Analytics Dashboard',    desc: 'Real-time revenue & user stats'     },
-    { icon: <PsychologyIcon sx={{ fontSize: 16 }} />,   label: 'AI Predictions Engine',  desc: 'Generate & publish match insights'  },
-    { icon: <QrCodeIcon sx={{ fontSize: 16 }} />,       label: 'Booking Code Access',    desc: 'Create & manage booking codes'      },
-    { icon: <GroupAddIcon sx={{ fontSize: 16 }} />,     label: 'Affiliate Tools',        desc: 'Referral links & commission tracking'},
-    { icon: <PaymentsIcon sx={{ fontSize: 16 }} />,     label: 'Withdrawal Management',  desc: 'Approve & reject user withdrawals'  },
-    { icon: <ChatIcon sx={{ fontSize: 16 }} />,         label: 'Upgrade Chat Support',   desc: 'Direct chat with super admins'      },
-  ];
-
   return (
+    /* ── BACKDROP — fades in, click-outside closes ── */
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-stretch justify-start bg-black/60 backdrop-blur-sm animate-fade-backdrop"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="relative w-full sm:max-w-md sm:mx-4 bg-white dark:bg-slate-900 rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl overflow-hidden max-h-[92dvh] flex flex-col">
-
-        {/* Gradient accent bar at top */}
+      {/*
+        ── PANEL ──
+        • Anchored to the LEFT edge of the screen
+        • Full height, max-w-sm (384 px) on sm+ screens — full width on mobile
+        • Slides in from left (translateX -100% → 0) with a spring easing
+      */}
+      <div className="
+        relative flex flex-col
+        w-full max-w-sm
+        h-full
+        bg-white dark:bg-slate-900
+        shadow-2xl
+        overflow-hidden
+        animate-slide-in-left
+      ">
+        {/* Top gradient accent bar */}
         <div className="h-1 w-full bg-gradient-to-r from-primary via-primary/70 to-emerald-400 shrink-0" />
-
-        {/* Mobile drag handle */}
-        <div className="w-10 h-1 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mt-3 mb-1 sm:hidden shrink-0" />
 
         {/* ── SUCCESS STATE ── */}
         {done ? (
-          <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+          <div className="flex flex-col items-center justify-center flex-1 px-6 py-12 text-center">
             <div className="w-20 h-20 rounded-full bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-5 ring-4 ring-emerald-100 dark:ring-emerald-900/40">
               <RocketLaunchIcon className="text-emerald-500" sx={{ fontSize: 36 }} />
             </div>
@@ -204,19 +228,17 @@ function AdminUpgradeModal({ onClose }: { onClose: () => void }) {
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 leading-relaxed max-w-xs">
               Your upgrade request has been submitted. Our team will review and activate your admin account shortly.
             </p>
-            <button
-              onClick={onClose}
-              className="btn-primary w-full py-3.5 rounded-xl text-sm font-bold"
-            >
+            <button onClick={onClose} className="btn-primary w-full py-3.5 rounded-xl text-sm font-bold">
               Got it, thanks!
             </button>
           </div>
+
         ) : step === 'overview' ? (
 
           /* ── OVERVIEW STEP ── */
           <>
             {/* Header */}
-            <div className="flex items-start justify-between px-5 pt-4 pb-3 shrink-0">
+            <div className="flex items-start justify-between px-5 pt-5 pb-3 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-primary/10 dark:bg-primary/20 flex items-center justify-center shrink-0">
                   <AdminPanelSettingsIcon className="text-primary" sx={{ fontSize: 20 }} />
@@ -230,7 +252,7 @@ function AdminUpgradeModal({ onClose }: { onClose: () => void }) {
               </div>
               <button
                 onClick={onClose}
-                className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400 shrink-0 mt-0.5"
+                className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400 shrink-0"
               >
                 <CloseIcon fontSize="small" />
               </button>
@@ -238,7 +260,6 @@ function AdminUpgradeModal({ onClose }: { onClose: () => void }) {
 
             {/* Hero banner */}
             <div className="mx-5 mb-4 rounded-2xl bg-gradient-to-br from-primary/90 to-primary p-5 text-white relative overflow-hidden shrink-0">
-              {/* Decorative circles */}
               <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
               <div className="absolute -bottom-8 -left-4 w-20 h-20 rounded-full bg-white/5" />
               <div className="relative z-10">
@@ -268,9 +289,7 @@ function AdminUpgradeModal({ onClose }: { onClose: () => void }) {
                       {perk.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">
-                        {perk.label}
-                      </p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">{perk.label}</p>
                       <p className="text-xs text-slate-400 mt-0.5 truncate">{perk.desc}</p>
                     </div>
                     <CheckCircleIcon className="text-emerald-500 shrink-0" sx={{ fontSize: 16 }} />
@@ -280,9 +299,9 @@ function AdminUpgradeModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Footer CTA */}
-            <div className="px-5 pt-3 pb-6 shrink-0 border-t border-slate-100 dark:border-slate-800 mt-2">
+            <div className="px-5 pt-3 pb-8 shrink-0 border-t border-slate-100 dark:border-slate-800 mt-2">
               <p className="text-[11px] text-slate-400 text-center mb-3 leading-relaxed">
-                A one-time upgrade fee applies. Payment is processed securely via Paystack.
+                A one-time upgrade fee applies. Payment processed securely via Paystack.
               </p>
               <div className="flex gap-3">
                 <button
@@ -307,7 +326,7 @@ function AdminUpgradeModal({ onClose }: { onClose: () => void }) {
           /* ── CONFIRM STEP ── */
           <>
             {/* Header */}
-            <div className="flex items-center gap-3 px-5 pt-4 pb-3 shrink-0">
+            <div className="flex items-center gap-3 px-5 pt-5 pb-3 shrink-0">
               <button
                 onClick={() => setStep('overview')}
                 className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-slate-400"
@@ -357,7 +376,7 @@ function AdminUpgradeModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Footer */}
-            <div className="px-5 pt-3 pb-6 shrink-0 border-t border-slate-100 dark:border-slate-800 mt-2">
+            <div className="px-5 pt-3 pb-8 shrink-0 border-t border-slate-100 dark:border-slate-800 mt-2">
               <button
                 onClick={handleUpgrade}
                 disabled={loading}
@@ -484,26 +503,26 @@ export default function AccountPage() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
 
   // Data state
-  const [profileData, setProfileData]   = useState<Record<string, unknown> | null>(null);
+  const [profileData, setProfileData]     = useState<Record<string, unknown> | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
-  const [walletData, setWalletData]     = useState<Record<string, unknown> | null>(null);
+  const [walletData, setWalletData]       = useState<Record<string, unknown> | null>(null);
   const [walletLoading, setWalletLoading] = useState(true);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions]   = useState<Transaction[]>([]);
   const [affiliateBalance, setAffiliateBalance] = useState<{
     balance: number;
     currency: string;
   } | null>(null);
 
   // Profile edit state
-  const [editMode, setEditMode]     = useState(false);
-  const [editForm, setEditForm]     = useState({ firstName: '', lastName: '', phone: '', country: '' });
+  const [editMode, setEditMode]       = useState(false);
+  const [editForm, setEditForm]       = useState({ firstName: '', lastName: '', phone: '', country: '' });
   const [editLoading, setEditLoading] = useState(false);
 
   // Password state
-  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
-  const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
+  const [pwForm, setPwForm]     = useState({ current: '', next: '', confirm: '' });
+  const [showPw, setShowPw]     = useState({ current: false, next: false, confirm: false });
   const [pwLoading, setPwLoading] = useState(false);
-  const [pwError, setPwError]     = useState<string | null>(null);
+  const [pwError, setPwError]   = useState<string | null>(null);
   const [pwSuccess, setPwSuccess] = useState(false);
 
   // Preferences state
@@ -623,8 +642,8 @@ export default function AccountPage() {
   const changePassword = async () => {
     setPwError(null);
     setPwSuccess(false);
-    if (!pwForm.current.trim())        { setPwError('Enter your current password.');           return; }
-    if (pwForm.next.length < 8)        { setPwError('New password must be at least 8 chars.'); return; }
+    if (!pwForm.current.trim())         { setPwError('Enter your current password.');           return; }
+    if (pwForm.next.length < 8)         { setPwError('New password must be at least 8 chars.'); return; }
     if (pwForm.next !== pwForm.confirm) { setPwError('Passwords do not match.');                return; }
 
     setPwLoading(true);
@@ -1106,9 +1125,9 @@ export default function AccountPage() {
               <div className="divide-y divide-slate-50 dark:divide-slate-800/60">
                 {(
                   [
-                    { key: 'push',  label: 'Push Notifications',  sub: 'In-app alerts & updates'       },
-                    { key: 'sms',   label: 'SMS Alerts',          sub: 'Text messages to your phone'   },
-                    { key: 'email', label: 'Email Notifications', sub: 'Updates sent to your inbox'    },
+                    { key: 'push',  label: 'Push Notifications',  sub: 'In-app alerts & updates'     },
+                    { key: 'sms',   label: 'SMS Alerts',          sub: 'Text messages to your phone' },
+                    { key: 'email', label: 'Email Notifications', sub: 'Updates sent to your inbox'  },
                   ] as const
                 ).map(({ key, label, sub }) => (
                   <div key={key} className="flex items-center justify-between px-4 py-3.5 gap-3">
