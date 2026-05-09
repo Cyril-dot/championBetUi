@@ -23,16 +23,6 @@ type Step   = 'method' | 'form' | 'binance-info' | 'binance-form' | 'processing'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function openPaystackPopup(authUrl: string): Promise<void> {
-  return new Promise((resolve) => {
-    const popup = window.open(authUrl, 'paystack', 'width=600,height=700,scrollbars=yes');
-    if (!popup) { window.location.href = authUrl; resolve(); return; }
-    const timer = setInterval(() => {
-      if (popup.closed) { clearInterval(timer); resolve(); }
-    }, 500);
-  });
-}
-
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
@@ -80,21 +70,21 @@ export default function DepositPage() {
   const [paystackRef, setPaystackRef] = useState('');
 
   // Binance form state
-  const [txid, setTxid]                         = useState('');
-  const [cryptoAmount, setCryptoAmount]         = useState('');
-  const [coin, setCoin]                         = useState('USDT');
-  const [network, setNetwork]                   = useState('TRC20');
-  const [expectedGhs, setExpectedGhs]           = useState('');
-  const [senderAddress, setSenderAddress]       = useState('');
-  const [screenshot, setScreenshot]             = useState<File | null>(null);
+  const [txid, setTxid]                           = useState('');
+  const [cryptoAmount, setCryptoAmount]           = useState('');
+  const [coin, setCoin]                           = useState('USDT');
+  const [network, setNetwork]                     = useState('TRC20');
+  const [expectedGhs, setExpectedGhs]             = useState('');
+  const [senderAddress, setSenderAddress]         = useState('');
+  const [screenshot, setScreenshot]               = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState('');
-  const [userNote, setUserNote]                 = useState('');
-  const [binanceRef, setBinanceRef]             = useState('');
-  const [binanceErrors, setBinanceErrors]       = useState<Record<string, string>>({});
+  const [userNote, setUserNote]                   = useState('');
+  const [binanceRef, setBinanceRef]               = useState('');
+  const [binanceErrors, setBinanceErrors]         = useState<Record<string, string>>({});
 
   // Shared state
-  const [step, setStep]       = useState<Step>('method');
-  const [loading, setLoading] = useState(false);
+  const [step, setStep]         = useState<Step>('method');
+  const [loading, setLoading]   = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
@@ -118,21 +108,49 @@ export default function DepositPage() {
   const amountValid  = !isNaN(parsedAmount) && parsedAmount >= MIN_AMOUNT;
 
   // ── Paystack submit ───────────────────────────────────────────────────────
+  // FIX: Open the popup SYNCHRONOUSLY inside the click handler (before any await)
+  // so browsers don't treat it as a pop-up blocker violation. Then redirect the
+  // already-open window once the API returns the auth URL.
   const handlePaystackDeposit = async () => {
     if (!amountValid) return;
     setLoading(true);
     setErrorMsg('');
     setStep('processing');
+
+    // ✅ Open blank popup immediately — still inside the synchronous click context
+    const popup = window.open('', 'paystack', 'width=600,height=700,scrollbars=yes');
+
     try {
       const res  = await deposits.paystackInit({ amount: parsedAmount, currency: 'GHS', channel: 'mobile_money' });
       const data = res.data as { authorizationUrl?: string; authorization_url?: string; reference?: string };
       const authUrl = data.authorizationUrl ?? data.authorization_url;
       const ref     = data.reference ?? '';
-      if (!authUrl) throw new Error('No authorization URL returned from Paystack.');
+
+      if (!authUrl) {
+        popup?.close();
+        throw new Error('No authorization URL returned from Paystack.');
+      }
+
       setPaystackRef(ref);
-      await openPaystackPopup(authUrl);
+
+      if (popup && !popup.closed) {
+        // ✅ Redirect the already-open popup to the real Paystack URL
+        popup.location.href = authUrl;
+
+        // Wait for the user to close the popup
+        await new Promise<void>((resolve) => {
+          const timer = setInterval(() => {
+            if (popup.closed) { clearInterval(timer); resolve(); }
+          }, 500);
+        });
+      } else {
+        // Popup was blocked anyway — fall back to same-tab redirect
+        window.location.href = authUrl;
+      }
+
       setStep('success');
     } catch (e: unknown) {
+      popup?.close();
       setErrorMsg(e instanceof Error ? e.message : 'Deposit failed. Please try again.');
       setStep('error');
     } finally {
@@ -161,14 +179,14 @@ export default function DepositPage() {
     setStep('processing');
     try {
       const res = await deposits.binanceSubmit({
-        txid:               txid.trim(),
-        cryptoAmount:       parseFloat(cryptoAmount),
+        txid:              txid.trim(),
+        cryptoAmount:      parseFloat(cryptoAmount),
         coin,
         network,
-        expectedGhsAmount:  parseFloat(expectedGhs),
-        senderAddress:      senderAddress.trim() || undefined,
-        userNote:           userNote.trim() || undefined,
-        // screenshotUrl:   upload separately and pass URL here
+        expectedGhsAmount: parseFloat(expectedGhs),
+        senderAddress:     senderAddress.trim() || undefined,
+        userNote:          userNote.trim() || undefined,
+        // screenshotUrl:  upload separately and pass URL here
       });
       const ref = (res.data as { id?: string }).id ?? '';
       setBinanceRef(ref);
@@ -310,11 +328,10 @@ export default function DepositPage() {
           )}
         </div>
 
-        {/* No Binance account? — shown at the top so new users see it first */}
+        {/* No Binance account? */}
         <div className="mb-4 rounded-2xl border border-amber-500/20 bg-gradient-to-r from-amber-500/8 to-amber-600/5 p-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center shrink-0">
-              {/* Binance logo-ish icon */}
               <svg className="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
               </svg>
