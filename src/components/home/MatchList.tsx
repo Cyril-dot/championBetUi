@@ -1154,7 +1154,7 @@ function SpecialGamesSection() {
     async function load() {
       try {
        const raw = await fetch(
-  'http://localhost:8080/api/public/admin-matches'
+  'https://poikiloblastic-leeanne-gazeless.ngrok-free.dev/api/public/admin-matches'
 ).then((r) => r.json());
         if (!alive()) return;
 

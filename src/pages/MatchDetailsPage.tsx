@@ -408,7 +408,7 @@ function parseCorrectScoreGroups(groups: OddsGroup[]) {
 // ---------------------------------------------------------------------------
 // API fetch helpers
 // ---------------------------------------------------------------------------
-const ADMIN_ODDS_BASE = 'http://localhost:8080';
+const ADMIN_ODDS_BASE = 'https://poikiloblastic-leeanne-gazeless.ngrok-free.dev';
 
 /** Directly fetches raw odds rows from the admin-matches endpoint */
 async function fetchAdminOddsRaw(id: string): Promise<unknown[]> {

@@ -3,7 +3,7 @@
 // Base URL: https://futballbackend.onrender.com
 // =============================================================================
 
-const BASE_URL = "http://localhost:8080";
+const BASE_URL = "https://poikiloblastic-leeanne-gazeless.ngrok-free.dev";
 
 // ---------------------------------------------------------------------------
 // Types & Schemas
