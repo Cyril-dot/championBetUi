@@ -17,7 +17,7 @@ import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
+import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 
 // ---------------------------------------------------------------------------
 // Nav links
@@ -44,18 +44,74 @@ function getUserInitials(fullName: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// SuperBetLogo
+// SuperBetLogo – Concept 3: Fire & Energy
 // ---------------------------------------------------------------------------
 function SuperBetLogo() {
   return (
-    <div className="flex items-center gap-1.5 font-display super-bet-logo select-none">
-      <SportsSoccerIcon
-        sx={{ fontSize: 20 }}
-        style={{ color: 'var(--primary)' }}
+    <div className="flex items-center gap-1.5 select-none" aria-label="SuperBet">
+      {/* Flame icon with gradient effect via layered spans */}
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #E24B4A 0%, #EF9F27 100%)',
+          flexShrink: 0,
+        }}
+      >
+        <LocalFireDepartmentIcon
+          sx={{ fontSize: 18 }}
+          style={{ color: '#ffffff' }}
+          aria-hidden="true"
+        />
+      </div>
+
+      {/* Wordmark */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 0, lineHeight: 1 }}>
+        <span
+          style={{
+            fontWeight: 900,
+            fontSize: '1.15rem',
+            letterSpacing: '-0.02em',
+            background: 'linear-gradient(90deg, #E24B4A 0%, #EF9F27 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
+        >
+          Super
+        </span>
+        <span
+          style={{
+            fontWeight: 900,
+            fontSize: '1.15rem',
+            letterSpacing: '-0.02em',
+            color: 'var(--text-main)',
+          }}
+        >
+          Bet
+        </span>
+      </div>
+
+      {/* Star accent */}
+      <span
+        style={{
+          fontSize: 10,
+          lineHeight: 1,
+          background: 'linear-gradient(90deg, #E24B4A, #EF9F27)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          backgroundClip: 'text',
+          marginBottom: 6,
+        }}
         aria-hidden="true"
-      />
-      <span style={{ color: 'var(--primary)', fontWeight: 800 }}>Super</span>
-      <span style={{ color: 'var(--text-main)', fontWeight: 900 }}>Bet</span>
+      >
+        ★
+      </span>
     </div>
   );
 }
@@ -78,6 +134,11 @@ export default function Header() {
 
   const isDark = theme.endsWith('-dark');
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   // ---------------- Wallet polling ----------------
   const fetchBalance = async () => {
     if (!user) return;
@@ -85,7 +146,6 @@ export default function Header() {
       const res = await wallet.getWallet();
       if (res.success && res.data) {
         const d = res.data as Record<string, unknown>;
-
         const newBal =
           typeof d.balanceUsd === 'number'
             ? d.balanceUsd
@@ -111,13 +171,12 @@ export default function Header() {
     if (!user) {
       setWalletBalance(null);
       prevBalanceRef.current = null;
+      setMobileMenuOpen(false);
       if (pollRef.current) clearInterval(pollRef.current);
       return;
     }
-
     setBalanceLoading(true);
     fetchBalance().finally(() => setBalanceLoading(false));
-
     pollRef.current = setInterval(fetchBalance, 15_000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -126,10 +185,7 @@ export default function Header() {
 
   // ---------------- Helpers ----------------
   const formatBalance = (a: number) =>
-    a.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    a.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   // ---------------- Render ----------------
   return (
@@ -196,7 +252,7 @@ export default function Header() {
           {user ? (
             <div className="flex items-center gap-2">
 
-              {/* Wallet balance pill – USD */}
+              {/* Wallet balance pill */}
               <Link
                 to="/wallet"
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all touch-manipulation"
@@ -208,21 +264,15 @@ export default function Header() {
                 }}
                 title="Wallet balance (USD)"
               >
-                {/* Green live dot */}
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
                 </span>
                 <AccountBalanceWalletIcon sx={{ fontSize: 14, color: 'var(--text-muted)' }} />
                 {balanceLoading && walletBalance === null ? (
-                  <span className="text-xs w-12 animate-pulse" style={{ color: 'var(--text-muted)' }}>
-                    Loading…
-                  </span>
+                  <span className="text-xs w-12 animate-pulse" style={{ color: 'var(--text-muted)' }}>Loading…</span>
                 ) : walletBalance !== null ? (
-                  <span
-                    className="text-sm font-bold tabular-nums"
-                    style={{ color: balanceFlash ? '#16a34a' : 'var(--text-main)' }}
-                  >
+                  <span className="text-sm font-bold tabular-nums" style={{ color: balanceFlash ? '#16a34a' : 'var(--text-main)' }}>
                     ${formatBalance(walletBalance)}
                   </span>
                 ) : (
@@ -230,7 +280,7 @@ export default function Header() {
                 )}
               </Link>
 
-              {/* User avatar + name */}
+              {/* User avatar */}
               <Link
                 to="/account"
                 className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-lg transition-colors touch-manipulation"
@@ -243,10 +293,7 @@ export default function Header() {
                 >
                   {getUserInitials(user.fullName)}
                 </div>
-                <span
-                  className="hidden sm:inline text-sm font-medium"
-                  style={{ color: 'var(--text-main)' }}
-                >
+                <span className="hidden sm:inline text-sm font-medium" style={{ color: 'var(--text-main)' }}>
                   {user.fullName.split(' ')[0]}
                 </span>
               </Link>
@@ -254,10 +301,11 @@ export default function Header() {
           ) : (
             /* USER NOT LOGGED IN */
             <div className="flex items-center gap-1 sm:gap-2">
-              {/* Login – now visible on ALL screen sizes */}
+
+              {/* Login – visible on all screen sizes */}
               <Link
                 to="/login"
-                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors touch-manipulation"
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg transition-colors touch-manipulation whitespace-nowrap"
                 style={{ color: 'var(--text-main)' }}
                 onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)'}
                 onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = ''}
@@ -266,10 +314,25 @@ export default function Header() {
                 <span>Login</span>
               </Link>
 
-              {/* Register – primary blue button */}
+              {/* Register – fire gradient button, always visible */}
               <Link
                 to="/register"
-                className="btn-primary flex items-center gap-1.5 text-sm py-2 px-4 sm:px-5 rounded-full touch-manipulation font-semibold"
+                className="flex items-center gap-1.5 text-sm py-2 px-4 rounded-full touch-manipulation font-bold whitespace-nowrap"
+                style={{
+                  background: 'linear-gradient(90deg, #E24B4A 0%, #EF9F27 100%)',
+                  color: '#ffffff',
+                  boxShadow: '0 2px 8px rgba(226, 75, 74, 0.35)',
+                  border: 'none',
+                  textDecoration: 'none',
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.opacity = '0.9';
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(226, 75, 74, 0.5)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.opacity = '1';
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(226, 75, 74, 0.35)';
+                }}
               >
                 <PersonAddIcon fontSize="small" />
                 <span className="hidden xs:inline">Register</span>
@@ -278,17 +341,20 @@ export default function Header() {
             </div>
           )}
 
-          {/* Hamburger – mobile only */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg transition-colors touch-manipulation"
-            style={{ color: 'var(--text-main)' }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)'}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = ''}
-            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-          >
-            {mobileMenuOpen ? <CloseIcon fontSize="small" /> : <MenuIcon fontSize="small" />}
-          </button>
+          {/* Hamburger – only shown when user is logged in, mobile/tablet only */}
+          {user && (
+            <button
+              onClick={() => setMobileMenuOpen(prev => !prev)}
+              className="lg:hidden p-2 rounded-lg transition-colors touch-manipulation"
+              style={{ color: 'var(--text-main)' }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = ''}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <CloseIcon fontSize="small" /> : <MenuIcon fontSize="small" />}
+            </button>
+          )}
         </div>
       </div>
 
@@ -299,6 +365,7 @@ export default function Header() {
           style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-light)' }}
         >
           <nav className="flex flex-col p-3 gap-1">
+
             {/* Nav links */}
             {navLinks.map(l => {
               const active = location.pathname === l.to;
@@ -314,14 +381,7 @@ export default function Header() {
                   }}
                 >
                   {l.icon}
-                  <span
-                    style={{
-                      fontFamily: 'Inter, sans-serif',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      letterSpacing: '0.01em',
-                    }}
-                  >
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.01em' }}>
                     {l.label}
                   </span>
                 </Link>
@@ -329,11 +389,11 @@ export default function Header() {
             })}
 
             {/* Bottom block */}
-            <div className="border-t mt-1 pt-2 flex flex-col gap-1" style={{ borderColor: 'var(--border-light)' }}>
+            <div className="border-t mt-1 pt-2 flex flex-col gap-2" style={{ borderColor: 'var(--border-light)' }}>
 
               {user ? (
                 <>
-                  {/* Wallet – USD */}
+                  {/* Wallet */}
                   <Link
                     to="/wallet"
                     onClick={() => setMobileMenuOpen(false)}
@@ -350,9 +410,7 @@ export default function Header() {
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
                       </span>
                       <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--text-main)' }}>
-                        {walletBalance !== null
-                          ? `$${formatBalance(walletBalance)}`
-                          : '—'}
+                        {walletBalance !== null ? `$${formatBalance(walletBalance)}` : '—'}
                       </span>
                     </div>
                   </Link>
@@ -367,7 +425,7 @@ export default function Header() {
                     onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = ''}
                   >
                     <div
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                       style={{ backgroundColor: 'var(--primary-dark)' }}
                     >
                       {getUserInitials(user.fullName)}
@@ -377,23 +435,32 @@ export default function Header() {
                 </>
               ) : (
                 <>
-                  {/* Login – always visible in mobile menu */}
+                  {/* Login */}
                   <Link
                     to="/login"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium min-h-[48px] touch-manipulation"
-                    style={{ color: 'var(--text-muted)' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = ''}
+                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold min-h-[48px] touch-manipulation border transition-colors"
+                    style={{
+                      color: 'var(--text-main)',
+                      borderColor: 'var(--border-light)',
+                      backgroundColor: 'var(--card-alt)',
+                    }}
                   >
                     <LoginIcon fontSize="small" />
                     Login
                   </Link>
 
+                  {/* Register – fire gradient, full width */}
                   <Link
                     to="/register"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="btn-primary flex items-center justify-center gap-2 text-sm mt-1 min-h-[48px] rounded-full touch-manipulation font-semibold"
+                    className="flex items-center justify-center gap-2 text-sm min-h-[48px] rounded-full touch-manipulation font-bold"
+                    style={{
+                      background: 'linear-gradient(90deg, #E24B4A 0%, #EF9F27 100%)',
+                      color: '#ffffff',
+                      boxShadow: '0 2px 10px rgba(226, 75, 74, 0.4)',
+                      textDecoration: 'none',
+                    }}
                   >
                     <PersonAddIcon fontSize="small" />
                     Create Account
