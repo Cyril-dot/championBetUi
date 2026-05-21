@@ -408,7 +408,7 @@ function parseCorrectScoreGroups(groups: OddsGroup[]) {
 // ---------------------------------------------------------------------------
 // API fetch helpers
 // ---------------------------------------------------------------------------
-const ADMIN_ODDS_BASE = 'https://futballbackend-production-c821.up.railway.app';
+const ADMIN_ODDS_BASE = 'https://futballbackend-production-7d3b.up.railway.app';
 
 /** Directly fetches raw odds rows from the admin-matches endpoint */
 async function fetchAdminOddsRaw(id: string): Promise<unknown[]> {

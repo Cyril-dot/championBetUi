@@ -618,7 +618,7 @@ function unwrapAdminMatches(raw: unknown): Match[] {
 async function fetchAdminMatchOdds(matchId: string): Promise<unknown[]> {
   try {
     const raw = await fetch(
-  'https://futballbackend-production-c821.up.railway.app/api/public/admin-matches',
+  'https://futballbackend-production-7d3b.up.railway.app/api/public/admin-matches',
 ).then((r) => r.json());
     return safeUnwrapOddsArray(raw);
   } catch {
