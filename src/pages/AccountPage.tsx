@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAppStore } from '../store';
-import { user as userApi, wallet, affiliate, auth } from '../utils/api';
+import { user as userApi, wallet, affiliate, auth, adminUpgrade } from '../utils/api';
 import type { UpdateProfileRequest, Transaction } from '../utils/api';
 
 import EditIcon from '@mui/icons-material/Edit';
@@ -11,6 +11,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import LogoutIcon from '@mui/icons-material/Logout';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -19,7 +20,16 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import PersonIcon from '@mui/icons-material/Person';
+import ShieldIcon from '@mui/icons-material/Shield';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import QrCodeIcon from '@mui/icons-material/QrCode';
+import PaymentsIcon from '@mui/icons-material/Payments';
+import ChatIcon from '@mui/icons-material/Chat';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import RocketLaunchIcon from '@mui/icons-material/RocketLaunch';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,45 +67,6 @@ const CREDIT_KINDS = new Set([
 
 function isCredit(kind: string) {
   return CREDIT_KINDS.has(kind);
-}
-
-// ---------------------------------------------------------------------------
-// Geo lookup — tries ipapi.co first (CORS-safe, no key needed, 1k req/day),
-// then falls back to ipwho.is (also CORS-safe, no key needed, unlimited).
-// Both run in the browser. Fails silently — country field just stays empty.
-// ---------------------------------------------------------------------------
-async function fetchCountryCode(): Promise<string> {
-  const timeout = 5_000;
-
-  // Primary: ipapi.co
-  try {
-    const res = await fetch('https://ipapi.co/json/', {
-      signal: AbortSignal.timeout(timeout),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const code = (data.country_code as string | undefined) ?? '';
-      if (code) return code;
-    }
-  } catch {
-    // fall through to backup
-  }
-
-  // Fallback: ipwho.is
-  try {
-    const res = await fetch('https://ipwho.is/', {
-      signal: AbortSignal.timeout(timeout),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const code = (data.country_code as string | undefined) ?? '';
-      if (code) return code;
-    }
-  } catch {
-    // both failed — return empty string
-  }
-
-  return '';
 }
 
 // ---------------------------------------------------------------------------
@@ -274,17 +245,6 @@ function InfoRow({ label, value, sub }: { label: string; value: string; sub?: st
 }
 
 // ---------------------------------------------------------------------------
-// Tab definitions
-// ---------------------------------------------------------------------------
-type TabId = 'overview' | 'profile' | 'preferences';
-
-const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'overview',    label: 'Overview',  icon: <TrendingUpIcon sx={{ fontSize: 20 }} /> },
-  { id: 'profile',     label: 'Profile',   icon: <PersonIcon sx={{ fontSize: 20 }} /> },
-  { id: 'preferences', label: 'More',      icon: <SettingsIcon sx={{ fontSize: 20 }} /> },
-];
-
-// ---------------------------------------------------------------------------
 // Toggle switch
 // ---------------------------------------------------------------------------
 function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
@@ -306,14 +266,338 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
 }
 
 // ---------------------------------------------------------------------------
+// Password field sub-component
+// ---------------------------------------------------------------------------
+function PwField({
+  label, field, form, setForm, show, setShow, disabled,
+}: {
+  label: string;
+  field: 'current' | 'next' | 'confirm';
+  form: Record<string, string>;
+  setForm: React.Dispatch<React.SetStateAction<{ current: string; next: string; confirm: string }>>;
+  show: Record<string, boolean>;
+  setShow: React.Dispatch<React.SetStateAction<{ current: boolean; next: boolean; confirm: boolean }>>;
+  disabled: boolean;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>{label}</label>
+      <div className="relative">
+        <input
+          type={show[field] ? 'text' : 'password'}
+          value={form[field]}
+          onChange={(e) => setForm((p) => ({ ...p, [field]: e.target.value }))}
+          className="input-field pr-11"
+          disabled={disabled}
+          placeholder="••••••••"
+          autoComplete={field === 'current' ? 'current-password' : 'new-password'}
+        />
+        <button
+          type="button"
+          onClick={() => setShow((p) => ({ ...p, [field]: !p[field] }))}
+          className="absolute right-3 top-1/2 -translate-y-1/2 transition-opacity hover:opacity-60"
+          style={{ color: 'var(--text-muted)' }}
+          tabIndex={-1}
+          aria-label={show[field] ? 'Hide password' : 'Show password'}
+        >
+          {show[field]
+            ? <VisibilityOffIcon sx={{ fontSize: 18 }} />
+            : <VisibilityIcon   sx={{ fontSize: 18 }} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Admin Upgrade Modal
+// ---------------------------------------------------------------------------
+const PERKS = [
+  { icon: <BarChartIcon sx={{ fontSize: 16 }} />,   label: 'Analytics Dashboard',   desc: 'Real-time revenue & user stats'       },
+  { icon: <QrCodeIcon sx={{ fontSize: 16 }} />,     label: 'Booking Code Access',   desc: 'Create & manage booking codes'        },
+  { icon: <GroupAddIcon sx={{ fontSize: 16 }} />,   label: 'Affiliate Tools',       desc: 'Referral links & commission tracking' },
+  { icon: <PaymentsIcon sx={{ fontSize: 16 }} />,   label: 'Withdrawal Management', desc: 'Approve & reject user withdrawals'    },
+  { icon: <ChatIcon sx={{ fontSize: 16 }} />,       label: 'Upgrade Chat Support',  desc: 'Direct chat with super admins'        },
+];
+
+function AdminUpgradeModal({ onClose }: { onClose: () => void }) {
+  const { showToast } = useAppStore();
+  const [loading, setLoading] = useState(false);
+  const [done, setDone]       = useState(false);
+  const [step, setStep]       = useState<'overview' | 'confirm'>('overview');
+
+  const handleUpgrade = async () => {
+    setLoading(true);
+    try {
+      const res = await adminUpgrade.initPaystack();
+      if (res.success && res.data) {
+        const d = res.data as Record<string, unknown>;
+        if (typeof d.authorizationUrl === 'string') { window.location.href = d.authorizationUrl; return; }
+        if (typeof d.authorization_url === 'string') { window.location.href = d.authorization_url; return; }
+      }
+      setDone(true);
+      showToast('Upgrade request initiated!', 'success');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed to initiate upgrade.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-stretch justify-start"
+      style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <style>{`
+        @keyframes adminPanelSlideIn {
+          from { transform: translateX(-100%); }
+          to   { transform: translateX(0); }
+        }
+        .admin-upgrade-panel { height: 100vh; height: 100dvh; }
+      `}</style>
+
+      <div
+        className="admin-upgrade-panel relative flex flex-col w-full max-w-sm shadow-2xl overflow-hidden"
+        style={{
+          backgroundColor: 'var(--card-bg)',
+          animation: 'adminPanelSlideIn 0.30s cubic-bezier(0.22, 1, 0.36, 1) both',
+        }}
+      >
+        {/* top accent bar */}
+        <div className="h-1 w-full shrink-0" style={{ background: 'linear-gradient(to right, var(--primary), color-mix(in srgb, var(--primary) 70%, transparent), #34d399)' }} />
+
+        {done ? (
+          <div className="flex flex-col items-center justify-center flex-1 px-6 py-12 text-center">
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center mb-5"
+              style={{
+                backgroundColor: 'color-mix(in srgb, #10b981 12%, transparent)',
+                boxShadow: '0 0 0 8px color-mix(in srgb, #10b981 8%, transparent)',
+              }}
+            >
+              <RocketLaunchIcon sx={{ fontSize: 36, color: '#10b981' }} />
+            </div>
+            <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--text-main)' }}>You're on your way!</h3>
+            <p className="text-sm mb-8 leading-relaxed max-w-xs" style={{ color: 'var(--text-muted)' }}>
+              Your upgrade request has been submitted. Our team will review and activate your admin account shortly.
+            </p>
+            <BtnPrimary size="lg" onClick={onClose}>Got it, thanks!</BtnPrimary>
+          </div>
+
+        ) : step === 'overview' ? (
+          <>
+            <div className="flex items-start justify-between px-5 pt-5 pb-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 12%, transparent)' }}
+                >
+                  <AdminPanelSettingsIcon sx={{ fontSize: 20, color: 'var(--primary)' }} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base leading-tight" style={{ color: 'var(--text-main)' }}>Become an Admin</h3>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Unlock the full platform</p>
+                </div>
+              </div>
+              <BtnIcon onClick={onClose} aria-label="Close">
+                <CloseIcon fontSize="small" />
+              </BtnIcon>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-2">
+              {/* Hero promo card */}
+              <div
+                className="mb-4 rounded-2xl p-5 text-white relative overflow-hidden"
+                style={{ background: 'linear-gradient(135deg, var(--primary), color-mix(in srgb, var(--primary) 75%, #000))' }}
+              >
+                <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-white/10" />
+                <div className="absolute -bottom-8 -left-4 w-20 h-20 rounded-full bg-white/5" />
+                <div className="relative z-10">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <AutoAwesomeIcon sx={{ fontSize: 14, color: '#fde68a' }} />
+                    <span className="text-[11px] font-bold uppercase tracking-widest text-white/80">Admin Access</span>
+                  </div>
+                  <p className="text-2xl font-black leading-tight mb-1">Run your own<br />betting platform</p>
+                  <p className="text-xs text-white/70 leading-relaxed">One-time upgrade. Manage matches, users, payouts & more.</p>
+                </div>
+              </div>
+
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>Everything included</p>
+              <div className="space-y-2 pb-4">
+                {PERKS.map((perk) => (
+                  <div
+                    key={perk.label}
+                    className="flex items-center gap-3 p-3 rounded-xl"
+                    style={{ backgroundColor: 'var(--card-alt)', border: '1px solid var(--border-light)' }}
+                  >
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 12%, transparent)', color: 'var(--primary)' }}
+                    >
+                      {perk.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold leading-tight" style={{ color: 'var(--text-main)' }}>{perk.label}</p>
+                      <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{perk.desc}</p>
+                    </div>
+                    <CheckCircleIcon sx={{ fontSize: 16, color: '#10b981' }} className="shrink-0" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div
+              className="shrink-0 px-5 pt-3 pb-6"
+              style={{
+                borderTop: '1px solid var(--border-light)',
+                backgroundColor: 'var(--card-bg)',
+                paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+              }}
+            >
+              <p className="text-[11px] text-center mb-3 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                A one-time upgrade fee applies. Payment processed securely via Paystack.
+              </p>
+              <div className="flex gap-3">
+                <BtnGhost
+                  onClick={onClose}
+                  className="flex-1 py-3.5"
+                  style={{
+                    border: '1px solid var(--border-light)',
+                    color: 'var(--text-muted)',
+                    backgroundColor: 'transparent',
+                    borderRadius: 12,
+                  }}
+                  onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)')}
+                  onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = 'transparent')}
+                >
+                  Maybe Later
+                </BtnGhost>
+                <BtnPrimary onClick={() => setStep('confirm')} className="flex-1 py-3.5" icon={<KeyboardArrowRightIcon fontSize="small" />}>
+                  Continue
+                </BtnPrimary>
+              </div>
+            </div>
+          </>
+
+        ) : (
+          <>
+            <div className="flex items-center gap-3 px-5 pt-5 pb-3 shrink-0">
+              <BtnIcon onClick={() => setStep('overview')} aria-label="Back">
+                <KeyboardArrowRightIcon fontSize="small" style={{ transform: 'rotate(180deg)' }} />
+              </BtnIcon>
+              <div>
+                <h3 className="font-bold text-base" style={{ color: 'var(--text-main)' }}>Confirm Upgrade</h3>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Review before proceeding</p>
+              </div>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto px-5 py-2 space-y-4">
+              <div
+                className="rounded-2xl p-4"
+                style={{
+                  border: '1px solid color-mix(in srgb, var(--primary) 20%, transparent)',
+                  backgroundColor: 'color-mix(in srgb, var(--primary) 5%, transparent)',
+                }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center"
+                    style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)', color: 'var(--primary)' }}
+                  >
+                    <AdminPanelSettingsIcon sx={{ fontSize: 20 }} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-sm" style={{ color: 'var(--text-main)' }}>Admin Account Upgrade</p>
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>One-time payment via Paystack</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    'Full admin dashboard access',
+                    'Manage all platform features',
+                    'Affiliate commission earnings',
+                    'Priority support via upgrade chat',
+                  ].map((item) => (
+                    <div key={item} className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
+                      <CheckCircleIcon sx={{ fontSize: 14, color: 'var(--primary)' }} className="shrink-0" />
+                      <span className="text-xs">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div
+                className="rounded-xl p-3.5 flex gap-2.5"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, #f59e0b 10%, transparent)',
+                  border: '1px solid color-mix(in srgb, #f59e0b 30%, transparent)',
+                }}
+              >
+                <ShieldIcon sx={{ fontSize: 16, color: '#d97706' }} className="shrink-0 mt-0.5" />
+                <p className="text-xs leading-relaxed" style={{ color: '#b45309' }}>
+                  You'll be redirected to Paystack's secure payment page. After payment, your account will be reviewed and upgraded within 24 hours.
+                </p>
+              </div>
+            </div>
+
+            <div
+              className="shrink-0 px-5 pt-3 pb-6"
+              style={{
+                borderTop: '1px solid var(--border-light)',
+                backgroundColor: 'var(--card-bg)',
+                paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+              }}
+            >
+              <BtnPrimary
+                onClick={handleUpgrade}
+                loading={loading}
+                size="lg"
+                className="mb-3"
+                icon={<RocketLaunchIcon fontSize="small" />}
+              >
+                {loading ? 'Redirecting to Paystack…' : 'Proceed to Payment'}
+              </BtnPrimary>
+              <button
+                onClick={onClose}
+                disabled={loading}
+                className="w-full py-2.5 text-xs font-semibold transition-opacity hover:opacity-60 disabled:opacity-40"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab definitions
+// ---------------------------------------------------------------------------
+type TabId = 'overview' | 'profile' | 'security' | 'preferences';
+
+const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  { id: 'overview',    label: 'Overview',  icon: <TrendingUpIcon sx={{ fontSize: 20 }} /> },
+  { id: 'profile',     label: 'Profile',   icon: <PersonIcon sx={{ fontSize: 20 }} /> },
+  { id: 'security',    label: 'Security',  icon: <ShieldIcon sx={{ fontSize: 20 }} /> },
+  { id: 'preferences', label: 'More',      icon: <SettingsIcon sx={{ fontSize: 20 }} /> },
+];
+
+// ---------------------------------------------------------------------------
 // Main AccountPage
 // ---------------------------------------------------------------------------
 export default function AccountPage() {
-  const { user, logout, showToast, login } = useAppStore();
+  const { user, logout, setAdminModalOpen, showToast, login } = useAppStore();
   const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [showAdminUpgrade, setShowAdminUpgrade] = useState(false);
 
+  // Data state
   const [profileData, setProfileData]           = useState<Record<string, unknown> | null>(null);
   const [profileLoading, setProfileLoading]     = useState(true);
   const [walletData, setWalletData]             = useState<Record<string, unknown> | null>(null);
@@ -321,20 +605,22 @@ export default function AccountPage() {
   const [transactions, setTransactions]         = useState<Transaction[]>([]);
   const [affiliateBalance, setAffiliateBalance] = useState<{ balance: number } | null>(null);
 
+  // Profile edit state
   const [editMode, setEditMode]       = useState(false);
   const [editForm, setEditForm]       = useState({ firstName: '', lastName: '', phone: '', country: '' });
   const [editLoading, setEditLoading] = useState(false);
-  const [geoLoading, setGeoLoading]   = useState(false);
 
-  const [notifications, setNotifications] = useState({ push: true, sms: false, email: true });
-  const [depositLimit, setDepositLimit]   = useState('');
-  const [sessionLimit, setSessionLimit]   = useState('');
-
+  // Password state
   const [pwForm, setPwForm]       = useState({ current: '', next: '', confirm: '' });
   const [showPw, setShowPw]       = useState({ current: false, next: false, confirm: false });
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError]     = useState<string | null>(null);
   const [pwSuccess, setPwSuccess] = useState(false);
+
+  // Preferences state
+  const [notifications, setNotifications] = useState({ push: true, sms: false, email: true });
+  const [depositLimit, setDepositLimit]   = useState('');
+  const [sessionLimit, setSessionLimit]   = useState('');
 
   useEffect(() => {
     if (!user) navigate('/login');
@@ -383,20 +669,9 @@ export default function AccountPage() {
     fetchWallet();
   }, [user, fetchProfile, fetchWallet]);
 
-  // Auto-detect country when edit mode opens and country is empty
-  const handleOpenEdit = useCallback(async () => {
-    setEditMode(true);
-    // Only auto-fetch if country is not already set
-    if (!editForm.country) {
-      setGeoLoading(true);
-      const code = await fetchCountryCode();
-      if (code) setEditForm((p) => ({ ...p, country: p.country || code }));
-      setGeoLoading(false);
-    }
-  }, [editForm.country]);
-
   if (!user) return null;
 
+  // Derived values
   const apiFirstName = (profileData?.firstName as string) ?? '';
   const apiLastName  = (profileData?.lastName  as string) ?? '';
   const apiEmail     = (profileData?.email     as string) ?? user.email;
@@ -415,6 +690,7 @@ export default function AccountPage() {
 
   const affBalance = affiliateBalance?.balance ?? null;
 
+  // Handlers
   const saveProfile = async () => {
     setEditLoading(true);
     try {
@@ -469,6 +745,9 @@ export default function AccountPage() {
   // ---------------------------------------------------------------------------
   return (
     <div className="min-h-screen pb-28" style={{ backgroundColor: 'var(--card-alt)' }}>
+
+      {/* Admin Upgrade Modal */}
+      {showAdminUpgrade && <AdminUpgradeModal onClose={() => setShowAdminUpgrade(false)} />}
 
       {/* ═══ HERO HEADER ═══ */}
       <div style={{ backgroundColor: 'var(--card-bg)', borderBottom: '1px solid var(--border-light)' }}>
@@ -718,6 +997,35 @@ export default function AccountPage() {
                 </div>
               </div>
             </Card>
+
+            {/* Admin panel CTA — only shown to admins */}
+            {(user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') && (
+              <BtnPrimary
+                size="lg"
+                icon={<AdminPanelSettingsIcon fontSize="small" />}
+                onClick={() => setAdminModalOpen(true)}
+              >
+                Open Admin Panel
+              </BtnPrimary>
+            )}
+
+            {/* Admin upgrade CTA — only shown to regular users */}
+            {user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN' && (
+              <button
+                onClick={() => setShowAdminUpgrade(true)}
+                className="w-full rounded-2xl py-3.5 flex items-center justify-center gap-2 font-semibold text-sm transition-all active:scale-[0.98]"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--primary) 8%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--primary) 25%, transparent)',
+                  color: 'var(--primary)',
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = 'color-mix(in srgb, var(--primary) 14%, transparent)')}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = 'color-mix(in srgb, var(--primary) 8%, transparent)')}
+              >
+                <AdminPanelSettingsIcon fontSize="small" />
+                Become an Admin
+              </button>
+            )}
           </>
         )}
 
@@ -730,7 +1038,7 @@ export default function AccountPage() {
               action={
                 !editMode && (
                   <button
-                    onClick={handleOpenEdit}
+                    onClick={() => setEditMode(true)}
                     className="flex items-center gap-1 text-xs font-bold hover:underline"
                     style={{ color: 'var(--primary)' }}
                   >
@@ -775,23 +1083,17 @@ export default function AccountPage() {
                 <div>
                   <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
                     Country
-                    {geoLoading && (
-                      <span className="ml-2 text-[10px] font-normal" style={{ color: 'var(--text-muted)' }}>
-                        (detecting…)
-                      </span>
-                    )}
                   </label>
                   <input
                     type="text"
                     value={editForm.country}
                     onChange={(e) => setEditForm((p) => ({ ...p, country: e.target.value }))}
                     className="input-field"
-                    disabled={editLoading || geoLoading}
-                    placeholder={geoLoading ? 'Detecting…' : 'e.g. GH'}
+                    disabled={editLoading}
+                    placeholder="e.g. GH"
                     maxLength={2}
                   />
                 </div>
-
                 <div className="flex gap-3 pt-1">
                   <BtnGhost
                     onClick={() => setEditMode(false)}
@@ -845,6 +1147,76 @@ export default function AccountPage() {
           </Card>
         )}
 
+        {/* ─── SECURITY TAB ─── */}
+        {activeTab === 'security' && (
+          <Card>
+            <CardHeader icon={<ShieldIcon sx={{ fontSize: 15 }} />} title="Change Password" />
+            <div className="px-4 py-4 space-y-4">
+              {pwError && (
+                <div
+                  className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl text-sm"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, #f43f5e 10%, transparent)',
+                    border: '1px solid color-mix(in srgb, #f43f5e 25%, transparent)',
+                    color: '#e11d48',
+                  }}
+                >
+                  <CloseIcon sx={{ fontSize: 16 }} className="shrink-0 mt-0.5" />
+                  <span>{pwError}</span>
+                </div>
+              )}
+              {pwSuccess && (
+                <div
+                  className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl text-sm"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, #10b981 10%, transparent)',
+                    border: '1px solid color-mix(in srgb, #10b981 25%, transparent)',
+                    color: '#059669',
+                  }}
+                >
+                  <CheckCircleIcon sx={{ fontSize: 16 }} className="shrink-0 mt-0.5" />
+                  <span>Password updated successfully.</span>
+                </div>
+              )}
+              <PwField label="Current Password"     field="current" form={pwForm} setForm={setPwForm} show={showPw} setShow={setShowPw} disabled={pwLoading} />
+              <PwField label="New Password"         field="next"    form={pwForm} setForm={setPwForm} show={showPw} setShow={setShowPw} disabled={pwLoading} />
+              <PwField label="Confirm New Password" field="confirm" form={pwForm} setForm={setPwForm} show={showPw} setShow={setShowPw} disabled={pwLoading} />
+
+              {pwForm.next.length > 0 && (() => {
+                const strength =
+                  pwForm.next.length >= 12 ? 4 :
+                  pwForm.next.length >= 10 ? 3 :
+                  pwForm.next.length >= 8  ? 2 : 1;
+                const strengthColor =
+                  strength >= 4 ? '#10b981' : strength >= 3 ? '#f59e0b' : '#f43f5e';
+                const strengthLabel =
+                  strength >= 4 ? 'Strong' : strength >= 3 ? 'Good' : strength >= 2 ? 'Weak' : 'Too short';
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex gap-1.5">
+                      {[1, 2, 3, 4].map((lvl) => (
+                        <div
+                          key={lvl}
+                          className="flex-1 h-1.5 rounded-full transition-all duration-300"
+                          style={{ backgroundColor: lvl <= strength ? strengthColor : 'var(--border-light)' }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-semibold" style={{ color: strengthColor }}>{strengthLabel}</p>
+                      <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{pwForm.next.length} characters</p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <BtnPrimary onClick={changePassword} loading={pwLoading} size="lg">
+                {pwLoading ? 'Updating…' : 'Update Password'}
+              </BtnPrimary>
+            </div>
+          </Card>
+        )}
+
         {/* ─── PREFERENCES TAB ─── */}
         {activeTab === 'preferences' && (
           <>
@@ -874,142 +1246,6 @@ export default function AccountPage() {
                     />
                   </div>
                 ))}
-              </div>
-            </Card>
-
-            {/* Change Password */}
-            <Card>
-              <CardHeader icon={<VerifiedUserIcon sx={{ fontSize: 15 }} />} title="Change Password" />
-              <div className="px-4 py-5 space-y-5">
-
-                {pwError && (
-                  <div
-                    className="flex items-start gap-2.5 px-4 py-3 rounded-2xl text-sm font-medium"
-                    style={{
-                      backgroundColor: 'color-mix(in srgb, #f43f5e 10%, transparent)',
-                      border: '1px solid color-mix(in srgb, #f43f5e 25%, transparent)',
-                      color: '#e11d48',
-                    }}
-                  >
-                    <CloseIcon sx={{ fontSize: 16 }} className="shrink-0 mt-0.5" />
-                    <span>{pwError}</span>
-                  </div>
-                )}
-                {pwSuccess && (
-                  <div
-                    className="flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm font-medium"
-                    style={{
-                      backgroundColor: 'color-mix(in srgb, #10b981 10%, transparent)',
-                      border: '1px solid color-mix(in srgb, #10b981 25%, transparent)',
-                      color: '#059669',
-                    }}
-                  >
-                    <span>✓ Password updated successfully.</span>
-                  </div>
-                )}
-
-                <div
-                  className="overflow-hidden"
-                  style={{ border: '1px solid var(--border-light)', borderRadius: 16 }}
-                >
-                  {(
-                    [
-                      { label: 'Current Password', field: 'current' as const },
-                      { label: 'New Password',     field: 'next'    as const },
-                      { label: 'Confirm New',      field: 'confirm' as const },
-                    ]
-                  ).map(({ label, field }, idx, arr) => (
-                    <div
-                      key={field}
-                      className="relative"
-                      style={{ borderBottom: idx < arr.length - 1 ? '1px solid var(--border-light)' : 'none' }}
-                    >
-                      <label
-                        className="absolute left-4 top-3 text-[10px] font-bold uppercase tracking-wider pointer-events-none select-none"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        {label}
-                      </label>
-                      <input
-                        type={showPw[field] ? 'text' : 'password'}
-                        value={pwForm[field]}
-                        onChange={(e) => setPwForm((p) => ({ ...p, [field]: e.target.value }))}
-                        disabled={pwLoading}
-                        placeholder="••••••••"
-                        autoComplete={field === 'current' ? 'current-password' : 'new-password'}
-                        style={{
-                          display: 'block',
-                          width: '100%',
-                          paddingTop: '2rem',
-                          paddingBottom: '0.75rem',
-                          paddingLeft: '1rem',
-                          paddingRight: '3rem',
-                          backgroundColor: 'var(--card-bg)',
-                          color: 'var(--text-main)',
-                          fontSize: 15,
-                          fontWeight: 500,
-                          outline: 'none',
-                          border: 'none',
-                          letterSpacing: showPw[field] ? 'normal' : '0.1em',
-                        }}
-                        onFocus={(e) => {
-                          (e.currentTarget.parentElement as HTMLElement).style.backgroundColor = 'var(--card-alt)';
-                        }}
-                        onBlur={(e) => {
-                          (e.currentTarget.parentElement as HTMLElement).style.backgroundColor = '';
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPw((p) => ({ ...p, [field]: !p[field] }))}
-                        tabIndex={-1}
-                        aria-label={showPw[field] ? 'Hide password' : 'Show password'}
-                        className="absolute right-0 top-0 h-full w-12 flex items-center justify-center transition-opacity hover:opacity-60"
-                        style={{ color: 'var(--text-muted)' }}
-                      >
-                        {showPw[field]
-                          ? <VisibilityOffIcon sx={{ fontSize: 20 }} />
-                          : <VisibilityIcon   sx={{ fontSize: 20 }} />}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                {pwForm.next.length > 0 && (() => {
-                  const strength =
-                    pwForm.next.length >= 12 ? 4 :
-                    pwForm.next.length >= 10 ? 3 :
-                    pwForm.next.length >= 8  ? 2 : 1;
-                  const strengthColor =
-                    strength >= 4 ? '#10b981' : strength >= 3 ? '#f59e0b' : '#f43f5e';
-                  const strengthLabel =
-                    strength >= 4 ? 'Strong' : strength >= 3 ? 'Good' : strength >= 2 ? 'Weak' : 'Too short';
-                  return (
-                    <div className="space-y-2">
-                      <div className="flex gap-1.5">
-                        {[1, 2, 3, 4].map((lvl) => (
-                          <div
-                            key={lvl}
-                            className="flex-1 h-1.5 rounded-full transition-all duration-300"
-                            style={{ backgroundColor: lvl <= strength ? strengthColor : 'var(--border-light)' }}
-                          />
-                        ))}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <p className="text-[11px] font-semibold" style={{ color: strengthColor }}>
-                          {strengthLabel}
-                        </p>
-                        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                          {pwForm.next.length} characters
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                <BtnPrimary onClick={changePassword} loading={pwLoading} size="lg">
-                  {pwLoading ? 'Updating…' : 'Update Password'}
-                </BtnPrimary>
               </div>
             </Card>
 
