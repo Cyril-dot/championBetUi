@@ -125,11 +125,11 @@ function RecentWinnersBar() {
               style={{
                 flexShrink: 0,
                 background: 'rgba(37,99,235,0.12)',
-                borderRadius: 10,
-                padding: '7px 12px',
+                borderRadius: 12,
+                padding: '11px 16px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
+                gap: 14,
                 border: '1px solid rgba(96,165,250,0.22)',
                 minWidth: 0,
                 position: 'relative',
@@ -144,9 +144,9 @@ function RecentWinnersBar() {
 
               {/* Pulsing dot */}
               <span style={{
-                width: 6, height: 6, borderRadius: '50%',
-                background: '#60a5fa',
-                boxShadow: '0 0 6px rgba(96,165,250,0.8)',
+                width: 7, height: 7, borderRadius: '50%',
+                background: '#9ca3af',
+                boxShadow: '0 0 6px rgba(156,163,175,0.6)',
                 display: 'inline-block',
                 flexShrink: 0,
                 animation: 'winnerPulse 1.6s ease-in-out infinite',
@@ -155,33 +155,33 @@ function RecentWinnersBar() {
               {/* Phone + amount */}
               <div style={{ lineHeight: 1 }}>
                 <div style={{
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: 600,
-                  color: '#93c5fd',
+                  color: '#9ca3af',
                   whiteSpace: 'nowrap',
-                  marginBottom: 4,
+                  marginBottom: 6,
                   fontFamily: 'system-ui, sans-serif',
                   letterSpacing: '0.03em',
                 }}>
                   {w.phone}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, whiteSpace: 'nowrap' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, whiteSpace: 'nowrap' }}>
                   <span style={{
-                    fontSize: 9,
+                    fontSize: 10,
                     fontWeight: 700,
-                    color: '#fff',
-                    background: 'rgba(59,130,246,0.35)',
+                    color: '#d1d5db',
+                    background: 'rgba(156,163,175,0.15)',
                     borderRadius: 4,
-                    padding: '1px 5px',
+                    padding: '2px 6px',
                     letterSpacing: '0.06em',
                     fontFamily: 'system-ui, sans-serif',
                   }}>
                     {CURRENCY_CONFIG[w.currency].symbol}
                   </span>
                   <span style={{
-                    fontSize: 13,
+                    fontSize: 15,
                     fontWeight: 800,
-                    color: '#ffffff',
+                    color: '#e5e7eb',
                     letterSpacing: '-0.01em',
                     fontFamily: 'system-ui, sans-serif',
                   }}>
@@ -192,9 +192,9 @@ function RecentWinnersBar() {
 
               {/* Time ago */}
               <div style={{
-                fontSize: 9,
+                fontSize: 10,
                 fontWeight: 600,
-                color: '#60a5fa',
+                color: '#6b7280',
                 whiteSpace: 'nowrap',
                 alignSelf: 'flex-start',
                 marginTop: 1,
