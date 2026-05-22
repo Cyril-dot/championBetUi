@@ -106,24 +106,21 @@ export default function LoginPage() {
         className="hidden md:flex flex-1 items-center justify-center p-12 relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, var(--primary) 0%, #b91c1c 100%)' }}
       >
-        {/* Decorative circles */}
         <div className="absolute -top-16 -left-16 w-64 h-64 rounded-full opacity-10" style={{ backgroundColor: '#fff' }} />
         <div className="absolute -bottom-24 -right-12 w-80 h-80 rounded-full opacity-10" style={{ backgroundColor: '#fff' }} />
         <div className="absolute top-1/2 left-1/4 w-32 h-32 rounded-full opacity-5" style={{ backgroundColor: '#fff' }} />
 
         <div className="relative text-white text-center max-w-sm">
-          {/* Logo mark */}
           <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-2xl"
             style={{ backgroundColor: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)' }}>
             <SportsSoccerIcon sx={{ fontSize: 44 }} />
           </div>
-          <h1 className="text-4xl font-black mb-2 tracking-tight">Super Bet</h1>
+          <h1 className="text-4xl font-black mb-2 tracking-tight">NxtBet</h1>
           <p className="text-sm font-semibold tracking-[3px] uppercase opacity-60 mb-6">Sports Betting</p>
           <p className="text-base opacity-85 leading-relaxed">
             Log in to your account and continue betting on your favourite sports.
           </p>
 
-          {/* Feature pills */}
           <div className="flex flex-wrap gap-2 justify-center mt-8">
             {['Live Odds', 'Instant Pay', 'MoMo Supported'].map(f => (
               <span
@@ -150,7 +147,7 @@ export default function LoginPage() {
           <SportsSoccerIcon fontSize="small" />
         </div>
         <div>
-          <p className="font-black text-lg tracking-tight leading-none">Super Bet</p>
+          <p className="font-black text-lg tracking-tight leading-none">NxtBet</p>
           <p className="text-xs opacity-70 mt-0.5">Sports Betting</p>
         </div>
       </div>
@@ -314,7 +311,7 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               className="w-full py-3.5 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all touch-manipulation disabled:opacity-60 disabled:cursor-not-allowed mt-2"
-              style={{ backgroundColor: 'var(--primary)', color: 'var(--super-bet-secondary-text)', }}
+              style={{ backgroundColor: 'var(--primary)', color: 'var(--nxtbet-secondary-text)', }}
               onMouseEnter={e => { if (!loading) (e.currentTarget as HTMLElement).style.opacity = '0.9'; }}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
             >

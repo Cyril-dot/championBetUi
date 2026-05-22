@@ -5,12 +5,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* ═══════════════════════════════════════════════════════════════
-   super bet
+   nxtbet
 ═══════════════════════════════════════════════════════════════ */
 
-/* Theme 1 — Super Bet Light */
+/* Theme 1 — NxtBet Light */
 :root,
-[data-theme="super-bet-primary"] {
+[data-theme="nxtbet-primary"] {
   --primary:          #1d6fe8;
   --primary-dark:     #1558c0;
   --primary-soft:     rgba(29, 111, 232, 0.10);
@@ -32,8 +32,8 @@
   --finished-overlay: rgba(240, 243, 249, 0.45);
 }
 
-/* Theme 2 — Super Bet Dark */
-[data-theme="super-bet-dark"] {
+/* Theme 2 — NxtBet Dark */
+[data-theme="nxtbet-dark"] {
   --primary:          #3b82f6;
   --primary-dark:     #1d6fe8;
   --primary-soft:     rgba(59, 130, 246, 0.12);
@@ -56,7 +56,7 @@
 }
 
 /* Theme 3 — Blue Neon Dark */
-[data-theme="super-bet-violet"] {
+[data-theme="nxtbet-violet"] {
   --primary:          #60a5fa;
   --primary-dark:     #3b82f6;
   --primary-soft:     rgba(96, 165, 250, 0.12);
@@ -78,7 +78,7 @@
   --finished-overlay: rgba(4, 7, 16, 0.45);
 }
 
-/* Dark mode — map to super-bet-dark when prefers-color-scheme is dark and no explicit theme */
+/* Dark mode — map to nxtbet-dark when prefers-color-scheme is dark and no explicit theme */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     --primary:          #3b82f6;
@@ -87,7 +87,7 @@
     --accent:           #f59e0b;
     --live-green:       #22c55e;
     --live-green-soft:  rgba(34, 197, 94, 0.12);
-    --bg-page:          #070b14;
+    --bg-bg-page:          #070b14;
     --card-bg:          #0d1422;
     --card-alt:         #121c30;
     --card-border:      #1a2540;
@@ -160,10 +160,10 @@
 
   /* ── Logo ───────────────────────────────────────────────────── */
 
-  .super-bet-logo-super { color: var(--primary); }
-  .super-bet-logo-bet   { color: #ffffff; }
-  .super-bet-logo       { transition: transform 0.15s ease; }
-  .super-bet-logo:hover { transform: scale(1.07); }
+  .nxtbet-logo-nxt { color: var(--primary); }
+  .nxtbet-logo-bet { color: #ffffff; }
+  .nxtbet-logo     { transition: transform 0.15s ease; }
+  .nxtbet-logo:hover { transform: scale(1.07); }
 
   /* ── Legacy card ────────────────────────────────────────────── */
 

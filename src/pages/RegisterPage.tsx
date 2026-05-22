@@ -20,27 +20,20 @@ interface Country {
   code: string;
   dial: string;
   flag: string;
-  phonePlaceholder: string; // local-number placeholder
+  phonePlaceholder: string;
 }
 
 const COUNTRIES: Country[] = [
-  // ── Primary markets ──────────────────────────────────────────────────────
   { name: 'Nigeria',        code: 'NG', dial: '+234', flag: '🇳🇬', phonePlaceholder: '080 1234 5678'  },
   { name: 'Ghana',          code: 'GH', dial: '+233', flag: '🇬🇭', phonePlaceholder: '024 123 4567'   },
-
-  // ── 4 African ────────────────────────────────────────────────────────────
   { name: 'Kenya',          code: 'KE', dial: '+254', flag: '🇰🇪', phonePlaceholder: '0712 345 678'   },
   { name: 'South Africa',   code: 'ZA', dial: '+27',  flag: '🇿🇦', phonePlaceholder: '071 234 5678'   },
   { name: 'Senegal',        code: 'SN', dial: '+221', flag: '🇸🇳', phonePlaceholder: '77 123 45 67'   },
   { name: 'Ethiopia',       code: 'ET', dial: '+251', flag: '🇪🇹', phonePlaceholder: '091 123 4567'   },
-
-  // ── 4 European ───────────────────────────────────────────────────────────
   { name: 'United Kingdom', code: 'GB', dial: '+44',  flag: '🇬🇧', phonePlaceholder: '07911 123456'   },
   { name: 'France',         code: 'FR', dial: '+33',  flag: '🇫🇷', phonePlaceholder: '06 12 34 56 78' },
   { name: 'Germany',        code: 'DE', dial: '+49',  flag: '🇩🇪', phonePlaceholder: '0151 1234 5678' },
   { name: 'Spain',          code: 'ES', dial: '+34',  flag: '🇪🇸', phonePlaceholder: '612 345 678'    },
-
-  // ── United States ────────────────────────────────────────────────────────
   { name: 'United States',  code: 'US', dial: '+1',   flag: '🇺🇸', phonePlaceholder: '201 555 0123'   },
 ].sort((a, b) => a.name.localeCompare(b.name));
 
@@ -148,7 +141,6 @@ function CountrySelector({
             flexDirection: 'column',
           }}
         >
-          {/* Search */}
           <div className="p-2 shrink-0" style={{ borderBottom: '1px solid var(--border-light)' }}>
             <div className="relative">
               <SearchIcon
@@ -172,7 +164,6 @@ function CountrySelector({
             </div>
           </div>
 
-          {/* List */}
           <div className="overflow-y-auto">
             {filtered.length === 0 ? (
               <p className="text-center text-xs py-4" style={{ color: 'var(--text-muted)' }}>
@@ -382,7 +373,7 @@ export default function RegisterPage() {
         referralCode: '',
       });
 
-      showToast('Welcome to Super Bet! 🎉', 'success');
+      showToast('Welcome to NxtBet! 🎉', 'success');
 
       if (res.data.mustSetup2fa) {
         navigate('/setup-2fa');
@@ -425,7 +416,7 @@ export default function RegisterPage() {
           >
             <SportsSoccerIcon sx={{ fontSize: 36 }} />
           </div>
-          <h1 className="text-3xl font-black tracking-tight mb-1">Super Bet</h1>
+          <h1 className="text-3xl font-black tracking-tight mb-1">NxtBet</h1>
           <p className="text-xs font-semibold tracking-[3px] uppercase mb-6" style={{ opacity: 0.6 }}>
             Join Today
           </p>
@@ -470,7 +461,7 @@ export default function RegisterPage() {
             <SportsSoccerIcon fontSize="small" />
           </div>
           <div>
-            <p className="font-black text-lg tracking-tight leading-none">Super Bet</p>
+            <p className="font-black text-lg tracking-tight leading-none">NxtBet</p>
             <p className="text-xs mt-0.5" style={{ opacity: 0.7 }}>Sports Betting</p>
           </div>
         </div>

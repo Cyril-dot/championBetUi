@@ -44,12 +44,11 @@ function getUserInitials(fullName: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// SuperBetLogo – Concept 3: Fire & Energy
+// NxtBetLogo
 // ---------------------------------------------------------------------------
-function SuperBetLogo() {
+function NxtBetLogo() {
   return (
-    <div className="flex items-center gap-1.5 select-none" aria-label="SuperBet">
-      {/* Flame icon with gradient effect via layered spans */}
+    <div className="flex items-center gap-1.5 select-none" aria-label="NxtBet">
       <div
         style={{
           position: 'relative',
@@ -83,7 +82,7 @@ function SuperBetLogo() {
             backgroundClip: 'text',
           }}
         >
-          Super
+          Nxt
         </span>
         <span
           style={{
@@ -197,7 +196,7 @@ export default function Header() {
 
         {/* ---------- LOGO ---------- */}
         <Link to="/" className="flex items-center shrink-0">
-          <SuperBetLogo />
+          <NxtBetLogo />
         </Link>
 
         {/* ---------- DESKTOP NAV ---------- */}

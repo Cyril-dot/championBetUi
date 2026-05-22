@@ -27,11 +27,11 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 
 // ---------------------------------------------------------------------------
-// SuperBetLogo
+// NxtBetLogo
 // ---------------------------------------------------------------------------
-function SuperBetLogo() {
+function NxtBetLogo() {
   return (
-    <div className="flex items-center gap-1.5 select-none" aria-label="SuperBet">
+    <div className="flex items-center gap-1.5 select-none" aria-label="NxtBet">
       <div
         style={{
           position: 'relative',
@@ -59,7 +59,7 @@ function SuperBetLogo() {
             backgroundClip: 'text',
           }}
         >
-          Super
+          Nxt
         </span>
         <span style={{ fontWeight: 900, fontSize: '1.15rem', letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
           Bet
@@ -140,17 +140,12 @@ export default function Footer() {
       </div>
 
       {/* ── MAIN GRID ─────────────────────────────────────────────────────── */}
-      {/*
-          Mobile  (< sm):  1 col — only Brand col renders, Quick Links & Company are hidden
-          Tablet  (sm):    2 cols — all 4 cols visible
-          Desktop (lg):    4 cols — all 4 cols visible
-      */}
       <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 py-8 sm:py-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
 
         {/* ── COL 1: Brand — always visible ─── */}
         <div className="flex flex-col gap-4">
           <Link to="/">
-            <SuperBetLogo />
+            <NxtBetLogo />
           </Link>
 
           <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)', maxWidth: 260 }}>
@@ -215,19 +210,19 @@ export default function Footer() {
 
             {/* Email */}
             <a
-              href="mailto:support@superbet.com"
+              href="mailto:support@nxtbet.com"
               className="flex items-center gap-2 text-xs transition-colors"
               style={{ color: 'var(--text-muted)' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--primary)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'}
             >
               <EmailIcon sx={{ fontSize: 14 }} style={{ opacity: 0.6 }} />
-              support@superbet.com
+              support@nxtbet.com
             </a>
 
             {/* Telegram */}
             <a
-              href="https://t.me/superbet"
+              href="https://t.me/nxtbet"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-xs transition-colors"
@@ -236,7 +231,7 @@ export default function Footer() {
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'}
             >
               <TelegramIcon sx={{ fontSize: 14 }} style={{ opacity: 0.6 }} />
-              @superbet on Telegram
+              @nxtbet on Telegram
             </a>
           </div>
 
@@ -338,7 +333,7 @@ export default function Footer() {
           </ul>
         </div>
 
-        {/* ── COL 4: Connect — hidden on mobile (contact moved into col 1) ─── */}
+        {/* ── COL 4: Connect — hidden on mobile ─── */}
         <div className="hidden sm:block">
           <h3
             className="text-xs font-bold uppercase tracking-widest mb-4"
@@ -378,19 +373,19 @@ export default function Footer() {
 
             {/* Email */}
             <a
-              href="mailto:support@superbet.com"
+              href="mailto:support@nxtbet.com"
               className="flex items-center gap-2 text-xs transition-colors"
               style={{ color: 'var(--text-muted)' }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.color = 'var(--primary)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'}
             >
               <EmailIcon sx={{ fontSize: 14 }} style={{ opacity: 0.6 }} />
-              support@superbet.com
+              support@nxtbet.com
             </a>
 
             {/* Telegram */}
             <a
-              href="https://t.me/superbet"
+              href="https://t.me/nxtbet"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 text-xs transition-colors"
@@ -399,7 +394,7 @@ export default function Footer() {
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'}
             >
               <TelegramIcon sx={{ fontSize: 14 }} style={{ opacity: 0.6 }} />
-              @superbet on Telegram
+              @nxtbet on Telegram
             </a>
 
             {/* Payment methods */}
@@ -458,7 +453,7 @@ export default function Footer() {
               <ShieldIcon sx={{ fontSize: 18 }} style={{ color: 'var(--text-muted)' }} />
             </div>
             <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)', maxWidth: 380 }}>
-              SuperBet is licensed and regulated under the laws of the State of New Jersey,
+              NxtBet is licensed and regulated under the laws of the State of New Jersey,
               Division of Gaming Enforcement. License No. NJDGE-2024-00237.
             </p>
           </div>
@@ -475,7 +470,7 @@ export default function Footer() {
       >
         <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-xs" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>
-            © {year} SuperBet. All rights reserved.
+            © {year} NxtBet. All rights reserved.
           </p>
           <div className="flex items-center gap-3">
             {['Terms', 'Privacy', 'Cookies'].map(t => (

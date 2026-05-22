@@ -1,14 +1,14 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  darkMode: ['selector', '[data-theme="super-bet-dark"],[data-theme="super-bet-violet"]'],
+  darkMode: ['selector', '[data-theme="nxtbet-dark"],[data-theme="nxtbet-violet"]'],
   safelist: [
     {
       pattern: /data-theme/,
       variants: ['lg', 'md', 'sm', 'xs'],
     },
-    'bg-super-bet-primary',
-    'text-super-bet-primary',
+    'bg-nxtbet-primary',
+    'text-nxtbet-primary',
   ],
   theme: {
     extend: {
@@ -26,8 +26,8 @@ export default {
         'text-muted': 'var(--text-muted)',
         'border-light': 'var(--border-light)',
         'nav-bg': 'var(--nav-bg)',
-        'super-bet-logo-primary': 'var(--super-bet-logo-primary, var(--primary))',
-        'super-bet-logo-secondary': 'var(--super-bet-logo-secondary, #ffffff)',
+        'nxtbet-logo-primary': 'var(--nxtbet-logo-primary, var(--primary))',
+        'nxtbet-logo-secondary': 'var(--nxtbet-logo-secondary, #ffffff)',
         // Blue/white/black palette
         'blue-core': '#1d6fe8',
         'blue-bright': '#3b82f6',
