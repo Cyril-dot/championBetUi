@@ -157,7 +157,7 @@ function RecentWinnersBar() {
                 <div style={{
                   fontSize: 12,
                   fontWeight: 600,
-                  color: '#9ca3af',
+                  color: '#000000',
                   whiteSpace: 'nowrap',
                   marginBottom: 6,
                   fontFamily: 'system-ui, sans-serif',
@@ -169,7 +169,7 @@ function RecentWinnersBar() {
                   <span style={{
                     fontSize: 10,
                     fontWeight: 700,
-                    color: '#d1d5db',
+                    color: '#000000',
                     background: 'rgba(156,163,175,0.15)',
                     borderRadius: 4,
                     padding: '2px 6px',
@@ -181,7 +181,7 @@ function RecentWinnersBar() {
                   <span style={{
                     fontSize: 15,
                     fontWeight: 800,
-                    color: '#e5e7eb',
+                    color: '#000000',
                     letterSpacing: '-0.01em',
                     fontFamily: 'system-ui, sans-serif',
                   }}>
@@ -194,7 +194,7 @@ function RecentWinnersBar() {
               <div style={{
                 fontSize: 10,
                 fontWeight: 600,
-                color: '#6b7280',
+                color: '#000000',
                 whiteSpace: 'nowrap',
                 alignSelf: 'flex-start',
                 marginTop: 1,
@@ -235,7 +235,6 @@ function RecentWinnersBar() {
     </div>
   );
 }
-
 // ---------------------------------------------------------------------------
 // FloatingBetSlipButton
 // ---------------------------------------------------------------------------
