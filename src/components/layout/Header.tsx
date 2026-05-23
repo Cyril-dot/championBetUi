@@ -20,7 +20,7 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlined';
 
 // ---------------------------------------------------------------------------
-// Currency detection (mirrors WalletPage logic)
+// Currency detection
 // ---------------------------------------------------------------------------
 
 interface CurrencyInfo {
@@ -66,24 +66,40 @@ async function detectCurrency(): Promise<CurrencyInfo> {
 
   let countryCode = '';
 
-  // 1) ip-api
+  // 1) ipapi.co — free, HTTPS, browser-friendly, 1k req/day
   try {
-    const res = await fetch('http://ip-api.com/json/?fields=status,countryCode', {
+    const res = await fetch('https://ipapi.co/json/', {
       signal: AbortSignal.timeout(4000),
     });
     if (res.ok) {
       const d = await res.json();
-      if (d.status === 'success') countryCode = d.countryCode ?? '';
+      countryCode = d.country_code ?? '';
     }
   } catch { /* fall through */ }
 
-  // 2) ipapi.co
+  // 2) freeipapi.com — free, HTTPS, no key needed
   if (!countryCode) {
     try {
-      const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+      const res = await fetch('https://freeipapi.com/api/json', {
+        signal: AbortSignal.timeout(4000),
+      });
       if (res.ok) {
         const d = await res.json();
-        countryCode = d.country_code ?? '';
+        countryCode = d.countryCode ?? '';
+      }
+    } catch { /* fall through */ }
+  }
+
+  // 3) ip.guide — free, HTTPS, no key needed
+  if (!countryCode) {
+    try {
+      const res = await fetch('https://ip.guide/', {
+        signal: AbortSignal.timeout(4000),
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const d = await res.json();
+        countryCode = d.location?.country_code ?? '';
       }
     } catch { /* fall through */ }
   }
@@ -96,7 +112,7 @@ async function detectCurrency(): Promise<CurrencyInfo> {
 
   let rateFromGhs = 1;
   if (local.code !== 'GHS') {
-    // 3) Fetch live GHS → local rate
+    // Fetch live GHS → local rate
     try {
       const res = await fetch('https://open.er-api.com/v6/latest/GHS', {
         signal: AbortSignal.timeout(5000),
