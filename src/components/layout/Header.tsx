@@ -313,6 +313,29 @@ export default function Header() {
                 )}
               </Link>
 
+              {/* Deposit button — visible on sm+ screens */}
+              <Link
+                to="/deposit"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full touch-manipulation font-bold text-sm whitespace-nowrap"
+                style={{
+                  background: 'linear-gradient(90deg, #16a34a 0%, #22c55e 100%)',
+                  color: '#ffffff',
+                  boxShadow: '0 2px 8px rgba(22, 163, 74, 0.35)',
+                  textDecoration: 'none',
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLElement).style.opacity = '0.9';
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(22, 163, 74, 0.5)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLElement).style.opacity = '1';
+                  (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(22, 163, 74, 0.35)';
+                }}
+              >
+                <AddCircleOutlineIcon sx={{ fontSize: 16 }} />
+                Deposit
+              </Link>
+
               {/* User avatar */}
               <Link
                 to="/account"
