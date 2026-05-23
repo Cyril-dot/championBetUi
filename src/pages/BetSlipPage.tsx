@@ -435,7 +435,7 @@ function WinModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
           className="relative z-20 w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl overflow-hidden stake-slide-up"
           style={{ background: '#1a2332', border: '1px solid rgba(255,255,255,0.08)' }}
         >
-          {/* Top bar: Win badge + timestamp + close */}
+          {/* Top bar */}
           <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <div className="flex items-center gap-3">
               <span className="text-xs font-black px-2.5 py-1 rounded-md" style={{ background: '#22c55e', color: '#fff', letterSpacing: '0.05em' }}>
@@ -450,7 +450,6 @@ function WinModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
 
           {/* Scrollable body */}
           <div className="overflow-y-auto max-h-[80vh]">
-
             {/* Selections */}
             {bet.selections.map((sel, i) => {
               const matchLabel = buildMatchLabel(sel as unknown as Record<string, unknown>);
@@ -459,31 +458,20 @@ function WinModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
                 : '';
               return (
                 <div key={sel.id ?? i} className="px-4 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  {/* Match name row */}
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }}>
                       <SportsSoccerIcon sx={{ fontSize: 15 }} className="text-slate-300" />
                     </div>
                     <p className="text-sm font-bold text-white truncate">{matchLabel}</p>
                   </div>
-
-                  {/* Date/time */}
-                  {settledAt && (
-                    <p className="text-xs text-slate-400 mb-3">{settledAt}</p>
-                  )}
-
-                  {/* Selection chip */}
+                  {settledAt && <p className="text-xs text-slate-400 mb-3">{settledAt}</p>}
                   <div
                     className="inline-flex items-center px-3 py-1.5 rounded-lg mb-2 text-sm font-bold text-white"
                     style={{ border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)' }}
                   >
                     {sel.selection}
                   </div>
-
-                  {/* Market label */}
                   <p className="text-xs text-slate-400 mb-3">{sel.market}</p>
-
-                  {/* Selection result row */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-emerald-400" style={{ fontSize: 16 }}>✓</span>
@@ -545,13 +533,9 @@ function WinModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
               </Link>
             </div>
 
-            <button
-              onClick={onClose}
-              className="w-full pb-5 text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors"
-            >
+            <button onClick={onClose} className="w-full pb-5 text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors">
               Continue Betting
             </button>
-
           </div>
         </div>
       </div>
@@ -593,7 +577,7 @@ function LossModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
           className="relative z-20 w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl overflow-hidden"
           style={{ background: '#1a2332', border: '1px solid rgba(255,255,255,0.08)', animation: 'stakeSlideUp 0.35s cubic-bezier(0.16,1,0.3,1) both' }}
         >
-          {/* Top bar: Lost badge + timestamp + close */}
+          {/* Top bar */}
           <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             <div className="flex items-center gap-3">
               <span className="text-xs font-black px-2.5 py-1 rounded-md" style={{ background: '#ef4444', color: '#fff', letterSpacing: '0.05em' }}>
@@ -686,10 +670,7 @@ function LossModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
               </button>
             </div>
 
-            <button
-              onClick={onClose}
-              className="w-full pb-5 text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors"
-            >
+            <button onClick={onClose} className="w-full pb-5 text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors">
               Back to Bets
             </button>
           </div>
@@ -973,7 +954,7 @@ function BookingCodePanel() {
 }
 
 // ---------------------------------------------------------------------------
-// Slip tab — UPDATED with restyled stake section + fixed selection display
+// Slip tab — FIXED & RESTYLED stake input section
 // ---------------------------------------------------------------------------
 function SlipTab() {
   const { betSlip, removeFromBetSlip, clearBetSlip, showToast, user } = useAppStore();
@@ -986,6 +967,7 @@ function SlipTab() {
   const [balanceLoading, setBalanceLoading]   = useState(false);
   const [currency, setCurrency]               = useState<CurrencyInfo>(DEFAULT_CURRENCY);
   const [currencyLoading, setCurrencyLoading] = useState(true);
+  const stakeInputRef = useRef<HTMLInputElement>(null);
 
   const minStakeLocal = ghsToLocal(MIN_STAKE_GHS, currency);
 
@@ -1035,11 +1017,33 @@ function SlipTab() {
   const insufficientFunds = parsedLocal > 0 && walletBalance !== null && parsedGHS > walletGHS;
   const canPlace          = !!user && parsedLocal >= minStakeLocal && !insufficientFunds && betSlip.length > 0;
 
+  // FIX: addToStake now correctly appends to the current numeric value
   const addToStake = (amount: number) => {
     const current = parseFloat(stakeInput) || 0;
-    setStakeInput((current + amount).toFixed(currency.code === 'GHS' ? 2 : 0));
+    const next = current + amount;
+    setStakeInput(currency.code === 'GHS' ? next.toFixed(2) : String(Math.round(next)));
   };
-  const setStakeToMin = () => setStakeInput(minStakeLocal.toFixed(currency.code === 'GHS' ? 2 : 0));
+
+  const setStakeToMin = () => {
+    setStakeInput(currency.code === 'GHS' ? minStakeLocal.toFixed(2) : String(Math.round(minStakeLocal)));
+    stakeInputRef.current?.focus();
+  };
+
+  // FIX: Controlled input handler that strips non-numeric chars and prevents negative
+  const handleStakeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    // Allow digits and at most one decimal point; strip everything else
+    const cleaned = raw.replace(/[^0-9.]/g, '').replace(/^(\d*\.?\d*).*$/, '$1');
+    // Prevent negative or multiple decimals
+    if (cleaned === '' || (!isNaN(Number(cleaned)) && Number(cleaned) >= 0)) {
+      setStakeInput(cleaned);
+    }
+  };
+
+  const clearStake = () => {
+    setStakeInput('');
+    stakeInputRef.current?.focus();
+  };
 
   const handlePlace = async () => {
     if (!user) { navigate('/login'); return; }
@@ -1139,7 +1143,6 @@ function SlipTab() {
 
             {/* Bottom row: market label + odds badge */}
             <div className="flex items-center justify-between px-4 pb-3">
-              {/* Market name */}
               <div className="min-w-0 flex-1 mr-3">
                 <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">
                   {sel.market}
@@ -1148,7 +1151,6 @@ function SlipTab() {
                   )}
                 </p>
               </div>
-              {/* Odds pill — prominent */}
               <div className="shrink-0 flex flex-col items-end">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Odds</span>
                 <span className="inline-flex items-center text-sm font-black text-white bg-primary px-3 py-1 rounded-xl tracking-wide">
@@ -1160,7 +1162,7 @@ function SlipTab() {
         ))}
       </div>
 
-      {/* ── Stake card ── */}
+      {/* ── Stake card (FIXED & RESTYLED) ── */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
 
         {/* Card header */}
@@ -1171,84 +1173,128 @@ function SlipTab() {
             </div>
             <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Stake</p>
           </div>
-          <CurrencyPill currency={currency} detecting={currencyLoading} />
+          <div className="flex items-center gap-2">
+            {/* Wallet balance badge in header for quick reference */}
+            {user && walletBalance !== null && !balanceLoading && (
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg">
+                {currency.code !== 'GHS'
+                  ? formatLocal(walletLocal, currency, 0)
+                  : `GH₵${walletGHS.toFixed(2)}`}
+              </span>
+            )}
+            {user && balanceLoading && (
+              <span className="inline-block w-16 h-4 bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse" />
+            )}
+            <CurrencyPill currency={currency} detecting={currencyLoading} />
+          </div>
         </div>
 
         <div className="p-4 space-y-3">
 
-          {/* Stake input */}
+          {/* ── FIXED Stake input ── */}
           <div className="relative">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none">
-              <span className="text-base font-bold text-slate-400">{currency.symbol}</span>
+            {/* Currency symbol prefix */}
+            <div
+              className="absolute left-0 top-0 bottom-0 flex items-center justify-center pointer-events-none select-none z-10"
+              style={{ width: '52px' }}
+            >
+              <span className="text-base font-black text-slate-500 dark:text-slate-400 leading-none">
+                {currency.symbol}
+              </span>
             </div>
+
             <input
-              type="number"
+              ref={stakeInputRef}
+              type="text"
+              inputMode="decimal"
               value={stakeInput}
-              onChange={e => setStakeInput(e.target.value)}
-              placeholder={`Min ${formatLocal(minStakeLocal, currency, 0)}`}
-              className={`
-                w-full pl-10 pr-4 py-4 rounded-2xl border-2 text-xl font-black
-                bg-slate-50 dark:bg-slate-800
-                text-slate-800 dark:text-slate-100
-                placeholder:text-slate-300 dark:placeholder:text-slate-600
-                outline-none transition-all
-                focus:bg-white dark:focus:bg-slate-800/80
-                ${belowMinStake
+              onChange={handleStakeChange}
+              placeholder={`0`}
+              className={[
+                'w-full rounded-2xl border-2 text-2xl font-black',
+                'bg-slate-50 dark:bg-slate-800',
+                'text-slate-800 dark:text-slate-100',
+                'placeholder:text-slate-300 dark:placeholder:text-slate-600',
+                'outline-none transition-all',
+                'focus:bg-white dark:focus:bg-slate-800/80',
+                // right padding to avoid overlap with clear button
+                stakeInput ? 'pr-10' : 'pr-4',
+                // left padding: wide enough for symbol + spacing
+                'pl-14',
+                // vertical padding for big comfortable tap target
+                'py-4',
+                belowMinStake
                   ? 'border-amber-400 dark:border-amber-600 focus:ring-2 focus:ring-amber-200/50'
                   : insufficientFunds
                     ? 'border-rose-400 dark:border-rose-600 focus:ring-2 focus:ring-rose-200/50'
                     : parsedLocal >= minStakeLocal
-                      ? 'border-primary/50 focus:ring-2 focus:ring-primary/20'
-                      : 'border-slate-200 dark:border-slate-700 focus:border-primary/40 focus:ring-2 focus:ring-primary/10'
-                }
-              `}
-              min={0}
-              step={currency.code === 'GHS' ? '0.01' : '1'}
+                      ? 'border-primary/60 focus:ring-2 focus:ring-primary/20'
+                      : 'border-slate-200 dark:border-slate-700 focus:border-primary/40 focus:ring-2 focus:ring-primary/10',
+              ].join(' ')}
             />
-            {/* Clear input button */}
+
+            {/* Clear (×) button — only when there is input */}
             {stakeInput && (
               <button
-                onClick={() => setStakeInput('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+                onClick={clearStake}
+                type="button"
+                aria-label="Clear stake"
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-600 hover:text-slate-700 dark:hover:text-slate-200 transition-all active:scale-90"
               >
                 <CloseIcon sx={{ fontSize: 14 }} />
               </button>
+            )}
+
+            {/* Min-stake watermark hint (shows when input empty) */}
+            {!stakeInput && (
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                <span className="text-xs text-slate-300 dark:text-slate-600 font-medium">
+                  min {formatLocal(minStakeLocal, currency, 0)}
+                </span>
+              </div>
             )}
           </div>
 
           {/* Validation messages */}
           {belowMinStake && (
-            <div className="flex items-center justify-between px-3 py-2 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
+            <div className="flex items-center justify-between px-3 py-2.5 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
               <p className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
                 <InfoOutlinedIcon sx={{ fontSize: 13 }} />
-                Min stake is {formatLocal(minStakeLocal, currency, 0)}
+                Minimum stake is {formatLocal(minStakeLocal, currency, 0)}
               </p>
-              <button onClick={setStakeToMin} className="text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 ml-3">Use min</button>
+              <button
+                onClick={setStakeToMin}
+                className="text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 ml-3 shrink-0 underline underline-offset-2"
+              >
+                Use min
+              </button>
             </div>
           )}
           {insufficientFunds && !belowMinStake && (
-            <div className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-900/20 rounded-xl border border-rose-200/60 dark:border-rose-800/40">
-              <InfoOutlinedIcon sx={{ fontSize: 13 }} className="text-rose-500" />
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-rose-50 dark:bg-rose-900/20 rounded-xl border border-rose-200/60 dark:border-rose-800/40">
+              <InfoOutlinedIcon sx={{ fontSize: 13 }} className="text-rose-500 shrink-0" />
               <p className="text-xs text-rose-600 dark:text-rose-400">
-                Insufficient balance · available {formatLocal(walletLocal, currency, 0)}
+                Insufficient balance · available{' '}
+                <span className="font-bold">{formatLocal(walletLocal, currency, 0)}</span>
               </p>
             </div>
           )}
 
-          {/* Quick-add amounts */}
+          {/* Quick-add amount buttons */}
           <div className="grid grid-cols-4 gap-2">
             {QUICK_AMOUNTS.map((amount, idx) => (
               <button
                 key={idx}
+                type="button"
                 onClick={() => addToStake(amount)}
                 className="py-2.5 text-[12px] font-bold bg-slate-50 dark:bg-slate-800 hover:bg-primary hover:text-white text-slate-600 dark:text-slate-400 rounded-xl transition-all active:scale-95 border border-slate-200 dark:border-slate-700 hover:border-primary"
               >
-                +{currency.symbol}{amount >= 1000 ? `${(amount / 1000).toFixed(0)}k` : amount}
+                +{currency.symbol}{amount >= 1000 ? `${(amount / 1000).toFixed(amount % 1000 === 0 ? 0 : 1)}k` : amount}
               </button>
             ))}
           </div>
 
-          {/* Currency conversion note */}
+          {/* Currency conversion note (non-GHS users) */}
           {!currencyLoading && currency.code !== 'GHS' && parsedLocal > 0 && (
             <div className="flex items-center gap-2 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
               <PublicIcon sx={{ fontSize: 14 }} className="text-slate-400 shrink-0" />
@@ -1280,7 +1326,7 @@ function SlipTab() {
               </span>
             </div>
 
-            {/* Potential return */}
+            {/* Potential return highlight */}
             <div className="flex justify-between items-center p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
               <div className="flex items-center gap-2">
                 <TrendingUpIcon sx={{ fontSize: 16 }} className="text-emerald-600" />
@@ -1295,7 +1341,7 @@ function SlipTab() {
               </span>
             </div>
 
-            {/* Wallet balance (if logged in) */}
+            {/* Wallet balance row (logged in) */}
             {user && (
               <div className="flex justify-between items-center text-xs pt-0.5">
                 <span className="text-slate-400 flex items-center gap-1.5">
@@ -1329,9 +1375,17 @@ function SlipTab() {
               {placing ? (
                 <><CircularProgress fontSize="small" className="animate-spin" /> Placing Bet…</>
               ) : parsedLocal > 0 && canPlace ? (
-                <>Place Bet · {currency.code !== 'GHS' ? `${formatLocal(parsedLocal, currency)} (GH₵${parsedGHS.toFixed(2)})` : `GH₵${parsedGHS.toFixed(2)}`}</>
+                <>
+                  Place Bet ·{' '}
+                  {currency.code !== 'GHS'
+                    ? `${formatLocal(parsedLocal, currency)} (GH₵${parsedGHS.toFixed(2)})`
+                    : `GH₵${parsedGHS.toFixed(2)}`}
+                </>
               ) : (
-                <>Place Bet{belowMinStake ? ` · min ${formatLocal(minStakeLocal, currency, 0)}` : parsedLocal === 0 ? ' · enter stake' : ''}</>
+                <>
+                  Place Bet
+                  {belowMinStake ? ` · min ${formatLocal(minStakeLocal, currency, 0)}` : parsedLocal === 0 ? ' · enter stake' : ''}
+                </>
               )}
             </button>
           ) : (
@@ -1340,7 +1394,10 @@ function SlipTab() {
             </Link>
           )}
 
-          <button onClick={clearBetSlip} className="w-full py-2 text-xs font-semibold text-slate-400 hover:text-rose-500 transition-colors">
+          <button
+            onClick={clearBetSlip}
+            className="w-full py-2 text-xs font-semibold text-slate-400 hover:text-rose-500 transition-colors"
+          >
             Clear slip
           </button>
 
@@ -1440,9 +1497,9 @@ function MyBetsTab() {
       {normalisedBets.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
           {[
-            { label: 'Staked', value: formatCurrency(totalStaked), color: 'text-slate-800 dark:text-slate-100' },
-            { label: 'Won',    value: formatCurrency(totalWon),    color: 'text-emerald-600' },
-            { label: 'Win Rate', value: winRate ? `${winRate}%` : '—', color: 'text-primary' },
+            { label: 'Staked',    value: formatCurrency(totalStaked), color: 'text-slate-800 dark:text-slate-100' },
+            { label: 'Won',       value: formatCurrency(totalWon),    color: 'text-emerald-600' },
+            { label: 'Win Rate',  value: winRate ? `${winRate}%` : '—', color: 'text-primary' },
           ].map(({ label, value, color }) => (
             <div key={label} className="shrink-0 flex-1 min-w-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 px-3 py-2.5">
               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{label}</p>
