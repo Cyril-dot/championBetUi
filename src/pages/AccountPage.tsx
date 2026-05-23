@@ -72,25 +72,42 @@ let _currencyCache: CurrencyInfo | null = null;
 async function detectCurrencyInfo(): Promise<CurrencyInfo> {
   if (_currencyCache) return _currencyCache;
 
-  // 1. Try ip-api (free, no key required)
   let countryCode = '';
+
+  // 1. ipapi.co — free, HTTPS, browser-friendly, 1k req/day
   try {
-    const res = await fetch('https://ip-api.com/json/?fields=countryCode', {
+    const res = await fetch('https://ipapi.co/json/', {
       signal: AbortSignal.timeout(4000),
     });
     if (res.ok) {
       const d = await res.json();
-      countryCode = d.countryCode ?? '';
+      countryCode = d.country_code ?? '';
     }
   } catch { /* fall through */ }
 
-  // 2. Fallback: ipapi.co
+  // 2. freeipapi.com — free, HTTPS, no key needed
   if (!countryCode) {
     try {
-      const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+      const res = await fetch('https://freeipapi.com/api/json', {
+        signal: AbortSignal.timeout(4000),
+      });
       if (res.ok) {
         const d = await res.json();
-        countryCode = d.country_code ?? '';
+        countryCode = d.countryCode ?? '';
+      }
+    } catch { /* fall through */ }
+  }
+
+  // 3. ip.guide — free, HTTPS, no key needed
+  if (!countryCode) {
+    try {
+      const res = await fetch('https://ip.guide/', {
+        signal: AbortSignal.timeout(4000),
+        headers: { Accept: 'application/json' },
+      });
+      if (res.ok) {
+        const d = await res.json();
+        countryCode = d.location?.country_code ?? '';
       }
     } catch { /* fall through */ }
   }
@@ -101,12 +118,12 @@ async function detectCurrencyInfo(): Promise<CurrencyInfo> {
     return DEFAULT_CURRENCY;
   }
 
-  // 3. Fetch GHS → localCurrency rate
+  // 4. Fetch GHS → localCurrency rate
   let rateFromGhs = 1;
 
   if (localCurrency.code !== 'GHS') {
     try {
-      const res = await fetch(`https://open.er-api.com/v6/latest/GHS`, {
+      const res = await fetch('https://open.er-api.com/v6/latest/GHS', {
         signal: AbortSignal.timeout(5000),
       });
       if (res.ok) {

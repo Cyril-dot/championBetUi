@@ -63,29 +63,43 @@ async function detectCountryCode(): Promise<string> {
     }
   } catch { /* fall through */ }
 
-  // 2) ip-api.com
+  // 2) ipapi.co — free, HTTPS, browser-friendly, 1k req/day
   try {
-    const res = await fetch(
-      'http://ip-api.com/json/?fields=status,countryCode',
-      { signal: AbortSignal.timeout(4000) },
-    );
-    if (res.ok) {
-      const d = await res.json();
-      if (d.status === 'success' && d.countryCode) return d.countryCode as string;
-    }
-  } catch { /* fall through */ }
-
-  // 3) ipapi.co
-  try {
-    const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+    const res = await fetch('https://ipapi.co/json/', {
+      signal: AbortSignal.timeout(4000),
+    });
     if (res.ok) {
       const d = await res.json();
       if (d.country_code) return d.country_code as string;
     }
   } catch { /* fall through */ }
 
+  // 3) freeipapi.com — free, HTTPS, no key needed
+  try {
+    const res = await fetch('https://freeipapi.com/api/json', {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      if (d.countryCode) return d.countryCode as string;
+    }
+  } catch { /* fall through */ }
+
+  // 4) ip.guide — free, HTTPS, no key needed
+  try {
+    const res = await fetch('https://ip.guide/', {
+      signal: AbortSignal.timeout(4000),
+      headers: { Accept: 'application/json' },
+    });
+    if (res.ok) {
+      const d = await res.json();
+      if (d.location?.country_code) return d.location.country_code as string;
+    }
+  } catch { /* fall through */ }
+
   return 'GH'; // fallback
 }
+
 
 // ── Exchange rates (GHS as base) ──────────────────────────────────────────────
 

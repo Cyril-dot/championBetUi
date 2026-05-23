@@ -78,27 +78,41 @@ async function detectCurrencyInfo(): Promise<CurrencyInfo> {
   if (_currencyInflight) return _currencyInflight;
 
   _currencyInflight = (async (): Promise<CurrencyInfo> => {
-    // Step 1 — geo: ip-api (no key required, fast)
     let countryCode = '';
+
+    // Step 1 — ipapi.co — free, HTTPS, browser-friendly, 1k req/day
     try {
-      const res = await fetch('https://ip-api.com/json/?fields=countryCode', {
+      const res = await fetch('https://ipapi.co/json/', {
         signal: AbortSignal.timeout(4000),
       });
-      if (res.ok) countryCode = (await res.json()).countryCode ?? '';
+      if (res.ok) countryCode = (await res.json()).country_code ?? '';
     } catch { /* fall through */ }
 
-    // Step 2 — fallback geo: ipapi.co
+    // Step 2 — freeipapi.com — free, HTTPS, no key needed
     if (!countryCode) {
       try {
-        const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
-        if (res.ok) countryCode = (await res.json()).country_code ?? '';
+        const res = await fetch('https://freeipapi.com/api/json', {
+          signal: AbortSignal.timeout(4000),
+        });
+        if (res.ok) countryCode = (await res.json()).countryCode ?? '';
+      } catch { /* fall through */ }
+    }
+
+    // Step 3 — ip.guide — free, HTTPS, no key needed
+    if (!countryCode) {
+      try {
+        const res = await fetch('https://ip.guide/', {
+          signal: AbortSignal.timeout(4000),
+          headers: { Accept: 'application/json' },
+        });
+        if (res.ok) countryCode = (await res.json()).location?.country_code ?? '';
       } catch { /* fall through */ }
     }
 
     const localMeta = countryCode ? COUNTRY_CURRENCY[countryCode] : undefined;
     if (!localMeta) { _currencyCache = DEFAULT_CURRENCY; return _currencyCache; }
 
-    // Step 3 — live rate GHS → local (open.er-api.com)
+    // Step 4 — live rate GHS → local (open.er-api.com)
     let rateFromGhs = 1;
     if (localMeta.code !== 'GHS') {
       try {
@@ -111,7 +125,7 @@ async function detectCurrencyInfo(): Promise<CurrencyInfo> {
         }
       } catch { /* fall through */ }
 
-      // Step 4 — fallback rate: exchangerate.host
+      // Step 5 — fallback rate: exchangerate.host
       if (rateFromGhs === 1) {
         try {
           const res = await fetch(
@@ -138,7 +152,6 @@ async function detectCurrencyInfo(): Promise<CurrencyInfo> {
 
   return _currencyInflight;
 }
-
 // ─── Currency helpers ─────────────────────────────────────────────────────────
 
 /** Format a GHS amount into the user's local currency string. */

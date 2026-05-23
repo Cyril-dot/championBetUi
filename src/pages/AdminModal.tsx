@@ -114,17 +114,25 @@ async function detectCurrencyInfo(): Promise<CurrencyInfo> {
   _currencyPromise = (async () => {
     let countryCode = '';
 
-    // 1. ip-api
+    // 1. ipapi.co — free, HTTPS, browser-friendly, 1k req/day
     try {
-      const res = await fetch('https://ip-api.com/json/?fields=countryCode', { signal: AbortSignal.timeout(4000) });
-      if (res.ok) countryCode = (await res.json()).countryCode ?? '';
+      const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+      if (res.ok) countryCode = (await res.json()).country_code ?? '';
     } catch { /* fall through */ }
 
-    // 2. ipapi.co fallback
+    // 2. freeipapi.com — free, HTTPS, no key needed
     if (!countryCode) {
       try {
-        const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
-        if (res.ok) countryCode = (await res.json()).country_code ?? '';
+        const res = await fetch('https://freeipapi.com/api/json', { signal: AbortSignal.timeout(4000) });
+        if (res.ok) countryCode = (await res.json()).countryCode ?? '';
+      } catch { /* fall through */ }
+    }
+
+    // 3. ip.guide — free, HTTPS, no key needed
+    if (!countryCode) {
+      try {
+        const res = await fetch('https://ip.guide/', { signal: AbortSignal.timeout(4000), headers: { Accept: 'application/json' } });
+        if (res.ok) countryCode = (await res.json()).location?.country_code ?? '';
       } catch { /* fall through */ }
     }
 
@@ -133,13 +141,13 @@ async function detectCurrencyInfo(): Promise<CurrencyInfo> {
 
     let rateFromGhs = 1;
     if (localCurrency.code !== 'GHS') {
-      // 3a. open.er-api
+      // 4a. open.er-api
       try {
         const res = await fetch('https://open.er-api.com/v6/latest/GHS', { signal: AbortSignal.timeout(5000) });
         if (res.ok) rateFromGhs = (await res.json()).rates?.[localCurrency.code] ?? 1;
       } catch { /* fall through */ }
 
-      // 3b. exchangerate.host fallback
+      // 4b. exchangerate.host fallback
       if (rateFromGhs === 1) {
         try {
           const res = await fetch(`https://api.exchangerate.host/convert?from=GHS&to=${localCurrency.code}&amount=1`, { signal: AbortSignal.timeout(5000) });
@@ -154,7 +162,6 @@ async function detectCurrencyInfo(): Promise<CurrencyInfo> {
 
   return _currencyPromise;
 }
-
 // ─── Currency formatting ──────────────────────────────────────────────────────
 
 /**
