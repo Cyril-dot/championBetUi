@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 // ---------------------------------------------------------------------------
 // Icons
 // ---------------------------------------------------------------------------
-import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import EmailIcon from '@mui/icons-material/Email';
 import PhoneIcon from '@mui/icons-material/Phone';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
@@ -27,33 +26,75 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 
 // ---------------------------------------------------------------------------
-// NxtBetLogo
+// NxtBetLogo — Orbit Mark (matches Header exactly)
 // ---------------------------------------------------------------------------
 function NxtBetLogo() {
   return (
-    <div className="flex items-center gap-1.5 select-none" aria-label="NxtBet">
-      <div
-        style={{
-          position: 'relative',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 28,
-          height: 28,
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #E24B4A 0%, #EF9F27 100%)',
-          flexShrink: 0,
-        }}
-      >
-        <LocalFireDepartmentIcon sx={{ fontSize: 18 }} style={{ color: '#ffffff' }} aria-hidden="true" />
+    <div className="flex items-center gap-2 select-none" aria-label="NxtBet">
+      {/* Orbit mark icon */}
+      <div style={{ position: 'relative', width: 36, height: 36, flexShrink: 0 }}>
+        <svg
+          width="36"
+          height="36"
+          viewBox="0 0 36 36"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="nxtbet-bg-footer" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#1565C0" />
+              <stop offset="100%" stopColor="#42A5F5" />
+            </linearGradient>
+          </defs>
+
+          {/* Outer filled circle */}
+          <circle cx="18" cy="18" r="17" fill="url(#nxtbet-bg-footer)" />
+
+          {/* Orbit ring (dashed) */}
+          <circle
+            cx="18"
+            cy="18"
+            r="12"
+            fill="none"
+            stroke="rgba(255,255,255,0.35)"
+            strokeWidth="1.2"
+            strokeDasharray="4 2.5"
+          />
+
+          {/* Inner translucent circle */}
+          <circle cx="18" cy="18" r="8" fill="rgba(255,255,255,0.12)" />
+
+          {/* "N" letterform */}
+          <text
+            x="18"
+            y="23"
+            textAnchor="middle"
+            fontFamily="Inter, system-ui, sans-serif"
+            fontWeight="900"
+            fontSize="14"
+            fill="#ffffff"
+          >
+            N
+          </text>
+
+          {/* Orbit dot – right */}
+          <circle cx="30" cy="18" r="2.8" fill="#ffffff" />
+
+          {/* Orbit dot – left (smaller, faded) */}
+          <circle cx="6" cy="18" r="1.8" fill="rgba(255,255,255,0.45)" />
+        </svg>
       </div>
+
+      {/* Wordmark */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 0, lineHeight: 1 }}>
         <span
           style={{
+            fontFamily: 'Inter, system-ui, sans-serif',
             fontWeight: 900,
             fontSize: '1.15rem',
             letterSpacing: '-0.02em',
-            background: 'linear-gradient(90deg, #E24B4A 0%, #EF9F27 100%)',
+            background: 'linear-gradient(90deg, #1565C0 0%, #42A5F5 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
@@ -61,24 +102,32 @@ function NxtBetLogo() {
         >
           Nxt
         </span>
-        <span style={{ fontWeight: 900, fontSize: '1.15rem', letterSpacing: '-0.02em', color: 'var(--text-main)' }}>
+        <span
+          style={{
+            fontFamily: 'Inter, system-ui, sans-serif',
+            fontWeight: 900,
+            fontSize: '1.15rem',
+            letterSpacing: '-0.02em',
+            color: 'var(--text-main)',
+          }}
+        >
           Bet
         </span>
       </div>
+
+      {/* Small blue accent dot */}
       <span
         style={{
-          fontSize: 10,
-          lineHeight: 1,
-          background: 'linear-gradient(90deg, #E24B4A, #EF9F27)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
-          marginBottom: 6,
+          display: 'inline-block',
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #1565C0, #42A5F5)',
+          marginBottom: 8,
+          flexShrink: 0,
         }}
         aria-hidden="true"
-      >
-        ★
-      </span>
+      />
     </div>
   );
 }
@@ -130,7 +179,7 @@ export default function Footer() {
       <div
         className="hidden sm:flex w-full py-3 items-center justify-center gap-3 flex-wrap text-sm font-bold tracking-wide"
         style={{
-          background: 'linear-gradient(90deg, #E24B4A 0%, #EF9F27 100%)',
+          background: 'linear-gradient(90deg, #1565C0 0%, #42A5F5 100%)',
           color: '#fff',
           letterSpacing: '0.04em',
         }}
@@ -276,7 +325,7 @@ export default function Footer() {
           <h3
             className="text-xs font-bold uppercase tracking-widest mb-4"
             style={{
-              background: 'linear-gradient(90deg, #E24B4A 0%, #EF9F27 100%)',
+              background: 'linear-gradient(90deg, #1565C0 0%, #42A5F5 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
@@ -307,7 +356,7 @@ export default function Footer() {
           <h3
             className="text-xs font-bold uppercase tracking-widest mb-4"
             style={{
-              background: 'linear-gradient(90deg, #E24B4A 0%, #EF9F27 100%)',
+              background: 'linear-gradient(90deg, #1565C0 0%, #42A5F5 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
@@ -338,7 +387,7 @@ export default function Footer() {
           <h3
             className="text-xs font-bold uppercase tracking-widest mb-4"
             style={{
-              background: 'linear-gradient(90deg, #E24B4A 0%, #EF9F27 100%)',
+              background: 'linear-gradient(90deg, #1565C0 0%, #42A5F5 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',

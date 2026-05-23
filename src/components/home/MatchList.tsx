@@ -100,17 +100,14 @@ const CURRENCY_CONFIG: Record<Winner['currency'], { symbol: string; accent: stri
 };
 
 // ---------------------------------------------------------------------------
-// RecentWinnersBar — bare scrolling cards, no outer container, blue + white
+// RecentWinnersBar — bare scrolling cards, gray in light mode, green in dark
 // ---------------------------------------------------------------------------
 function RecentWinnersBar() {
   const doubled = useMemo(() => [...RECENT_WINNERS, ...RECENT_WINNERS], []);
 
   return (
-    <div style={{
-      overflow: 'hidden',
-      marginBottom: 14,
-      position: 'relative',
-    }}>
+    <div style={{ overflow: 'hidden', marginBottom: 14, position: 'relative' }}>
+
       {/* Scrolling track */}
       <div style={{ overflow: 'hidden', padding: '2px 0 6px' }}>
         <div style={{
@@ -120,121 +117,137 @@ function RecentWinnersBar() {
           width: 'max-content',
         }}>
           {doubled.map((w, i) => (
-            <div
-              key={i}
-              style={{
-                flexShrink: 0,
-                background: 'rgba(37,99,235,0.12)',
-                borderRadius: 12,
-                padding: '11px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
-                border: '1px solid rgba(96,165,250,0.22)',
-                minWidth: 0,
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              {/* Top shimmer line */}
-              <div style={{
-                position: 'absolute', top: 0, left: 0, right: 0, height: 1,
-                background: 'linear-gradient(90deg, transparent 0%, rgba(147,197,253,0.5) 50%, transparent 100%)',
-              }} />
-
-              {/* Pulsing dot */}
-              <span style={{
-                width: 7, height: 7, borderRadius: '50%',
-                background: '#9ca3af',
-                boxShadow: '0 0 6px rgba(156,163,175,0.6)',
-                display: 'inline-block',
-                flexShrink: 0,
-                animation: 'winnerPulse 1.6s ease-in-out infinite',
-              }} />
-
-              {/* Phone + amount */}
+            <div key={i} className="wc-card">
+              <div className="wc-shimmer" />
+              <span className="wc-dot" />
               <div style={{ lineHeight: 1 }}>
-                <div style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: '#000000',
-                  whiteSpace: 'nowrap',
-                  marginBottom: 6,
-                  fontFamily: 'system-ui, sans-serif',
-                  letterSpacing: '0.03em',
-                }}>
-                  {w.phone}
-                </div>
+                <div className="wc-phone">{w.phone}</div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, whiteSpace: 'nowrap' }}>
-                  <span style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: '#000000',
-                    background: 'rgba(156,163,175,0.15)',
-                    borderRadius: 4,
-                    padding: '2px 6px',
-                    letterSpacing: '0.06em',
-                    fontFamily: 'system-ui, sans-serif',
-                  }}>
-                    {CURRENCY_CONFIG[w.currency].symbol}
-                  </span>
-                  <span style={{
-                    fontSize: 15,
-                    fontWeight: 800,
-                    color: '#000000',
-                    letterSpacing: '-0.01em',
-                    fontFamily: 'system-ui, sans-serif',
-                  }}>
-                    {w.amount}
-                  </span>
+                  <span className="wc-symbol">{CURRENCY_CONFIG[w.currency].symbol}</span>
+                  <span className="wc-amount">{w.amount}</span>
                 </div>
               </div>
-
-              {/* Time ago */}
-              <div style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: '#000000',
-                whiteSpace: 'nowrap',
-                alignSelf: 'flex-start',
-                marginTop: 1,
-                fontFamily: 'system-ui, sans-serif',
-                letterSpacing: '0.04em',
-              }}>
-                {w.timeAgo}
-              </div>
+              <div className="wc-time">{w.timeAgo}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Fade edge masks — transparent so they blend with any page bg */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, bottom: 0, width: 28,
-        background: 'linear-gradient(90deg, var(--bg-page, #0d1117) 0%, transparent 100%)',
-        pointerEvents: 'none',
-        zIndex: 2,
-      }} />
-      <div style={{
-        position: 'absolute', top: 0, right: 0, bottom: 0, width: 28,
-        background: 'linear-gradient(270deg, var(--bg-page, #0d1117) 0%, transparent 100%)',
-        pointerEvents: 'none',
-        zIndex: 2,
-      }} />
+      {/* Fade edge masks */}
+      <div className="wc-fade-left" />
+      <div className="wc-fade-right" />
 
       <style>{`
+        /* ── light mode (default) — gray palette ── */
+        .wc-card {
+          flex-shrink: 0;
+          background: rgba(107,114,128,0.08);
+          border-radius: 12px;
+          padding: 11px 16px;
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          border: 1px solid rgba(107,114,128,0.18);
+          min-width: 0;
+          position: relative;
+          overflow: hidden;
+        }
+        .wc-shimmer {
+          position: absolute; top: 0; left: 0; right: 0; height: 1px;
+          background: linear-gradient(90deg, transparent 0%, rgba(156,163,175,0.4) 50%, transparent 100%);
+        }
+        .wc-dot {
+          width: 7px; height: 7px; border-radius: 50%;
+          background: #9ca3af;
+          box-shadow: 0 0 5px rgba(156,163,175,0.5);
+          display: inline-block;
+          flex-shrink: 0;
+          animation: winnerPulse 1.6s ease-in-out infinite;
+        }
+        .wc-phone {
+          font-size: 12px; font-weight: 600; color: #6b7280;
+          white-space: nowrap; margin-bottom: 6px;
+          font-family: system-ui, sans-serif; letter-spacing: 0.03em;
+        }
+        .wc-symbol {
+          font-size: 10px; font-weight: 700; color: #6b7280;
+          background: rgba(107,114,128,0.12);
+          border-radius: 4px; padding: 2px 6px;
+          letter-spacing: 0.06em; font-family: system-ui, sans-serif;
+        }
+        .wc-amount {
+          font-size: 15px; font-weight: 800; color: #374151;
+          letter-spacing: -0.01em; font-family: system-ui, sans-serif;
+        }
+        .wc-time {
+          font-size: 10px; font-weight: 600; color: #9ca3af;
+          white-space: nowrap; align-self: flex-start; margin-top: 1px;
+          font-family: system-ui, sans-serif; letter-spacing: 0.04em;
+        }
+        .wc-fade-left {
+          position: absolute; top: 0; left: 0; bottom: 0; width: 28px;
+          background: linear-gradient(90deg, var(--bg-page, #ffffff) 0%, transparent 100%);
+          pointer-events: none; z-index: 2;
+        }
+        .wc-fade-right {
+          position: absolute; top: 0; right: 0; bottom: 0; width: 28px;
+          background: linear-gradient(270deg, var(--bg-page, #ffffff) 0%, transparent 100%);
+          pointer-events: none; z-index: 2;
+        }
+
+        /* ── dark mode — green palette ── */
+        @media (prefers-color-scheme: dark) {
+          .wc-card {
+            background: rgba(16,185,129,0.08);
+            border-color: rgba(16,185,129,0.2);
+          }
+          .wc-shimmer {
+            background: linear-gradient(90deg, transparent 0%, rgba(52,211,153,0.4) 50%, transparent 100%);
+          }
+          .wc-dot {
+            background: #34d399;
+            box-shadow: 0 0 6px rgba(52,211,153,0.7);
+          }
+          .wc-phone  { color: #6ee7b7; }
+          .wc-symbol { color: #34d399; background: rgba(16,185,129,0.15); }
+          .wc-amount { color: #ecfdf5; }
+          .wc-time   { color: #34d399; }
+          .wc-fade-left  { background: linear-gradient(90deg,  var(--bg-page, #0d1117) 0%, transparent 100%); }
+          .wc-fade-right { background: linear-gradient(270deg, var(--bg-page, #0d1117) 0%, transparent 100%); }
+        }
+
+        /* ── dark mode via .dark class (Tailwind / manual toggle) ── */
+        .dark .wc-card {
+          background: rgba(16,185,129,0.08);
+          border-color: rgba(16,185,129,0.2);
+        }
+        .dark .wc-shimmer {
+          background: linear-gradient(90deg, transparent 0%, rgba(52,211,153,0.4) 50%, transparent 100%);
+        }
+        .dark .wc-dot {
+          background: #34d399;
+          box-shadow: 0 0 6px rgba(52,211,153,0.7);
+        }
+        .dark .wc-phone  { color: #6ee7b7; }
+        .dark .wc-symbol { color: #34d399; background: rgba(16,185,129,0.15); }
+        .dark .wc-amount { color: #ecfdf5; }
+        .dark .wc-time   { color: #34d399; }
+        .dark .wc-fade-left  { background: linear-gradient(90deg,  var(--bg-page, #0d1117) 0%, transparent 100%); }
+        .dark .wc-fade-right { background: linear-gradient(270deg, var(--bg-page, #0d1117) 0%, transparent 100%); }
+
         @keyframes winnersScroll {
           0%   { transform: translateX(0); }
           100% { transform: translateX(-50%); }
         }
         @keyframes winnerPulse {
-          0%, 100% { opacity: 1; box-shadow: 0 0 6px rgba(96,165,250,0.8); }
-          50%       { opacity: 0.4; box-shadow: 0 0 3px rgba(96,165,250,0.3); }
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.35; }
         }
       `}</style>
     </div>
   );
 }
+
 // ---------------------------------------------------------------------------
 // FloatingBetSlipButton
 // ---------------------------------------------------------------------------
@@ -1001,7 +1014,7 @@ function unwrapAdminMatches(raw: unknown): Match[] {
 async function fetchAdminMatchOdds(matchId: string): Promise<unknown[]> {
   try {
     const raw = await fetch(
-      `https://futballbackend-production-7d3b.up.railway.app/api/public/admin-matches/${matchId}/odds`
+      `https://futballbackend-production.up.railway.app/api/public/admin-matches/${matchId}/odds`
     ).then((r) => r.json());
     return safeUnwrapOddsArray(raw);
   } catch { return []; }
@@ -1463,7 +1476,7 @@ function SpecialGamesSection() {
     async function load() {
       try {
         const raw = await fetch(
-          'https://futballbackend-production-7d3b.up.railway.app/api/public/admin-matches?ngrok-skip-browser-warning=true',
+          'https://futballbackend-production.up.railway.app/api/public/admin-matches?ngrok-skip-browser-warning=true',
         ).then((r) => r.json());
         if (!alive()) return;
         const matches = unwrapAdminMatches(raw);
