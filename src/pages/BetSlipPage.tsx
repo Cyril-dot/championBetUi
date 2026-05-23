@@ -22,6 +22,8 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import DownloadIcon from '@mui/icons-material/Download';
 import PublicIcon from '@mui/icons-material/Public';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 
 // ---------------------------------------------------------------------------
 // Debug logger
@@ -214,10 +216,10 @@ function CurrencyPill({ currency, detecting }: { currency: CurrencyInfo; detecti
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+    <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
       <PublicIcon sx={{ fontSize: 12 }} />
-      <span className="font-semibold text-slate-700 dark:text-slate-300">{currency.code}</span>
-      {!isGHS && <span className="text-slate-400">· settled in GH₵</span>}
+      <span className="font-bold text-slate-700 dark:text-slate-300">{currency.code}</span>
+      {!isGHS && <span className="text-slate-400">· GH₵</span>}
     </span>
   );
 }
@@ -367,15 +369,11 @@ function ShareImageModal({ imageUrl, onClose }: { imageUrl: string; onClose: () 
 }
 
 // ---------------------------------------------------------------------------
-// 🏆 WIN MODAL — XStake-style with glowing trophy
+// 🏆 WIN MODAL — Stake-style bet slip card
 // ---------------------------------------------------------------------------
 function WinModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
   const [generatingImage, setGeneratingImage] = useState(false);
   const [shareImageUrl, setShareImageUrl]     = useState<string | null>(null);
-  const [showDetails, setShowDetails]         = useState(false);
-
-  // Generate a short verify code from bet ID
-  const verifyCode = bet.id ? bet.id.slice(-10).toUpperCase() : 'FUTBALL2025';
 
   const confettiColors = ['#E6192E','#FFD700','#22C55E','#3B82F6','#F59E0B','#A855F7','#ffffff'];
 
@@ -397,290 +395,163 @@ function WinModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
     }
   };
 
+  const placedDate = bet.placedAt
+    ? new Date(bet.placedAt).toLocaleString('en-GH', { hour: '2-digit', minute: '2-digit', hour12: true, month: 'numeric', day: 'numeric', year: 'numeric' })
+    : '';
+
   return (
     <>
-      {/* Injected keyframes */}
       <style>{`
         @keyframes confettiFall {
           0%   { transform: translateY(-10px) rotate(0deg); opacity: 1; }
           100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
         }
-        @keyframes trophyPulse {
-          0%, 100% { filter: drop-shadow(0 0 24px rgba(251,191,36,0.8)) drop-shadow(0 0 48px rgba(251,191,36,0.4)); transform: scale(1); }
-          50%       { filter: drop-shadow(0 0 40px rgba(251,191,36,1))   drop-shadow(0 0 80px rgba(251,191,36,0.6)); transform: scale(1.04); }
+        @keyframes stakeSlideUp {
+          from { opacity: 0; transform: translateY(32px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
         }
-        @keyframes shimmer {
-          0%   { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes glowRing {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50%       { opacity: 0.7; transform: scale(1.08); }
-        }
-        .win-amount-shimmer {
-          background: linear-gradient(90deg, #fff 20%, #ffd700 50%, #fff 80%);
-          background-size: 200% auto;
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          background-clip: text;
-          animation: shimmer 2.5s linear infinite;
-        }
-        .trophy-glow {
-          animation: trophyPulse 2s ease-in-out infinite;
-        }
-        .slide-up {
-          animation: slideUp 0.4s ease-out both;
-        }
+        .stake-slide-up { animation: stakeSlideUp 0.35s cubic-bezier(0.16,1,0.3,1) both; }
       `}</style>
 
       <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center overflow-hidden">
-        {/* Dark backdrop */}
-        <div className="absolute inset-0 bg-black/85 backdrop-blur-md" />
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
         {/* Confetti */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none z-10">
-          {Array.from({ length: 60 }).map((_, i) => (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                left: `${Math.random() * 100}%`,
-                top: '-12px',
-                width: i % 4 === 0 ? '10px' : '8px',
-                height: i % 4 === 0 ? '10px' : '14px',
-                backgroundColor: confettiColors[i % confettiColors.length],
-                borderRadius: i % 3 === 0 ? '50%' : i % 3 === 1 ? '2px' : '0',
-                opacity: 0,
-                animation: `confettiFall ${2 + Math.random() * 2.5}s ease-in ${Math.random() * 2}s forwards`,
-                transform: `rotate(${Math.random() * 360}deg)`,
-              }}
-            />
+          {Array.from({ length: 50 }).map((_, i) => (
+            <div key={i} style={{
+              position: 'absolute', left: `${Math.random() * 100}%`, top: '-12px',
+              width: i % 4 === 0 ? '10px' : '7px', height: i % 4 === 0 ? '10px' : '12px',
+              backgroundColor: confettiColors[i % confettiColors.length],
+              borderRadius: i % 3 === 0 ? '50%' : '2px', opacity: 0,
+              animation: `confettiFall ${2 + Math.random() * 2.5}s ease-in ${Math.random() * 1.5}s forwards`,
+              transform: `rotate(${Math.random() * 360}deg)`,
+            }} />
           ))}
         </div>
 
-        {/* Modal card */}
-        <div className="relative z-20 w-full sm:max-w-sm overflow-hidden rounded-t-[32px] sm:rounded-[32px] shadow-2xl slide-up"
-          style={{ background: 'linear-gradient(180deg, #0a0a0a 0%, #111111 40%, #0d0d0d 100%)' }}>
-
-          {/* Red header bar — "YOU WON" */}
-          <div className="relative overflow-hidden" style={{ background: 'linear-gradient(135deg, #b91c1c 0%, #dc2626 50%, #b91c1c 100%)' }}>
-            {/* Subtle noise texture */}
-            <div className="absolute inset-0 opacity-10"
-              style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/%3E%3C/svg%3E")' }} />
-            <div className="flex items-center justify-between px-5 pt-4 pb-1">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 bg-white/15 rounded-lg flex items-center justify-center">
-                  <SportsSoccerIcon sx={{ fontSize: 16 }} className="text-white" />
-                </div>
-                <span className="text-white font-black text-sm tracking-widest uppercase">FUTBALL</span>
-              </div>
-              <button onClick={onClose} className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/25 transition-colors">
-                <CloseIcon sx={{ fontSize: 16 }} />
-              </button>
+        {/* Card — Stake-style dark */}
+        <div
+          className="relative z-20 w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl overflow-hidden stake-slide-up"
+          style={{ background: '#1a2332', border: '1px solid rgba(255,255,255,0.08)' }}
+        >
+          {/* Top bar: Win badge + timestamp + close */}
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-black px-2.5 py-1 rounded-md" style={{ background: '#22c55e', color: '#fff', letterSpacing: '0.05em' }}>
+                Win
+              </span>
+              <span className="text-sm text-slate-400">{placedDate}</span>
             </div>
-            <div className="text-center pb-5 pt-3">
-              <h1 className="text-white font-black leading-none tracking-tight"
-                style={{ fontSize: 'clamp(44px, 12vw, 64px)', textShadow: '0 2px 20px rgba(0,0,0,0.5), 0 4px 40px rgba(0,0,0,0.3)' }}>
-                YOU WON
-              </h1>
-            </div>
-          </div>
-
-          {/* Win amount — below the red bar */}
-          <div className="text-center pt-4 pb-0 px-6">
-            <p className="font-black leading-none win-amount-shimmer"
-              style={{ fontSize: 'clamp(28px, 8vw, 40px)' }}>
-              GHS {bet.potentialReturn.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-          </div>
-
-          {/* Trophy — centrepiece */}
-          <div className="flex justify-center items-center py-4 relative">
-            {/* Glow rings behind trophy */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-52 h-52 rounded-full"
-                style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.25) 0%, rgba(251,191,36,0.08) 50%, transparent 70%)', animation: 'glowRing 2s ease-in-out infinite' }} />
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-36 h-36 rounded-full"
-                style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.35) 0%, transparent 70%)', animation: 'glowRing 2s ease-in-out infinite 0.5s' }} />
-            </div>
-
-            {/* Trophy SVG — detailed gold trophy */}
-            <div className="trophy-glow relative z-10">
-              <svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="tg1" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%"   stopColor="#FEF08A" />
-                    <stop offset="30%"  stopColor="#FACC15" />
-                    <stop offset="60%"  stopColor="#D97706" />
-                    <stop offset="100%" stopColor="#92400E" />
-                  </linearGradient>
-                  <linearGradient id="tg2" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%"   stopColor="#FDE68A" />
-                    <stop offset="50%"  stopColor="#F59E0B" />
-                    <stop offset="100%" stopColor="#B45309" />
-                  </linearGradient>
-                  <linearGradient id="tg3" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%"   stopColor="#FEF3C7" stopOpacity="0.9" />
-                    <stop offset="100%" stopColor="#F59E0B"  stopOpacity="0" />
-                  </linearGradient>
-                  <linearGradient id="baseGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%"   stopColor="#FBBF24" />
-                    <stop offset="100%" stopColor="#78350F" />
-                  </linearGradient>
-                  <filter id="glow">
-                    <feGaussianBlur stdDeviation="3" result="blur" />
-                    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                  </filter>
-                </defs>
-
-                {/* Outer glow circle */}
-                <circle cx="80" cy="80" r="72" fill="rgba(251,191,36,0.08)" />
-                <circle cx="80" cy="80" r="60" fill="rgba(251,191,36,0.06)" />
-
-                {/* Base / pedestal */}
-                <rect x="54" y="128" width="52" height="8" rx="4" fill="url(#baseGrad)" />
-                <rect x="60" y="122" width="40" height="8" rx="3" fill="url(#tg2)" />
-
-                {/* Stem */}
-                <rect x="70" y="105" width="20" height="18" rx="3" fill="url(#tg1)" />
-                <rect x="72" y="105" width="6" height="18" rx="2" fill="rgba(255,255,255,0.15)" />
-
-                {/* Cup body */}
-                <path d="M48 32 Q46 70 55 90 Q62 105 80 108 Q98 105 105 90 Q114 70 112 32 Z"
-                  fill="url(#tg1)" filter="url(#glow)" />
-
-                {/* Cup highlight */}
-                <path d="M55 36 Q54 65 60 82 Q65 94 75 99 Q72 88 70 70 Q68 52 67 36 Z"
-                  fill="url(#tg3)" opacity="0.6" />
-
-                {/* Left handle */}
-                <path d="M48 45 Q28 45 26 60 Q24 75 42 78 Q44 72 48 68 Q38 66 38 60 Q38 54 48 54 Z"
-                  fill="url(#tg2)" />
-                {/* Right handle */}
-                <path d="M112 45 Q132 45 134 60 Q136 75 118 78 Q116 72 112 68 Q122 66 122 60 Q122 54 112 54 Z"
-                  fill="url(#tg2)" />
-
-                {/* Stars / sparkles */}
-                <g fill="#FEF08A" opacity="0.9">
-                  <polygon points="80,18 82,24 88,24 83,28 85,34 80,30 75,34 77,28 72,24 78,24" transform="scale(0.7) translate(34,8)" />
-                  <polygon points="80,18 82,24 88,24 83,28 85,34 80,30 75,34 77,28 72,24 78,24" transform="scale(0.5) translate(130,-10)" />
-                  <polygon points="80,18 82,24 88,24 83,28 85,34 80,30 75,34 77,28 72,24 78,24" transform="scale(0.45) translate(-20,30)" />
-                </g>
-
-                {/* Shine dots */}
-                <circle cx="65" cy="48" r="3" fill="rgba(255,255,255,0.5)" />
-                <circle cx="70" cy="40" r="2" fill="rgba(255,255,255,0.4)" />
-
-                {/* FUTBALL text on cup */}
-                <text x="80" y="76" textAnchor="middle" fill="rgba(120,53,15,0.8)"
-                  style={{ fontSize: '9px', fontWeight: 900, fontFamily: 'sans-serif', letterSpacing: '1px' }}>
-                  FUTBALL
-                </text>
-              </svg>
-            </div>
-          </div>
-
-          {/* Stats row */}
-          <div className="mx-5 mb-4 flex items-center justify-around bg-white/5 rounded-2xl py-3 px-2 border border-white/8">
-            <div className="text-center">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">Stake</p>
-              <p className="text-sm font-bold text-white">GH₵{bet.stake.toFixed(2)}</p>
-            </div>
-            <div className="w-px h-8 bg-white/10" />
-            <div className="text-center">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">Total Odds</p>
-              <p className="text-sm font-bold text-amber-400">{bet.totalOdds.toFixed(2)}x</p>
-            </div>
-            <div className="w-px h-8 bg-white/10" />
-            <div className="text-center">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">Selections</p>
-              <p className="text-sm font-bold text-white">{bet.selections.length}</p>
-            </div>
-          </div>
-
-          {/* Congrats + verify code row */}
-          <div className="mx-5 mb-4 flex items-center justify-between bg-amber-500/10 border border-amber-500/20 rounded-2xl px-4 py-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
-                <span className="text-base">🎉</span>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-amber-400">Congratulations!</p>
-                <p className="text-[11px] text-slate-400">You are Amazing!</p>
-              </div>
-            </div>
-            <button
-              onClick={handleShowOff}
-              disabled={generatingImage}
-              className="text-xs font-bold text-amber-400 hover:text-amber-300 transition-colors shrink-0 ml-2"
-            >
-              {generatingImage ? '…' : 'Share win'}
+            <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+              <CloseIcon sx={{ fontSize: 17 }} />
             </button>
           </div>
 
-          {/* Verify code */}
-          <div className="mx-5 mb-4 text-center">
-            <p className="text-[11px] text-slate-500 mb-0.5">
-              Verify Code:{' '}
-              <span className="font-black text-primary tracking-wider">{verifyCode}</span>
-            </p>
-          </div>
+          {/* Scrollable body */}
+          <div className="overflow-y-auto max-h-[80vh]">
 
-          {/* Selections preview */}
-          {showDetails && (
-            <div className="mx-5 mb-4 space-y-1.5 max-h-40 overflow-y-auto">
-              {bet.selections.slice(0, 3).map((sel, i) => (
-                <div key={i} className="flex justify-between items-center bg-white/5 rounded-xl px-3 py-2">
-                  <div className="min-w-0 flex-1 mr-2">
-                    <p className="text-[10px] text-slate-500 truncate">{buildMatchLabel(sel as unknown as Record<string, unknown>)}</p>
-                    <p className="text-xs font-semibold text-slate-200 truncate">{sel.market}: {sel.selection}</p>
+            {/* Selections */}
+            {bet.selections.map((sel, i) => {
+              const matchLabel = buildMatchLabel(sel as unknown as Record<string, unknown>);
+              const settledAt  = bet.settledAt
+                ? new Date(bet.settledAt).toLocaleString('en-GH', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+                : '';
+              return (
+                <div key={sel.id ?? i} className="px-4 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  {/* Match name row */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                      <SportsSoccerIcon sx={{ fontSize: 15 }} className="text-slate-300" />
+                    </div>
+                    <p className="text-sm font-bold text-white truncate">{matchLabel}</p>
                   </div>
-                  <span className="text-xs font-black text-emerald-400 shrink-0">{sel.oddsLocked.toFixed(2)} ✓</span>
+
+                  {/* Date/time */}
+                  {settledAt && (
+                    <p className="text-xs text-slate-400 mb-3">{settledAt}</p>
+                  )}
+
+                  {/* Selection chip */}
+                  <div
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg mb-2 text-sm font-bold text-white"
+                    style={{ border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)' }}
+                  >
+                    {sel.selection}
+                  </div>
+
+                  {/* Market label */}
+                  <p className="text-xs text-slate-400 mb-3">{sel.market}</p>
+
+                  {/* Selection result row */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-400" style={{ fontSize: 16 }}>✓</span>
+                      <span className="text-sm font-bold text-white">{sel.selection}</span>
+                    </div>
+                    <span className="text-sm font-bold text-white">{(sel.oddsLocked ?? bet.totalOdds).toFixed(2)}</span>
+                  </div>
                 </div>
-              ))}
-              {bet.selections.length > 3 && (
-                <p className="text-center text-[10px] text-slate-500">+{bet.selections.length - 3} more</p>
-              )}
+              );
+            })}
+
+            {/* FUTBALL divider */}
+            <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
+              <div className="flex items-center gap-1.5">
+                <SportsSoccerIcon sx={{ fontSize: 14 }} className="text-primary" />
+                <span className="text-sm font-black text-white tracking-wide">FUTBALL</span>
+              </div>
+              <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
             </div>
-          )}
 
-          {/* Action buttons */}
-          <div className="px-5 pb-6 flex gap-3">
-            <button
-              onClick={() => setShowDetails(d => !d)}
-              className="flex-1 py-3.5 rounded-2xl font-bold text-sm transition-all active:scale-[0.97]"
-              style={{ background: 'transparent', border: '2px solid #22c55e', color: '#22c55e' }}
-            >
-              {showDetails ? 'Hide' : 'Details'}
-            </button>
-            <button
-              onClick={handleShowOff}
-              disabled={generatingImage}
-              className="flex-1 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97] disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)', color: '#fff',
-                boxShadow: '0 4px 20px rgba(34,197,94,0.4)' }}
-            >
-              {generatingImage
-                ? <><CircularProgress fontSize="small" className="animate-spin" /> Generating…</>
-                : <><ShareIcon fontSize="small" /> Show Off</>}
-            </button>
-          </div>
+            {/* Odds / Stake / Payout rows */}
+            <div className="px-4 py-3 space-y-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Odds</span>
+                <span className="text-sm font-bold" style={{ color: '#3b82f6' }}>{bet.totalOdds.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Stake</span>
+                <span className="text-sm font-bold text-white">GH₵{bet.stake.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Payout</span>
+                <span className="text-base font-black" style={{ color: '#22c55e' }}>
+                  GH₵{bet.potentialReturn.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
 
-          {/* Withdraw / continue */}
-          <div className="flex border-t border-white/8">
-            <Link to="/wallet" onClick={onClose}
-              className="flex-1 py-3.5 text-center text-xs font-semibold text-slate-400 hover:text-white border-r border-white/8 transition-colors">
-              Withdraw
-            </Link>
-            <button onClick={onClose} className="flex-1 py-3.5 text-center text-xs font-semibold text-slate-400 hover:text-white transition-colors">
+            {/* Action buttons */}
+            <div className="px-4 py-4 flex gap-3">
+              <button
+                onClick={handleShowOff}
+                disabled={generatingImage}
+                className="flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97] disabled:opacity-60"
+                style={{ background: '#22c55e', color: '#fff' }}
+              >
+                {generatingImage
+                  ? <><CircularProgress fontSize="small" className="animate-spin" /> Generating…</>
+                  : <><ShareIcon fontSize="small" /> Share Slip</>}
+              </button>
+              <Link
+                to="/wallet"
+                onClick={onClose}
+                className="flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center transition-all active:scale-[0.97]"
+                style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)' }}
+              >
+                Withdraw
+              </Link>
+            </div>
+
+            <button
+              onClick={onClose}
+              className="w-full pb-5 text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors"
+            >
               Continue Betting
             </button>
+
           </div>
         </div>
       </div>
@@ -691,7 +562,7 @@ function WinModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Loss modal
+// Loss modal — Stake-style
 // ---------------------------------------------------------------------------
 function LossModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
   const [generatingImage, setGeneratingImage] = useState(false);
@@ -709,78 +580,118 @@ function LossModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
     }
   };
 
+  const placedDate = bet.placedAt
+    ? new Date(bet.placedAt).toLocaleString('en-GH', { hour: '2-digit', minute: '2-digit', hour12: true, month: 'numeric', day: 'numeric', year: 'numeric' })
+    : '';
+
   return (
     <>
-      <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/75 p-4">
-        <div className="w-full sm:max-w-sm overflow-hidden rounded-t-[32px] sm:rounded-[32px] shadow-2xl">
-          <div className="bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950">
-            <div className="h-1.5 bg-gradient-to-r from-rose-500 via-red-500 to-orange-500" />
-            <div className="flex justify-end px-4 pt-3">
-              <button onClick={onClose} className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/20 transition-colors">
-                <CloseIcon sx={{ fontSize: 16 }} />
-              </button>
+      <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center overflow-hidden">
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+
+        <div
+          className="relative z-20 w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl overflow-hidden"
+          style={{ background: '#1a2332', border: '1px solid rgba(255,255,255,0.08)', animation: 'stakeSlideUp 0.35s cubic-bezier(0.16,1,0.3,1) both' }}
+        >
+          {/* Top bar: Lost badge + timestamp + close */}
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-black px-2.5 py-1 rounded-md" style={{ background: '#ef4444', color: '#fff', letterSpacing: '0.05em' }}>
+                Lost
+              </span>
+              <span className="text-sm text-slate-400">{placedDate}</span>
             </div>
-            <div className="flex justify-center mt-1 mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <SportsSoccerIcon sx={{ fontSize: 18 }} className="text-white" />
+            <button onClick={onClose} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors">
+              <CloseIcon sx={{ fontSize: 17 }} />
+            </button>
+          </div>
+
+          <div className="overflow-y-auto max-h-[80vh]">
+            {/* Selections */}
+            {bet.selections.map((sel, i) => {
+              const matchLabel = buildMatchLabel(sel as unknown as Record<string, unknown>);
+              const settledAt  = bet.settledAt
+                ? new Date(bet.settledAt).toLocaleString('en-GH', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+                : '';
+              const isWonSel = sel.result === 'WON';
+              return (
+                <div key={sel.id ?? i} className="px-4 pt-4 pb-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                      <SportsSoccerIcon sx={{ fontSize: 15 }} className="text-slate-300" />
+                    </div>
+                    <p className="text-sm font-bold text-white truncate">{matchLabel}</p>
+                  </div>
+                  {settledAt && <p className="text-xs text-slate-400 mb-3">{settledAt}</p>}
+                  <div
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg mb-2 text-sm font-bold text-white"
+                    style={{ border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.06)' }}
+                  >
+                    {sel.selection}
+                  </div>
+                  <p className="text-xs text-slate-400 mb-3">{sel.market}</p>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span style={{ color: isWonSel ? '#22c55e' : '#ef4444', fontSize: 16 }}>{isWonSel ? '✓' : '✗'}</span>
+                      <span className="text-sm font-bold text-white">{sel.selection}</span>
+                    </div>
+                    <span className="text-sm font-bold text-white">{(sel.oddsLocked ?? bet.totalOdds).toFixed(2)}</span>
+                  </div>
                 </div>
-                <span className="text-white font-black text-lg tracking-tight">FUTBALL</span>
+              );
+            })}
+
+            {/* FUTBALL divider */}
+            <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
+              <div className="flex items-center gap-1.5">
+                <SportsSoccerIcon sx={{ fontSize: 14 }} className="text-primary" />
+                <span className="text-sm font-black text-white tracking-wide">FUTBALL</span>
+              </div>
+              <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
+            </div>
+
+            {/* Odds / Stake / Payout rows */}
+            <div className="px-4 py-3 space-y-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Odds</span>
+                <span className="text-sm font-bold" style={{ color: '#3b82f6' }}>{bet.totalOdds.toFixed(2)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Stake</span>
+                <span className="text-sm font-bold text-white">GH₵{bet.stake.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-400">Payout</span>
+                <span className="text-base font-black" style={{ color: '#ef4444' }}>GH₵0.00</span>
               </div>
             </div>
-            <div className="flex justify-center mb-3">
-              <div className="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center text-6xl shadow-[0_0_30px_rgba(239,68,68,0.2)]">
-                😭
-              </div>
-            </div>
-            <div className="text-center px-6 pb-2">
-              <p className="text-xs font-bold tracking-[3px] uppercase text-rose-400 mb-1">BETTER LUCK NEXT TIME</p>
-              <p className="text-4xl font-black text-white mb-1">GH₵{bet.stake.toFixed(2)}</p>
-              <p className="text-slate-500 text-sm">That one hurts 😬</p>
-            </div>
-            <div className="flex justify-around mx-6 my-4 bg-white/5 rounded-2xl p-3">
-              <div className="text-center">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">Amount Lost</p>
-                <p className="text-sm font-bold text-rose-400">GH₵{bet.stake.toFixed(2)}</p>
-              </div>
-              <div className="w-px bg-white/10" />
-              <div className="text-center">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">Total Odds</p>
-                <p className="text-sm font-bold text-white">{bet.totalOdds.toFixed(2)}</p>
-              </div>
-              <div className="w-px bg-white/10" />
-              <div className="text-center">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-0.5">Selections</p>
-                <p className="text-sm font-bold text-white">{bet.selections.length}</p>
-              </div>
-            </div>
-            {bet.selections.slice(0, 2).map((sel, i) => (
-              <div key={i} className="mx-6 mb-2 px-3 py-2 bg-white/5 rounded-xl flex justify-between items-center">
-                <div className="min-w-0 flex-1 mr-2">
-                  <p className="text-xs text-slate-500 truncate">{buildMatchLabel(sel as unknown as Record<string, unknown>)}</p>
-                  <p className="text-xs font-semibold text-white truncate">{sel.market}: {sel.selection}</p>
-                </div>
-                <span className="text-xs font-bold text-rose-400 shrink-0">
-                  {sel.oddsLocked.toFixed(2)}
-                  {sel.result && <SelectionResult result={sel.result} />}
-                </span>
-              </div>
-            ))}
-            {bet.selections.length > 2 && (
-              <p className="text-center text-xs text-slate-500 mb-2">+{bet.selections.length - 2} more</p>
-            )}
-            <div className="px-6 pb-6 pt-3 flex gap-3">
-              <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-primary hover:bg-primary/90 text-white text-sm font-bold transition-colors">
+
+            {/* Actions */}
+            <div className="px-4 py-4 flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.97]"
+                style={{ background: '#E6192E', color: '#fff' }}
+              >
                 Try Again
               </button>
               <button
                 onClick={handleShowOff}
                 disabled={generatingImage}
-                className="flex-1 py-3 rounded-xl border border-white/10 text-white text-sm font-bold flex items-center justify-center gap-1.5 hover:bg-white/5 transition-colors disabled:opacity-60"
+                className="flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97] disabled:opacity-60"
+                style={{ background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.12)' }}
               >
                 {generatingImage ? <CircularProgress fontSize="small" className="animate-spin" /> : <><ShareIcon fontSize="small" /> Share</>}
               </button>
             </div>
+
+            <button
+              onClick={onClose}
+              className="w-full pb-5 text-xs font-semibold text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              Back to Bets
+            </button>
           </div>
         </div>
       </div>
@@ -1062,7 +973,7 @@ function BookingCodePanel() {
 }
 
 // ---------------------------------------------------------------------------
-// Slip tab
+// Slip tab — UPDATED with restyled stake section + fixed selection display
 // ---------------------------------------------------------------------------
 function SlipTab() {
   const { betSlip, removeFromBetSlip, clearBetSlip, showToast, user } = useAppStore();
@@ -1207,182 +1118,233 @@ function SlipTab() {
 
   return (
     <div className="space-y-3">
-      {/* Selections list */}
+
+      {/* ── Selections list ── */}
       <div className="space-y-2">
         {betSlip.map(sel => (
           <div
             key={`${sel.matchId}-${sel.market}-${sel.selection}`}
-            className="flex items-center justify-between p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800"
+            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden"
           >
-            <div className="min-w-0 flex-1 mr-2">
-              {/* Match name */}
-              <p className="text-[11px] text-slate-400 truncate mb-0.5 leading-tight">{sel.matchName}</p>
-              {/* Market · Selection */}
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
-                {sel.market}
-                {sel.selection && (
-                  <> · <span className="text-slate-700 dark:text-slate-200">{sel.selection}</span></>
-                )}
-              </p>
-              {/* Odds badge */}
-              <div className="flex items-center gap-1.5 mt-1.5">
-                <span className="inline-flex items-center text-xs font-black text-white bg-primary px-2 py-0.5 rounded-lg tracking-wide">
+            {/* Top row: match name + delete */}
+            <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
+              <p className="text-[11px] text-slate-400 truncate leading-tight flex-1 mr-2">{sel.matchName}</p>
+              <button
+                onClick={() => removeFromBetSlip(sel.matchId, sel.market, sel.selection)}
+                className="p-1.5 text-slate-300 hover:text-rose-500 active:scale-90 transition-all rounded-lg shrink-0"
+              >
+                <DeleteIcon sx={{ fontSize: 16 }} />
+              </button>
+            </div>
+
+            {/* Bottom row: market label + odds badge */}
+            <div className="flex items-center justify-between px-4 pb-3">
+              {/* Market name */}
+              <div className="min-w-0 flex-1 mr-3">
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">
+                  {sel.market}
+                  {sel.selection && (
+                    <span className="text-slate-400 font-normal"> · {sel.selection}</span>
+                  )}
+                </p>
+              </div>
+              {/* Odds pill — prominent */}
+              <div className="shrink-0 flex flex-col items-end">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Odds</span>
+                <span className="inline-flex items-center text-sm font-black text-white bg-primary px-3 py-1 rounded-xl tracking-wide">
                   {sel.odd.toFixed(2)}
                 </span>
               </div>
             </div>
-            <button
-              onClick={() => removeFromBetSlip(sel.matchId, sel.market, sel.selection)}
-              className="p-2 text-slate-300 hover:text-rose-500 active:scale-90 transition-all rounded-lg"
-            >
-              <DeleteIcon fontSize="small" />
-            </button>
           </div>
         ))}
       </div>
 
-      {/* Stake card */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4">
+      {/* ── Stake card ── */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-            <span className="w-1 h-3.5 bg-primary rounded-full inline-block" />
-            Stake
-          </p>
+        {/* Card header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-100 dark:border-slate-700/60">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+              <AccountBalanceWalletIcon sx={{ fontSize: 13 }} className="text-primary" />
+            </div>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Stake</p>
+          </div>
           <CurrencyPill currency={currency} detecting={currencyLoading} />
         </div>
 
-        {/* Quick-add buttons */}
-        <div className="flex gap-1.5 mb-3">
-          {QUICK_AMOUNTS.map((amount, idx) => (
-            <button
-              key={idx}
-              onClick={() => addToStake(amount)}
-              className="flex-1 py-2 text-[11px] font-black bg-slate-50 dark:bg-slate-800/80 hover:bg-primary hover:text-white text-slate-500 dark:text-slate-400 rounded-xl transition-all active:scale-95 border border-slate-100 dark:border-slate-700"
-            >
-              +{currency.symbol}{amount >= 1000 ? `${(amount / 1000).toFixed(0)}k` : amount}
-            </button>
-          ))}
-          <button
-            onClick={() => setStakeInput('')}
-            className="px-3 py-2 text-[11px] font-black bg-slate-50 dark:bg-slate-800/80 hover:bg-rose-50 hover:text-rose-500 text-slate-400 rounded-xl transition-all active:scale-95 border border-slate-100 dark:border-slate-700"
-          >
-            ✕
-          </button>
-        </div>
+        <div className="p-4 space-y-3">
 
-        {/* Stake input */}
-        <div className="relative mb-1">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400 pointer-events-none select-none">
-            {currency.symbol}
-          </span>
-          <input
-            type="number"
-            value={stakeInput}
-            onChange={e => setStakeInput(e.target.value)}
-            placeholder={`Min ${formatLocal(minStakeLocal, currency, 0)}`}
-            className={`input-field pl-9 pr-4 ${
-              belowMinStake ? 'border-amber-400 dark:border-amber-600 focus:ring-amber-300'
-              : insufficientFunds ? 'border-rose-400 dark:border-rose-600 focus:ring-rose-300' : ''
-            }`}
-            min={0}
-            step={currency.code === 'GHS' ? '0.01' : '1'}
-          />
-        </div>
+          {/* Stake input */}
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none select-none">
+              <span className="text-base font-bold text-slate-400">{currency.symbol}</span>
+            </div>
+            <input
+              type="number"
+              value={stakeInput}
+              onChange={e => setStakeInput(e.target.value)}
+              placeholder={`Min ${formatLocal(minStakeLocal, currency, 0)}`}
+              className={`
+                w-full pl-10 pr-4 py-4 rounded-2xl border-2 text-xl font-black
+                bg-slate-50 dark:bg-slate-800
+                text-slate-800 dark:text-slate-100
+                placeholder:text-slate-300 dark:placeholder:text-slate-600
+                outline-none transition-all
+                focus:bg-white dark:focus:bg-slate-800/80
+                ${belowMinStake
+                  ? 'border-amber-400 dark:border-amber-600 focus:ring-2 focus:ring-amber-200/50'
+                  : insufficientFunds
+                    ? 'border-rose-400 dark:border-rose-600 focus:ring-2 focus:ring-rose-200/50'
+                    : parsedLocal >= minStakeLocal
+                      ? 'border-primary/50 focus:ring-2 focus:ring-primary/20'
+                      : 'border-slate-200 dark:border-slate-700 focus:border-primary/40 focus:ring-2 focus:ring-primary/10'
+                }
+              `}
+              min={0}
+              step={currency.code === 'GHS' ? '0.01' : '1'}
+            />
+            {/* Clear input button */}
+            {stakeInput && (
+              <button
+                onClick={() => setStakeInput('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <CloseIcon sx={{ fontSize: 14 }} />
+              </button>
+            )}
+          </div>
 
-        {belowMinStake && (
-          <div className="mb-3 flex items-center justify-between">
-            <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-              <InfoOutlinedIcon sx={{ fontSize: 13 }} />
-              Minimum stake is {formatLocal(minStakeLocal, currency, 0)}
-            </p>
-            <button onClick={setStakeToMin} className="text-xs font-bold text-primary hover:underline">Use min</button>
-          </div>
-        )}
-        {insufficientFunds && !belowMinStake && (
-          <p className="mb-3 text-xs text-rose-500 flex items-center gap-1">
-            <InfoOutlinedIcon sx={{ fontSize: 13 }} />
-            Insufficient balance · available {formatLocal(walletLocal, currency, 0)}
-          </p>
-        )}
-        {!belowMinStake && !insufficientFunds && <div className="mb-3" />}
-
-        {!currencyLoading && currency.code !== 'GHS' && parsedLocal > 0 && (
-          <div className="mb-3 px-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs text-slate-500 flex items-center gap-1.5">
-            <PublicIcon sx={{ fontSize: 13 }} />
-            {formatLocal(parsedLocal, currency)} ≈ <span className="font-semibold text-slate-700 dark:text-slate-300">GH₵{parsedGHS.toFixed(2)}</span>
-            <span className="ml-auto text-slate-400">settled in GH₵</span>
-          </div>
-        )}
-
-        {/* Summary */}
-        <div className="space-y-2 mb-4">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-slate-400">
-              {betSlip.length} selection{betSlip.length !== 1 ? 's' : ''}
-              {betSlip.length > 1 && (
-                <span className="ml-1.5 text-[11px] text-slate-300 dark:text-slate-600">
-                  · {betSlip.map(s => s.odd.toFixed(2)).join(' × ')}
-                </span>
-              )}
-            </span>
-            <span className="font-black text-primary bg-primary/10 px-2 py-0.5 rounded-lg text-sm">
-              {totalOdds.toFixed(2)}x
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-slate-400">Potential return</span>
-            <span className="font-bold text-emerald-600">
-              {parsedLocal > 0
-                ? currency.code !== 'GHS'
-                  ? `${formatLocal(potentialLocal, currency)} (GH₵${potentialGHS.toFixed(2)})`
-                  : formatLocal(potentialGHS, currency)
-                : '—'}
-            </span>
-          </div>
-          {user && (
-            <div className="flex justify-between text-xs pt-1 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-slate-400">Wallet balance</span>
-              <span className="text-slate-500 font-medium">
-                {balanceLoading ? '…' : walletBalance !== null
-                  ? currency.code !== 'GHS'
-                    ? `${formatLocal(walletLocal, currency, 0)} (GH₵${walletGHS.toFixed(2)})`
-                    : `GH₵${walletGHS.toFixed(2)}`
-                  : '–'}
-              </span>
+          {/* Validation messages */}
+          {belowMinStake && (
+            <div className="flex items-center justify-between px-3 py-2 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-200/60 dark:border-amber-800/40">
+              <p className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                <InfoOutlinedIcon sx={{ fontSize: 13 }} />
+                Min stake is {formatLocal(minStakeLocal, currency, 0)}
+              </p>
+              <button onClick={setStakeToMin} className="text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 ml-3">Use min</button>
             </div>
           )}
-        </div>
+          {insufficientFunds && !belowMinStake && (
+            <div className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 dark:bg-rose-900/20 rounded-xl border border-rose-200/60 dark:border-rose-800/40">
+              <InfoOutlinedIcon sx={{ fontSize: 13 }} className="text-rose-500" />
+              <p className="text-xs text-rose-600 dark:text-rose-400">
+                Insufficient balance · available {formatLocal(walletLocal, currency, 0)}
+              </p>
+            </div>
+          )}
 
-        {/* Place bet CTA */}
-        {user ? (
-          <button
-            onClick={handlePlace}
-            disabled={!canPlace || placing}
-            className={`w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
-              canPlace && !placing
-                ? 'bg-primary hover:bg-primary/90 text-white shadow-sm shadow-primary/25'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
-            }`}
-          >
-            {placing ? (
-              <><CircularProgress fontSize="small" className="animate-spin" /> Placing Bet…</>
-            ) : parsedLocal > 0 && canPlace ? (
-              <>Place Bet · {currency.code !== 'GHS' ? `${formatLocal(parsedLocal, currency)} (GH₵${parsedGHS.toFixed(2)})` : `GH₵${parsedGHS.toFixed(2)}`}</>
-            ) : (
-              <>Place Bet{belowMinStake ? ` · min ${formatLocal(minStakeLocal, currency, 0)}` : parsedLocal === 0 ? ' · enter stake' : ''}</>
+          {/* Quick-add amounts */}
+          <div className="grid grid-cols-4 gap-2">
+            {QUICK_AMOUNTS.map((amount, idx) => (
+              <button
+                key={idx}
+                onClick={() => addToStake(amount)}
+                className="py-2.5 text-[12px] font-bold bg-slate-50 dark:bg-slate-800 hover:bg-primary hover:text-white text-slate-600 dark:text-slate-400 rounded-xl transition-all active:scale-95 border border-slate-200 dark:border-slate-700 hover:border-primary"
+              >
+                +{currency.symbol}{amount >= 1000 ? `${(amount / 1000).toFixed(0)}k` : amount}
+              </button>
+            ))}
+          </div>
+
+          {/* Currency conversion note */}
+          {!currencyLoading && currency.code !== 'GHS' && parsedLocal > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+              <PublicIcon sx={{ fontSize: 14 }} className="text-slate-400 shrink-0" />
+              <p className="text-xs text-slate-500">
+                {formatLocal(parsedLocal, currency)} ≈{' '}
+                <span className="font-bold text-slate-700 dark:text-slate-300">GH₵{parsedGHS.toFixed(2)}</span>
+                <span className="text-slate-400 ml-1">· settled in GH₵</span>
+              </p>
+            </div>
+          )}
+
+          {/* Divider */}
+          <div className="border-t border-slate-100 dark:border-slate-800" />
+
+          {/* Summary rows */}
+          <div className="space-y-2.5">
+            {/* Selections & combined odds */}
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-slate-400">
+                {betSlip.length} selection{betSlip.length !== 1 ? 's' : ''}
+                {betSlip.length > 1 && (
+                  <span className="ml-1.5 text-[11px] text-slate-300 dark:text-slate-600">
+                    {betSlip.map(s => s.odd.toFixed(2)).join(' × ')}
+                  </span>
+                )}
+              </span>
+              <span className="font-black text-primary bg-primary/10 px-2.5 py-1 rounded-xl text-sm">
+                {totalOdds.toFixed(2)}x
+              </span>
+            </div>
+
+            {/* Potential return */}
+            <div className="flex justify-between items-center p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
+              <div className="flex items-center gap-2">
+                <TrendingUpIcon sx={{ fontSize: 16 }} className="text-emerald-600" />
+                <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">Potential return</span>
+              </div>
+              <span className="font-black text-emerald-600 dark:text-emerald-400 text-sm">
+                {parsedLocal > 0
+                  ? currency.code !== 'GHS'
+                    ? `${formatLocal(potentialLocal, currency)} (GH₵${potentialGHS.toFixed(2)})`
+                    : formatLocal(potentialGHS, currency)
+                  : '—'}
+              </span>
+            </div>
+
+            {/* Wallet balance (if logged in) */}
+            {user && (
+              <div className="flex justify-between items-center text-xs pt-0.5">
+                <span className="text-slate-400 flex items-center gap-1.5">
+                  <AccountBalanceWalletIcon sx={{ fontSize: 13 }} />
+                  Wallet balance
+                </span>
+                <span className="text-slate-500 font-semibold">
+                  {balanceLoading ? (
+                    <span className="inline-block w-16 h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                  ) : walletBalance !== null
+                    ? currency.code !== 'GHS'
+                      ? `${formatLocal(walletLocal, currency, 0)} (GH₵${walletGHS.toFixed(2)})`
+                      : `GH₵${walletGHS.toFixed(2)}`
+                    : '–'}
+                </span>
+              </div>
             )}
-          </button>
-        ) : (
-          <Link to="/login" className="btn-primary w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2">
-            <LoginIcon fontSize="small" /> Log In to Bet
-          </Link>
-        )}
+          </div>
 
-        <button onClick={clearBetSlip} className="w-full mt-2.5 py-2 text-xs font-semibold text-slate-400 hover:text-rose-500 transition-colors">
-          Clear slip
-        </button>
+          {/* Place bet CTA */}
+          {user ? (
+            <button
+              onClick={handlePlace}
+              disabled={!canPlace || placing}
+              className={`w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
+                canPlace && !placing
+                  ? 'bg-primary hover:bg-primary/90 text-white shadow-sm shadow-primary/25'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              {placing ? (
+                <><CircularProgress fontSize="small" className="animate-spin" /> Placing Bet…</>
+              ) : parsedLocal > 0 && canPlace ? (
+                <>Place Bet · {currency.code !== 'GHS' ? `${formatLocal(parsedLocal, currency)} (GH₵${parsedGHS.toFixed(2)})` : `GH₵${parsedGHS.toFixed(2)}`}</>
+              ) : (
+                <>Place Bet{belowMinStake ? ` · min ${formatLocal(minStakeLocal, currency, 0)}` : parsedLocal === 0 ? ' · enter stake' : ''}</>
+              )}
+            </button>
+          ) : (
+            <Link to="/login" className="btn-primary w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2">
+              <LoginIcon fontSize="small" /> Log In to Bet
+            </Link>
+          )}
+
+          <button onClick={clearBetSlip} className="w-full py-2 text-xs font-semibold text-slate-400 hover:text-rose-500 transition-colors">
+            Clear slip
+          </button>
+
+        </div>
       </div>
 
       <BookingCodePanel />
@@ -1566,7 +1528,9 @@ function MyBetsTab() {
               {bet.selections.slice(0, 2).map((sel: BetSelection, i: number) => (
                 <p key={sel.id ?? i} className="text-xs text-slate-600 dark:text-slate-400 truncate">
                   {buildMatchLabel(sel as unknown as Record<string, unknown>)} ·{' '}
-                  <span className="font-medium">{sel.selection}</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">{sel.market}</span>
+                  {' · '}
+                  <span className="font-bold text-primary">{(sel.oddsLocked ?? 0).toFixed(2)}</span>
                   <SelectionResult result={sel.result} />
                 </p>
               ))}

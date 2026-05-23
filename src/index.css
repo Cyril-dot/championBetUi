@@ -30,6 +30,12 @@
   --odds-bg:          #f0f4fb;
   --odds-bg-hover:    rgba(29, 111, 232, 0.07);
   --finished-overlay: rgba(240, 243, 249, 0.45);
+
+  /* Mobile spacing tokens */
+  --page-padding-x:   16px;
+  --card-padding-x:   12px;
+  --card-padding-y:   10px;
+  --section-gap:      16px;
 }
 
 /* Theme 2 — NxtBet Dark */
@@ -87,7 +93,7 @@
     --accent:           #f59e0b;
     --live-green:       #22c55e;
     --live-green-soft:  rgba(34, 197, 94, 0.12);
-    --bg-bg-page:          #070b14;
+    --bg-page:          #070b14;
     --card-bg:          #0d1422;
     --card-alt:         #121c30;
     --card-border:      #1a2540;
@@ -111,6 +117,15 @@
   * {
     transition: background-color 0.2s, border-color 0.2s, color 0.15s;
     border-color: var(--border-light);
+    box-sizing: border-box;
+  }
+
+  html {
+    /* Prevent font-size inflation on iOS */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Smooth momentum scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
   }
 
   html, body {
@@ -118,6 +133,29 @@
     color: var(--text-main);
     font-family: 'Inter', sans-serif;
     -webkit-tap-highlight-color: transparent;
+    /* Prevent horizontal overflow on mobile */
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  /* Safe-area padding for notched/dynamic-island devices */
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Prevent text selection flash on touch */
+  button, [role="button"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Better tap targets — minimum 44px touch area */
+  button, a, [role="button"] {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
@@ -141,6 +179,12 @@
     color: #fff !important;
     box-shadow: var(--primary-glow);
     transition: background-color 0.2s, transform 0.1s;
+    /* Mobile: full-width by default, override with width utilities */
+    min-height: 44px;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 600;
   }
   .btn-primary:hover  { background-color: var(--primary-dark); }
   .btn-primary:active { transform: scale(0.98); }
@@ -151,11 +195,23 @@
     background: var(--card-alt);
     color: var(--text-main);
     border: 1px solid var(--border-light);
+    /* Mobile: 16px prevents iOS auto-zoom on focus */
+    font-size: 16px;
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    width: 100%;
   }
   input:focus, select:focus, textarea:focus {
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 25%, transparent);
+  }
+  /* Restore smaller font on desktop */
+  @media (min-width: 640px) {
+    input, select, textarea {
+      font-size: 0.875rem;
+    }
   }
 
   /* ── Logo ───────────────────────────────────────────────────── */
@@ -186,6 +242,9 @@
     overflow: hidden;
     cursor: pointer;
     margin-bottom: 8px;
+    /* Prevent cards clipping on small screens */
+    width: 100%;
+    min-width: 0;
     transition: border-color 0.18s, box-shadow 0.18s, background-color 0.18s;
   }
   .match-card:last-child { margin-bottom: 0; }
@@ -193,7 +252,10 @@
     border-color: color-mix(in srgb, var(--primary) 50%, var(--card-border));
     box-shadow: 0 4px 16px color-mix(in srgb, var(--primary) 8%, transparent);
   }
-  .match-card:active { transform: scale(0.995); }
+  /* Only scale on non-touch devices to avoid janky mobile feel */
+  @media (hover: hover) {
+    .match-card:active { transform: scale(0.995); }
+  }
 
   /* ── LIVE card ─────────────────────────────────────────────── */
 
@@ -229,6 +291,8 @@
     align-items: center;
     gap: 6px;
     padding: 8px 12px 0;
+    /* Allow topbar content to compress without breaking */
+    min-width: 0;
   }
 
   .match-card-league-logo {
@@ -300,12 +364,14 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    min-width: 0;
   }
 
   .match-team-row {
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
   }
 
   .match-team-logo {
@@ -334,6 +400,10 @@
     flex: 1;
     min-width: 0;
     line-height: 1.25;
+  }
+  /* Slightly smaller team names on very small screens */
+  @media (max-width: 360px) {
+    .match-team-name { font-size: 0.8125rem; }
   }
   .match-team-name.winner {
     font-weight: 700;
@@ -428,9 +498,12 @@
     color: var(--text-main);
     cursor: pointer;
     transition: border-color 0.15s, background-color 0.15s, color 0.15s, transform 0.1s;
+    /* Minimum tap height on mobile */
     min-height: 46px;
     position: relative;
     overflow: hidden;
+    /* Prevent button text wrap on narrow screens */
+    min-width: 0;
   }
 
   /* Subtle shimmer line on top */
@@ -443,15 +516,26 @@
     opacity: 0;
     transition: opacity 0.2s;
   }
-  .match-odds-btn:hover::before { opacity: 1; }
-
-  .match-odds-btn:hover:not(.locked):not(.empty) {
-    border-color: var(--primary);
-    background: var(--odds-bg-hover);
-    color: var(--primary);
+  /* Only show shimmer on hover-capable devices */
+  @media (hover: hover) {
+    .match-odds-btn:hover::before { opacity: 1; }
+    .match-odds-btn:hover:not(.locked):not(.empty) {
+      border-color: var(--primary);
+      background: var(--odds-bg-hover);
+      color: var(--primary);
+    }
   }
-  .match-odds-btn:active:not(.locked):not(.empty) {
-    transform: scale(0.95);
+  @media (hover: hover) {
+    .match-odds-btn:active:not(.locked):not(.empty) {
+      transform: scale(0.95);
+    }
+  }
+  /* Touch feedback on mobile */
+  @media (hover: none) {
+    .match-odds-btn:active:not(.locked):not(.empty) {
+      background: var(--odds-bg-hover);
+      border-color: var(--primary);
+    }
   }
   .match-odds-btn.selected {
     background: var(--primary);
@@ -477,9 +561,16 @@
     text-transform: uppercase;
     letter-spacing: 0.07em;
     line-height: 1;
+    /* Truncate on tiny screens */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
   }
   .match-odds-btn.selected .match-odds-label { color: rgba(255,255,255,0.70); }
-  .match-odds-btn:hover:not(.selected):not(.locked) .match-odds-label { color: var(--primary); }
+  @media (hover: hover) {
+    .match-odds-btn:hover:not(.selected):not(.locked) .match-odds-label { color: var(--primary); }
+  }
 
   .match-odds-value {
     font-size: 0.875rem;
@@ -488,6 +579,10 @@
     line-height: 1;
     font-family: 'Barlow Condensed', sans-serif;
     letter-spacing: 0.01em;
+  }
+  /* Scale down odds on very small screens */
+  @media (max-width: 360px) {
+    .match-odds-value { font-size: 0.8125rem; }
   }
 
   /* More odds link */
@@ -503,8 +598,12 @@
     letter-spacing: 0.03em;
     cursor: pointer;
     transition: color 0.15s;
+    /* Sufficient touch height */
+    min-height: 36px;
   }
-  .match-more-odds:hover { color: var(--primary); }
+  @media (hover: hover) {
+    .match-more-odds:hover { color: var(--primary); }
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      FINISHED CARD — result strip (no odds)
@@ -516,6 +615,7 @@
     justify-content: space-between;
     padding: 6px 12px 10px;
     gap: 8px;
+    min-width: 0;
   }
 
   .match-result-label {
@@ -536,6 +636,7 @@
     font-variant-numeric: tabular-nums;
     color: var(--text-main);
     letter-spacing: 0.02em;
+    flex-shrink: 0;
   }
   .match-result-score-block .sep {
     font-size: 0.9rem;
@@ -571,6 +672,7 @@
     align-items: center;
     gap: 8px;
     padding: 2px 2px 8px;
+    min-width: 0;
   }
   .league-group-header-logo {
     width: 16px;
@@ -612,6 +714,7 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 10px;
+    min-width: 0;
   }
   .section-title-text {
     display: flex;
@@ -622,6 +725,7 @@
     font-weight: 700;
     letter-spacing: 0.04em;
     color: var(--text-main);
+    min-width: 0;
   }
   .section-count {
     font-family: 'Inter', sans-serif;
@@ -683,9 +787,13 @@
     border: 1px solid var(--card-border);
     color: var(--text-muted);
     cursor: pointer;
+    /* Minimum touch target */
+    min-height: 36px;
     transition: border-color 0.15s, color 0.15s, background-color 0.15s;
   }
-  .sport-tab:hover          { border-color: var(--primary); color: var(--primary); }
+  @media (hover: hover) {
+    .sport-tab:hover { border-color: var(--primary); color: var(--primary); }
+  }
   .sport-tab.active {
     background: var(--primary);
     border-color: var(--primary);
@@ -706,13 +814,160 @@
     border: 1px solid var(--card-border);
     color: var(--text-muted);
     cursor: pointer;
+    min-height: 32px;
     transition: border-color 0.15s, color 0.15s, background-color 0.15s;
   }
-  .league-tab:hover:not(.active) { border-color: var(--text-muted); color: var(--text-main); }
+  @media (hover: hover) {
+    .league-tab:hover:not(.active) { border-color: var(--text-muted); color: var(--text-main); }
+  }
   .league-tab.active {
     background: var(--text-main);
     border-color: var(--text-main);
     color: var(--card-bg);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     BOTTOM NAV (mobile)
+  ═══════════════════════════════════════════════════════════════ */
+
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--nav-bg);
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    align-items: stretch;
+    /* Account for home indicator on iOS */
+    padding-bottom: env(safe-area-inset-bottom);
+    z-index: 50;
+    /* Subtle backdrop blur for depth */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: color-mix(in srgb, var(--nav-bg) 90%, transparent);
+  }
+
+  .bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 8px 4px;
+    min-height: 56px;
+    font-size: 0.5625rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    cursor: pointer;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .bottom-nav-item.active { color: var(--primary); }
+  .bottom-nav-item svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     TOP / STICKY NAV (mobile)
+  ═══════════════════════════════════════════════════════════════ */
+
+  .top-nav {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    background: color-mix(in srgb, var(--nav-bg) 92%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border-light);
+    /* Notch / status bar safe area */
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .top-nav-inner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    min-height: 56px;
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     PAGE LAYOUT HELPERS
+  ═══════════════════════════════════════════════════════════════ */
+
+  /* Content area with bottom-nav clearance */
+  .page-content {
+    padding: 12px var(--page-padding-x) calc(72px + env(safe-area-inset-bottom));
+    min-height: 100dvh;
+  }
+  /* On desktop, no bottom nav so remove the clearance */
+  @media (min-width: 768px) {
+    .page-content {
+      padding: 20px 24px 32px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+  }
+
+  /* Horizontal scroll container (tabs, chips) */
+  .scroll-x {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 2px 0 8px;
+    /* Hide scrollbar on all platforms */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scroll-x::-webkit-scrollbar { display: none; }
+  /* Left-align with page padding */
+  .scroll-x-padded {
+    padding-left: var(--page-padding-x);
+    padding-right: var(--page-padding-x);
+    margin-left: calc(-1 * var(--page-padding-x));
+    margin-right: calc(-1 * var(--page-padding-x));
+  }
+
+  /* Betslip floating button (mobile only) */
+  .betslip-fab {
+    position: fixed;
+    bottom: calc(64px + env(safe-area-inset-bottom) + 12px);
+    right: 16px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50px;
+    padding: 10px 18px;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--primary) 45%, transparent), var(--primary-glow);
+    z-index: 45;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .betslip-fab:active { transform: scale(0.96); }
+  .betslip-fab-count {
+    background: #fff;
+    color: var(--primary);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    line-height: 1;
   }
 
 } /* end @layer components */
@@ -728,6 +983,30 @@
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
   .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
   .tabular-nums { font-variant-numeric: tabular-nums; }
+
+  /* Safe-area spacing utilities */
+  .pb-safe   { padding-bottom: env(safe-area-inset-bottom); }
+  .pt-safe   { padding-top:    env(safe-area-inset-top); }
+  .pl-safe   { padding-left:   env(safe-area-inset-left); }
+  .pr-safe   { padding-right:  env(safe-area-inset-right); }
+
+  /* Touch-only / hover-only visibility */
+  .touch-only  { display: block; }
+  .hover-only  { display: none;  }
+  @media (hover: hover) {
+    .touch-only { display: none;  }
+    .hover-only { display: block; }
+  }
+
+  /* Full bleed — breaks out of padded parent to span full width */
+  .full-bleed {
+    margin-left: calc(-1 * var(--page-padding-x));
+    margin-right: calc(-1 * var(--page-padding-x));
+  }
+
+  /* Dynamic viewport height — avoids mobile browser chrome overlap */
+  .min-h-dvh { min-height: 100dvh; }
+  .h-dvh     { height: 100dvh; }
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -807,6 +1086,13 @@
 }
 .odds-flash { animation: flashBlue 1.2s ease-out; }
 
+/* Sheet / bottom drawer slide-up on mobile */
+@keyframes sheetIn {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.sheet-in { animation: sheetIn 0.32s cubic-bezier(0.32, 0.72, 0, 1); }
+
 /* ═══════════════════════════════════════════════════════════════
    LIVE MATCH DOT (legacy alias)
 ═══════════════════════════════════════════════════════════════ */
@@ -816,4 +1102,40 @@
   border-radius: 50%;
   background: var(--live-green);
   animation: livePulse 1.4s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE OVERRIDES
+   (coarse breakpoints — use Tailwind classes for fine-grained)
+═══════════════════════════════════════════════════════════════ */
+
+/* Extra-small phones (≤ 360px) */
+@media (max-width: 360px) {
+  .match-card-topbar,
+  .match-card-body,
+  .match-odds-row,
+  .match-result-strip {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .match-vs-separator { margin: 0 10px; }
+}
+
+/* Landscape mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+  .bottom-nav { display: none; }
+  .page-content { padding-bottom: 16px; }
+  .betslip-fab { bottom: 16px; }
+}
+
+/* Tablet and above — wider cards, desktop-style hover */
+@media (min-width: 640px) {
+  .match-card {
+    border-radius: 16px;
+  }
+  .match-card-topbar { padding: 10px 16px 0; }
+  .match-card-body   { padding: 10px 16px 12px; }
+  .match-odds-row    { padding: 0 14px 12px; }
+  .match-result-strip { padding: 8px 16px 12px; }
+  .match-vs-separator { margin: 0 16px; }
 }
