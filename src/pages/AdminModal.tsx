@@ -28,28 +28,28 @@ import type {
   ReferralLink,
 } from '../utils/api';
 
-import CloseIcon from '@mui/icons-material/Close';
-import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import PaymentsIcon from '@mui/icons-material/Payments';
-import BarChartIcon from '@mui/icons-material/BarChart';
-import CheckIcon from '@mui/icons-material/Check';
-import BlockIcon from '@mui/icons-material/Block';
-import ChatIcon from '@mui/icons-material/Chat';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SendIcon from '@mui/icons-material/Send';
-import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
-import QrCodeIcon from '@mui/icons-material/QrCode';
-import GroupAddIcon from '@mui/icons-material/GroupAdd';
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
-import HistoryIcon from '@mui/icons-material/History';
-import MarkChatReadIcon from '@mui/icons-material/MarkChatRead';
-import CircularProgress from '@mui/icons-material/Loop';
-import AddIcon from '@mui/icons-material/Add';
-import SupervisorAccountIcon from '@mui/icons-material/SupervisorAccount';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import DeleteIcon from '@mui/icons-material/Delete';
-import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
+import CloseIcon               from '@mui/icons-material/Close';
+import AdminPanelSettingsIcon  from '@mui/icons-material/AdminPanelSettings';
+import PaymentsIcon            from '@mui/icons-material/Payments';
+import BarChartIcon            from '@mui/icons-material/BarChart';
+import CheckIcon               from '@mui/icons-material/Check';
+import BlockIcon               from '@mui/icons-material/Block';
+import ChatIcon                from '@mui/icons-material/Chat';
+import RefreshIcon             from '@mui/icons-material/Refresh';
+import SendIcon                from '@mui/icons-material/Send';
+import SportsSoccerIcon        from '@mui/icons-material/SportsSoccer';
+import QrCodeIcon              from '@mui/icons-material/QrCode';
+import GroupAddIcon            from '@mui/icons-material/GroupAdd';
+import AttachMoneyIcon         from '@mui/icons-material/AttachMoney';
+import HistoryIcon             from '@mui/icons-material/History';
+import MarkChatReadIcon        from '@mui/icons-material/MarkChatRead';
+import CircularProgress        from '@mui/icons-material/Loop';
+import AddIcon                 from '@mui/icons-material/Add';
+import SupervisorAccountIcon   from '@mui/icons-material/SupervisorAccount';
+import ContentCopyIcon         from '@mui/icons-material/ContentCopy';
+import OpenInNewIcon           from '@mui/icons-material/OpenInNew';
+import DeleteIcon              from '@mui/icons-material/Delete';
+import DeleteSweepIcon         from '@mui/icons-material/DeleteSweep';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -63,13 +63,139 @@ type SectionKey =
   | 'payouts'
   | 'audit';
 
-// ─── Currency conversion ──────────────────────────────────────────────────────
-const GHS_TO_USD = 1 / 11.357;
-const REFERRAL_DEPOSIT_DEDUCTION_GHS = 100;
+// ─── Currency detection (same two-step geo + live rate as WalletPage) ─────────
 
-function ghsToUsd(ghs: number): number {
-  return ghs * GHS_TO_USD;
+interface CurrencyInfo {
+  code: string;
+  symbol: string;
+  countryCode: string;
+  name: string;
+  rateFromGhs: number;
 }
+
+const COUNTRY_CURRENCY: Record<string, { code: string; symbol: string; name: string }> = {
+  GH: { code: 'GHS', symbol: 'GH₵',  name: 'Ghanaian Cedi' },
+  NG: { code: 'NGN', symbol: '₦',    name: 'Nigerian Naira' },
+  KE: { code: 'KES', symbol: 'KSh',  name: 'Kenyan Shilling' },
+  TZ: { code: 'TZS', symbol: 'TSh',  name: 'Tanzanian Shilling' },
+  UG: { code: 'UGX', symbol: 'USh',  name: 'Ugandan Shilling' },
+  ZA: { code: 'ZAR', symbol: 'R',    name: 'South African Rand' },
+  EG: { code: 'EGP', symbol: 'E£',   name: 'Egyptian Pound' },
+  ET: { code: 'ETB', symbol: 'Br',   name: 'Ethiopian Birr' },
+  SN: { code: 'XOF', symbol: 'CFA',  name: 'West African CFA Franc' },
+  CI: { code: 'XOF', symbol: 'CFA',  name: 'West African CFA Franc' },
+  CM: { code: 'XAF', symbol: 'FCFA', name: 'Central African CFA Franc' },
+  ZM: { code: 'ZMW', symbol: 'ZK',   name: 'Zambian Kwacha' },
+  ZW: { code: 'ZWL', symbol: 'Z$',   name: 'Zimbabwean Dollar' },
+  RW: { code: 'RWF', symbol: 'FRw',  name: 'Rwandan Franc' },
+  MW: { code: 'MWK', symbol: 'MK',   name: 'Malawian Kwacha' },
+  MZ: { code: 'MZN', symbol: 'MT',   name: 'Mozambican Metical' },
+  GB: { code: 'GBP', symbol: '£',    name: 'British Pound' },
+  DE: { code: 'EUR', symbol: '€',    name: 'Euro' },
+  FR: { code: 'EUR', symbol: '€',    name: 'Euro' },
+  US: { code: 'USD', symbol: '$',    name: 'US Dollar' },
+  CA: { code: 'CAD', symbol: 'CA$',  name: 'Canadian Dollar' },
+  AU: { code: 'AUD', symbol: 'A$',   name: 'Australian Dollar' },
+};
+
+const DEFAULT_CURRENCY: CurrencyInfo = {
+  code: 'GHS', symbol: 'GH₵', name: 'Ghanaian Cedi',
+  countryCode: 'GH', rateFromGhs: 1,
+};
+
+// Module-level cache: detection runs once per browser session across all pages
+let _currencyCache: CurrencyInfo | null = null;
+let _currencyPromise: Promise<CurrencyInfo> | null = null;
+
+async function detectCurrencyInfo(): Promise<CurrencyInfo> {
+  if (_currencyCache) return _currencyCache;
+  if (_currencyPromise) return _currencyPromise;
+
+  _currencyPromise = (async () => {
+    let countryCode = '';
+
+    // 1. ip-api
+    try {
+      const res = await fetch('https://ip-api.com/json/?fields=countryCode', { signal: AbortSignal.timeout(4000) });
+      if (res.ok) countryCode = (await res.json()).countryCode ?? '';
+    } catch { /* fall through */ }
+
+    // 2. ipapi.co fallback
+    if (!countryCode) {
+      try {
+        const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+        if (res.ok) countryCode = (await res.json()).country_code ?? '';
+      } catch { /* fall through */ }
+    }
+
+    const localCurrency = countryCode ? COUNTRY_CURRENCY[countryCode] : undefined;
+    if (!localCurrency) { _currencyCache = DEFAULT_CURRENCY; return DEFAULT_CURRENCY; }
+
+    let rateFromGhs = 1;
+    if (localCurrency.code !== 'GHS') {
+      // 3a. open.er-api
+      try {
+        const res = await fetch('https://open.er-api.com/v6/latest/GHS', { signal: AbortSignal.timeout(5000) });
+        if (res.ok) rateFromGhs = (await res.json()).rates?.[localCurrency.code] ?? 1;
+      } catch { /* fall through */ }
+
+      // 3b. exchangerate.host fallback
+      if (rateFromGhs === 1) {
+        try {
+          const res = await fetch(`https://api.exchangerate.host/convert?from=GHS&to=${localCurrency.code}&amount=1`, { signal: AbortSignal.timeout(5000) });
+          if (res.ok) { const d = await res.json(); if (d.success && d.result) rateFromGhs = d.result; }
+        } catch { /* fall through */ }
+      }
+    }
+
+    _currencyCache = { code: localCurrency.code, symbol: localCurrency.symbol, name: localCurrency.name, countryCode, rateFromGhs };
+    return _currencyCache;
+  })();
+
+  return _currencyPromise;
+}
+
+// ─── Currency formatting ──────────────────────────────────────────────────────
+
+/**
+ * Format a GHS amount in the user's local currency.
+ * All backend values are stored in GHS; this is the single conversion point.
+ */
+function fmt(amountInGhs: number, currency: CurrencyInfo = DEFAULT_CURRENCY): string {
+  const converted = amountInGhs * currency.rateFromGhs;
+  try {
+    return new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: currency.code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(converted);
+  } catch {
+    return `${currency.symbol}${converted.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+}
+
+// ─── useCurrency hook ─────────────────────────────────────────────────────────
+// All sections share this hook; the module-level cache means only one geo/rate
+// fetch happens per browser session regardless of how many components mount.
+
+function useCurrency(): { currency: CurrencyInfo; currencyReady: boolean } {
+  const [currency, setCurrency]       = useState<CurrencyInfo>(DEFAULT_CURRENCY);
+  const [currencyReady, setCurrencyReady] = useState(false);
+
+  useEffect(() => {
+    detectCurrencyInfo().then((c) => {
+      setCurrency(c);
+      setCurrencyReady(true);
+    });
+  }, []);
+
+  return { currency, currencyReady };
+}
+
+// ─── Other constants that were previously USD-hardcoded ───────────────────────
+
+const REFERRAL_DEPOSIT_DEDUCTION_GHS = 100; // 100 GHS threshold
 
 function referralDeposit(lifetimeStakeGhs: number): number {
   return Math.max(0, lifetimeStakeGhs - REFERRAL_DEPOSIT_DEDUCTION_GHS);
@@ -95,11 +221,6 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> =
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function fmt(n: number, _currency = 'USD') {
-  const usd = ghsToUsd(n);
-  return `$${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -748,8 +869,6 @@ function MatchCard({ match, index, onScoreClick, onStatusClick, onHide }: {
       {isLive && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${cfg.dot}, transparent)`, opacity: 0.8 }} />
       )}
-
-      {/* ── top row: status badge + hide button ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 99, background: cfg.bg, border: `1px solid ${cfg.border}` }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot, flexShrink: 0, boxShadow: cfg.pulse ? `0 0 6px ${cfg.dot}` : 'none' }} />
@@ -761,32 +880,15 @@ function MatchCard({ match, index, onScoreClick, onStatusClick, onHide }: {
               style={{ width: 7, height: 7, borderRadius: '50%', background: cfg.dot, flexShrink: 0, boxShadow: `0 0 6px ${cfg.dot}88` }}
             />
           )}
-          {/* Hide / Delete button */}
-          <button
-            onClick={() => onHide(match.id)}
-            title="Hide match"
-            style={{
-              width: 26, height: 26, borderRadius: 7, border: '1px solid rgba(255,71,87,0.25)',
-              background: 'rgba(255,71,87,0.08)', color: 'rgba(255,71,87,0.6)',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'all 0.15s', flexShrink: 0,
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.22)';
-              (e.currentTarget as HTMLButtonElement).style.color = '#ff4757';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,71,87,0.5)';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.08)';
-              (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,71,87,0.6)';
-              (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,71,87,0.25)';
-            }}
+          <button onClick={() => onHide(match.id)} title="Hide match"
+            style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid rgba(255,71,87,0.25)', background: 'rgba(255,71,87,0.08)', color: 'rgba(255,71,87,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s', flexShrink: 0 }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.22)'; (e.currentTarget as HTMLButtonElement).style.color = '#ff4757'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,71,87,0.5)'; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,71,87,0.6)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,71,87,0.25)'; }}
           >
             <DeleteIcon style={{ fontSize: 13 }} />
           </button>
         </div>
       </div>
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
         {[
           { name: match.homeTeam, logo: match.homeLogo, score: match.scoreHome, winning: hasScore && (match.scoreHome ?? 0) > (match.scoreAway ?? 0) },
@@ -794,15 +896,10 @@ function MatchCard({ match, index, onScoreClick, onStatusClick, onHide }: {
         ].map(({ name, logo, score, winning }, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
             <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-              {logo
-                ? <img src={logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                : <span style={{ fontSize: 8, fontWeight: 800, color: 'rgba(255,255,255,0.4)' }}>{(name ?? '?').slice(0, 3).toUpperCase()}</span>
-              }
+              {logo ? <img src={logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : <span style={{ fontSize: 8, fontWeight: 800, color: 'rgba(255,255,255,0.4)' }}>{(name ?? '?').slice(0, 3).toUpperCase()}</span>}
             </div>
             <span style={{ flex: 1, fontSize: 12, fontWeight: winning ? 700 : 500, color: winning ? '#fff' : 'rgba(255,255,255,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-            {hasScore && (
-              <span style={{ fontSize: 16, fontWeight: 900, fontFamily: 'monospace', color: isLive ? cfg.text : (winning ? '#fff' : 'rgba(255,255,255,0.5)'), flexShrink: 0, minWidth: 16, textAlign: 'right' }}>{score}</span>
-            )}
+            {hasScore && <span style={{ fontSize: 16, fontWeight: 900, fontFamily: 'monospace', color: isLive ? cfg.text : (winning ? '#fff' : 'rgba(255,255,255,0.5)'), flexShrink: 0, minWidth: 16, textAlign: 'right' }}>{score}</span>}
           </div>
         ))}
       </div>
@@ -842,7 +939,7 @@ function MatchesSection() {
       const raw = await adminMatches.list();
       const res = normalise<Match[]>(raw);
       if (res.success) setList(Array.isArray(res.data) ? res.data : []);
-      else { setFetchError('Server returned an unexpected response.'); }
+      else setFetchError('Server returned an unexpected response.');
     } catch (err: unknown) {
       setFetchError(err instanceof Error ? err.message : 'Network error — could not load matches.');
     } finally { setLoading(false); }
@@ -859,41 +956,30 @@ function MatchesSection() {
 
   const handleCreated = (match: Match) => { upsert(match); setTimeout(() => loadMatches(), 800); };
 
-  // Hide a single match (client-side, permanent for this session)
-  const hideMatch = useCallback((id: string) => {
-    setHiddenIds((prev) => new Set([...prev, id]));
-  }, []);
+  const hideMatch = useCallback((id: string) => { setHiddenIds((prev) => new Set([...prev, id])); }, []);
 
-  // Hide all currently visible matches
   const hideAllMatches = useCallback(() => {
-    const visibleIds = list
-      .filter((m) => {
-        if (hiddenIds.has(m.id)) return false;
-        if (filter === 'ALL') return true;
-        if (filter === 'LIVE') return ['LIVE', 'HALF_TIME', 'SECOND_HALF'].includes(m.status ?? '');
-        return m.status === filter;
-      })
-      .map((m) => m.id);
+    const visibleIds = list.filter((m) => {
+      if (hiddenIds.has(m.id)) return false;
+      if (filter === 'ALL') return true;
+      if (filter === 'LIVE') return ['LIVE', 'HALF_TIME', 'SECOND_HALF'].includes(m.status ?? '');
+      return m.status === filter;
+    }).map((m) => m.id);
     setHiddenIds((prev) => new Set([...prev, ...visibleIds]));
   }, [list, hiddenIds, filter]);
 
   const visibleList = list.filter((m) => !hiddenIds.has(m.id));
-
   const filtered = visibleList.filter((m) => {
     if (filter === 'ALL') return true;
     if (filter === 'LIVE') return ['LIVE', 'HALF_TIME', 'SECOND_HALF'].includes(m.status ?? '');
     return m.status === filter;
   });
-
   const liveCount = visibleList.filter((m) => ['LIVE', 'HALF_TIME', 'SECOND_HALF'].includes(m.status ?? '')).length;
-
   const tabCounts: Record<MatchTab, number> = {
-    ALL: visibleList.length,
-    LIVE: liveCount,
+    ALL: visibleList.length, LIVE: liveCount,
     SCHEDULED: visibleList.filter((m) => m.status === 'SCHEDULED').length,
     FINISHED: visibleList.filter((m) => m.status === 'FINISHED').length,
   };
-
   const hiddenCount = hiddenIds.size;
 
   return (
@@ -901,42 +987,20 @@ function MatchesSection() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h2 className="font-heading text-xl font-bold text-white">Matches</h2>
-          {hiddenCount > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,71,87,0.15)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.25)' }}>
-              {hiddenCount} hidden
-            </span>
-          )}
+          {hiddenCount > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,71,87,0.15)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.25)' }}>{hiddenCount} hidden</span>}
         </div>
         <div className="flex items-center gap-2">
-          {/* Delete All visible matches */}
           {filtered.length > 0 && (
-            <button
-              onClick={hideAllMatches}
-              title="Hide all visible matches"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                padding: '7px 12px', borderRadius: 8,
-                background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)',
-                color: '#ff4757', fontSize: 11, fontWeight: 800,
-                cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase',
-                transition: 'all 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.2)';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.1)';
-              }}
+            <button onClick={hideAllMatches} title="Hide all visible matches"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', color: '#ff4757', fontSize: 11, fontWeight: 800, cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase', transition: 'all 0.15s' }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.2)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.1)'; }}
             >
-              <DeleteSweepIcon fontSize="small" />
-              Delete All
+              <DeleteSweepIcon fontSize="small" /> Delete All
             </button>
           )}
-          <button onClick={loadMatches} disabled={loading} className="p-1.5 rounded-xl bg-slate-700 text-slate-400 hover:bg-slate-600 disabled:opacity-50 transition-colors">
-            <RefreshIcon fontSize="small" />
-          </button>
-          <button onClick={() => setShowCreate(true)}
-            style={{ padding: '9px 18px', borderRadius: 9, background: 'linear-gradient(135deg, #63d2ff, #3891ff)', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', cursor: 'pointer', textTransform: 'uppercase', boxShadow: '0 4px 20px rgba(99,210,255,0.3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={loadMatches} disabled={loading} className="p-1.5 rounded-xl bg-slate-700 text-slate-400 hover:bg-slate-600 disabled:opacity-50 transition-colors"><RefreshIcon fontSize="small" /></button>
+          <button onClick={() => setShowCreate(true)} style={{ padding: '9px 18px', borderRadius: 9, background: 'linear-gradient(135deg, #63d2ff, #3891ff)', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', cursor: 'pointer', textTransform: 'uppercase', boxShadow: '0 4px 20px rgba(99,210,255,0.3)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <AddIcon fontSize="small" /> New Match
           </button>
         </div>
@@ -955,38 +1019,22 @@ function MatchesSection() {
       </div>
       {loading && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="animate-pulse" style={{ height: 200, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(255,255,255,0.06)' }} />
-          ))}
+          {[1, 2, 3, 4, 5, 6].map((i) => <div key={i} className="animate-pulse" style={{ height: 200, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1.5px solid rgba(255,255,255,0.06)' }} />)}
         </div>
       )}
       {!loading && fetchError && <ErrorState text={fetchError} onRetry={loadMatches} />}
       {!loading && !fetchError && filtered.length === 0 && (
         <div style={{ textAlign: 'center', padding: '60px 24px' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🏟️</div>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', fontWeight: 600, marginBottom: 16 }}>
-            No {filter !== 'ALL' ? filter.toLowerCase() + ' ' : ''}matches{hiddenCount > 0 ? ' visible' : ' yet'}
-          </p>
-          {hiddenCount > 0 && (
-            <button onClick={() => setHiddenIds(new Set())}
-              style={{ marginBottom: 10, padding: '8px 18px', borderRadius: 8, background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', color: '#ff4757', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-              Restore {hiddenCount} hidden
-            </button>
-          )}
-          {filter === 'ALL' && hiddenCount === 0 && (
-            <button onClick={() => setShowCreate(true)}
-              style={{ padding: '10px 22px', borderRadius: 9, background: 'linear-gradient(135deg, #63d2ff, #3891ff)', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              + Create your first match
-            </button>
-          )}
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', fontWeight: 600, marginBottom: 16 }}>No {filter !== 'ALL' ? filter.toLowerCase() + ' ' : ''}matches{hiddenCount > 0 ? ' visible' : ' yet'}</p>
+          {hiddenCount > 0 && <button onClick={() => setHiddenIds(new Set())} style={{ marginBottom: 10, padding: '8px 18px', borderRadius: 8, background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', color: '#ff4757', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Restore {hiddenCount} hidden</button>}
+          {filter === 'ALL' && hiddenCount === 0 && <button onClick={() => setShowCreate(true)} style={{ padding: '10px 22px', borderRadius: 9, background: 'linear-gradient(135deg, #63d2ff, #3891ff)', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em' }}>+ Create your first match</button>}
         </div>
       )}
       {!loading && !fetchError && filtered.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
           <AnimatePresence>
-            {filtered.map((m, i) => (
-              <MatchCard key={m.id} match={m} index={i} onScoreClick={setScoreTarget} onStatusClick={setStatusTarget} onHide={hideMatch} />
-            ))}
+            {filtered.map((m, i) => <MatchCard key={m.id} match={m} index={i} onScoreClick={setScoreTarget} onStatusClick={setStatusTarget} onHide={hideMatch} />)}
           </AnimatePresence>
         </div>
       )}
@@ -1010,9 +1058,7 @@ const bcInputStyle: React.CSSProperties = {
 function BcField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>
-        {label}
-      </label>
+      <label style={{ display: 'block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>{label}</label>
       {children}
     </div>
   );
@@ -1021,62 +1067,27 @@ function BcField({ label, children }: { label: string; children: React.ReactNode
 // ─── Booking Code Constants ───────────────────────────────────────────────────
 
 const BOOKING_TYPES = [
-  {
-    id: 'STANDARD',
-    label: 'Standard Code',
-    desc: 'Build a slip from any available match in the feed.',
-    accent: '#63d2ff',
-    accentBg: 'rgba(99,210,255,0.1)',
-    apiMethod: 'createBookingCode' as const,
-  },
-  {
-    id: 'ADMIN_ONLY',
-    label: 'Admin Games Only',
-    desc: 'Selections locked to matches you personally created.',
-    accent: '#f59e0b',
-    accentBg: 'rgba(245,158,11,0.1)',
-    apiMethod: 'createAdminOnlyBookingCode' as const,
-  },
-  {
-    id: 'MIXED',
-    label: 'Mixed Code',
-    desc: 'Combine your admin fixtures with external feed matches.',
-    accent: '#a78bfa',
-    accentBg: 'rgba(167,139,250,0.1)',
-    apiMethod: 'createMixedBookingCode' as const,
-  },
+  { id: 'STANDARD',   label: 'Standard Code',      desc: 'Build a slip from any available match in the feed.',        accent: '#63d2ff', accentBg: 'rgba(99,210,255,0.1)',  apiMethod: 'createBookingCode' as const },
+  { id: 'ADMIN_ONLY', label: 'Admin Games Only',    desc: 'Selections locked to matches you personally created.',      accent: '#f59e0b', accentBg: 'rgba(245,158,11,0.1)', apiMethod: 'createAdminOnlyBookingCode' as const },
+  { id: 'MIXED',      label: 'Mixed Code',          desc: 'Combine your admin fixtures with external feed matches.',   accent: '#a78bfa', accentBg: 'rgba(167,139,250,0.1)', apiMethod: 'createMixedBookingCode' as const },
 ] as const;
 
-type BookingTypeId = typeof BOOKING_TYPES[number]['id'];
+type BookingTypeId   = typeof BOOKING_TYPES[number]['id'];
 type BookingApiMethod = typeof BOOKING_TYPES[number]['apiMethod'];
 
 function BcTypePickerModal({ onClose, onPick }: { onClose: () => void; onPick: (t: BookingTypeId) => void }) {
   return (
     <BcModalShell title="Choose Code Type" onClose={onClose}>
-      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16, lineHeight: 1.5 }}>
-        Select the type of booking code you want to create.
-      </p>
+      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginBottom: 16, lineHeight: 1.5 }}>Select the type of booking code you want to create.</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {BOOKING_TYPES.map((t, i) => (
-          <motion.button
-            key={t.id}
-            initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.07, duration: 0.22 }}
+          <motion.button key={t.id} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.07, duration: 0.22 }}
             onClick={() => onPick(t.id)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
-              borderRadius: 12, border: '1.5px solid rgba(255,255,255,0.08)',
-              background: 'rgba(255,255,255,0.03)', cursor: 'pointer',
-              textAlign: 'left', width: '100%', transition: 'border-color .15s, background .15s',
-            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 12, border: '1.5px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.03)', cursor: 'pointer', textAlign: 'left', width: '100%', transition: 'border-color .15s, background .15s' }}
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = t.accent; e.currentTarget.style.background = t.accentBg; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
           >
-            <div style={{
-              width: 42, height: 42, borderRadius: 10, flexShrink: 0,
-              background: t.accentBg, color: t.accent,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
-            }}>
+            <div style={{ width: 42, height: 42, borderRadius: 10, flexShrink: 0, background: t.accentBg, color: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
               {t.id === 'STANDARD' ? '🎟️' : t.id === 'ADMIN_ONLY' ? '⭐' : '🔀'}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1091,11 +1102,7 @@ function BcTypePickerModal({ onClose, onPick }: { onClose: () => void; onPick: (
   );
 }
 
-function BcModalShell({
-  title, subtitle, onClose, children,
-}: {
-  title: string; subtitle?: string; onClose: () => void; children: React.ReactNode;
-}) {
+function BcModalShell({ title, subtitle, onClose, children }: { title: string; subtitle?: string; onClose: () => void; children: React.ReactNode }) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', handler);
@@ -1103,27 +1110,12 @@ function BcModalShell({
   }, [onClose]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      transition={{ duration: 0.15 }}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 300,
-        background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-      }}
+      style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
     >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 8 }}
-        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-        style={{
-          background: 'linear-gradient(160deg, #0f0f1a 0%, #13131f 60%, #0d0d18 100%)',
-          borderRadius: 16, border: '1.5px solid rgba(255,255,255,0.08)',
-          width: '100%', maxWidth: 520, maxHeight: '90vh',
-          display: 'flex', flexDirection: 'column',
-          boxShadow: '0 24px 60px rgba(0,0,0,0.7)',
-        }}
+      <motion.div initial={{ opacity: 0, scale: 0.96, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 8 }} transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        style={{ background: 'linear-gradient(160deg, #0f0f1a 0%, #13131f 60%, #0d0d18 100%)', borderRadius: 16, border: '1.5px solid rgba(255,255,255,0.08)', width: '100%', maxWidth: 520, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(0,0,0,0.7)' }}
       >
         <div style={{ padding: '18px 20px 0' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -1131,22 +1123,13 @@ function BcModalShell({
               <div style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>{title}</div>
               {subtitle && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 3 }}>{subtitle}</div>}
             </div>
-            <button
-              onClick={onClose}
-              style={{
-                background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 6, padding: 6, cursor: 'pointer',
-                color: 'rgba(255,255,255,0.5)', display: 'flex', flexShrink: 0, marginLeft: 12,
-              }}
-            >
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: 6, cursor: 'pointer', color: 'rgba(255,255,255,0.5)', display: 'flex', flexShrink: 0, marginLeft: 12 }}>
               <CloseIcon style={{ fontSize: 14 }} />
             </button>
           </div>
           <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginTop: 16 }} />
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 20px' }}>
-          {children}
-        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 20px' }}>{children}</div>
       </motion.div>
     </motion.div>
   );
@@ -1154,47 +1137,35 @@ function BcModalShell({
 
 function BcSelectionRow({ sel, onRemove }: { sel: any; onRemove: () => void }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-      borderRadius: 10, background: 'rgba(255,255,255,0.04)',
-      border: '1px solid rgba(255,255,255,0.07)',
-    }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {sel.match}
-        </div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sel.match}</div>
         <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ padding: '1px 6px', borderRadius: 4, background: 'rgba(99,210,255,0.1)', fontWeight: 700, fontSize: 10, color: '#63d2ff' }}>
-            {sel.market}
-          </span>
+          <span style={{ padding: '1px 6px', borderRadius: 4, background: 'rgba(99,210,255,0.1)', fontWeight: 700, fontSize: 10, color: '#63d2ff' }}>{sel.market}</span>
           <span>{sel.pick}</span>
           {sel.line != null && <span>· Line {sel.line}</span>}
         </div>
       </div>
-      <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 14, color: '#63d2ff', flexShrink: 0 }}>
-        {sel.odds.toFixed(2)}
-      </div>
-      <button onClick={onRemove} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ff4757', padding: 4, borderRadius: 6, display: 'flex', fontSize: 14 }}>
-        ×
-      </button>
+      <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 14, color: '#63d2ff', flexShrink: 0 }}>{sel.odds.toFixed(2)}</div>
+      <button onClick={onRemove} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ff4757', padding: 4, borderRadius: 6, display: 'flex', fontSize: 14 }}>×</button>
     </div>
   );
 }
 
-function BcSelectionPicker({ bookingType, onPick, onClose }: { bookingType: BookingTypeId; onPick: (sel: any) => void; onClose: () => void; }) {
-  const [allMatches, setAllMatches]         = useState<any[]>([]);
+function BcSelectionPicker({ bookingType, onPick, onClose }: { bookingType: BookingTypeId; onPick: (sel: any) => void; onClose: () => void }) {
+  const [allMatches, setAllMatches] = useState<any[]>([]);
   const [loadingMatches, setLoadingMatches] = useState(true);
-  const [match,    setMatch]    = useState<any>(null);
-  const [market,   setMarket]   = useState<typeof MARKETS[number]>(MARKETS[0]);
-  const [pick,     setPick]     = useState('');
-  const [line,     setLine]     = useState(2.5);
-  const [team,     setTeam]     = useState('');
+  const [match, setMatch] = useState<any>(null);
+  const [market, setMarket] = useState<typeof MARKETS[number]>(MARKETS[0]);
+  const [pick, setPick]     = useState('');
+  const [line, setLine]     = useState(2.5);
+  const [team, setTeam]     = useState('');
   const [handicap, setHandicap] = useState(-1);
-  const [home,     setHome]     = useState(2);
-  const [away,     setAway]     = useState(1);
-  const [ht,       setHt]       = useState('Home Win');
-  const [ft,       setFt]       = useState('Home Win');
-  const [odds,     setOdds]     = useState(2.0);
+  const [home, setHome]     = useState(2);
+  const [away, setAway]     = useState(1);
+  const [ht, setHt]         = useState('Home Win');
+  const [ft, setFt]         = useState('Home Win');
+  const [odds, setOdds]     = useState(2.0);
 
   const typeCfg = bookingTypeConfig(bookingType);
 
@@ -1221,11 +1192,8 @@ function BcSelectionPicker({ bookingType, onPick, onClose }: { bookingType: Book
           fetchedMatches = (res.success && Array.isArray(res.data) ? res.data : []).map((m: any) => ({ ...m, _source: 'EXTERNAL' }));
         }
         if (!cancelled) setAllMatches(fetchedMatches);
-      } catch (err) {
-        console.error('BcSelectionPicker: load failed', err);
-      } finally {
-        if (!cancelled) setLoadingMatches(false);
-      }
+      } catch (err) { console.error('BcSelectionPicker: load failed', err); }
+      finally { if (!cancelled) setLoadingMatches(false); }
     })();
     return () => { cancelled = true; };
   }, [bookingType]);
@@ -1233,14 +1201,7 @@ function BcSelectionPicker({ bookingType, onPick, onClose }: { bookingType: Book
   const playable = allMatches.filter((m) => ['UPCOMING', 'SCHEDULED', 'LIVE'].includes(m.status ?? ''));
 
   const buildSelection = () => {
-    const base: any = {
-      fixture_id: match.id,
-      match: `${match.homeTeam} vs ${match.awayTeam}`,
-      market: market.value,
-      odds: +odds,
-      result: null,
-      _source: match._source,
-    };
+    const base: any = { fixture_id: match.id, match: `${match.homeTeam} vs ${match.awayTeam}`, market: market.value, odds: +odds, result: null, _source: match._source };
     if (['1X2', 'WIN_ONLY', 'BTTS'].includes(market.value))  { base.pick = pick; }
     else if (market.value === 'OVER_UNDER')                   { base.line = +line; base.pick = pick; }
     else if (market.value === 'HANDICAP')                     { base.team = team; base.handicap = +handicap; base.pick = `${team} ${handicap > 0 ? '+' : ''}${handicap}`; }
@@ -1274,21 +1235,11 @@ function BcSelectionPicker({ bookingType, onPick, onClose }: { bookingType: Book
               <option value="">— Choose a match —</option>
               {bookingType === 'MIXED' ? (
                 <>
-                  <optgroup label="── Your Admin Matches ──">
-                    {playable.filter((m) => m._source === 'ADMIN').map((m: any) => (
-                      <option key={m.id} value={m.id}>{m.homeTeam} vs {m.awayTeam} · {m.league}</option>
-                    ))}
-                  </optgroup>
-                  <optgroup label="── External Feed ──">
-                    {playable.filter((m) => m._source === 'EXTERNAL').map((m: any) => (
-                      <option key={m.id} value={m.id}>{m.homeTeam} vs {m.awayTeam} · {m.league}</option>
-                    ))}
-                  </optgroup>
+                  <optgroup label="── Your Admin Matches ──">{playable.filter((m) => m._source === 'ADMIN').map((m: any) => <option key={m.id} value={m.id}>{m.homeTeam} vs {m.awayTeam} · {m.league}</option>)}</optgroup>
+                  <optgroup label="── External Feed ──">{playable.filter((m) => m._source === 'EXTERNAL').map((m: any) => <option key={m.id} value={m.id}>{m.homeTeam} vs {m.awayTeam} · {m.league}</option>)}</optgroup>
                 </>
               ) : (
-                playable.map((m: any) => (
-                  <option key={m.id} value={m.id}>{m.homeTeam} vs {m.awayTeam} · {m.league}{m._source === 'ADMIN' ? ' ★' : ''}</option>
-                ))
+                playable.map((m: any) => <option key={m.id} value={m.id}>{m.homeTeam} vs {m.awayTeam} · {m.league}{m._source === 'ADMIN' ? ' ★' : ''}</option>)
               )}
             </select>
           )}
@@ -1307,19 +1258,12 @@ function BcSelectionPicker({ bookingType, onPick, onClose }: { bookingType: Book
           <BcField label="Pick">
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {market.picks.map((p) => (
-                <button key={p} onClick={() => setPick(p)}
-                  style={{ padding: '7px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: pick === p ? typeCfg.accent : 'rgba(255,255,255,0.06)', color: pick === p ? '#fff' : 'rgba(255,255,255,0.6)', transition: 'background .12s' }}>
-                  {p}
-                </button>
+                <button key={p} onClick={() => setPick(p)} style={{ padding: '7px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', background: pick === p ? typeCfg.accent : 'rgba(255,255,255,0.06)', color: pick === p ? '#fff' : 'rgba(255,255,255,0.6)', transition: 'background .12s' }}>{p}</button>
               ))}
             </div>
           </BcField>
         )}
-        {'hasLine' in market && market.hasLine && (
-          <BcField label="Line">
-            <input type="number" step="0.5" value={line} onChange={(e) => setLine(+e.target.value)} style={bcInputStyle} />
-          </BcField>
-        )}
+        {'hasLine' in market && market.hasLine && <BcField label="Line"><input type="number" step="0.5" value={line} onChange={(e) => setLine(+e.target.value)} style={bcInputStyle} /></BcField>}
         {'hasHandicap' in market && market.hasHandicap && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <BcField label="Team">
@@ -1329,38 +1273,22 @@ function BcSelectionPicker({ bookingType, onPick, onClose }: { bookingType: Book
                 {match && <option value={match.awayTeam}>{match.awayTeam}</option>}
               </select>
             </BcField>
-            <BcField label="Handicap">
-              <input type="number" step="0.5" value={handicap} onChange={(e) => setHandicap(+e.target.value)} style={bcInputStyle} />
-            </BcField>
+            <BcField label="Handicap"><input type="number" step="0.5" value={handicap} onChange={(e) => setHandicap(+e.target.value)} style={bcInputStyle} /></BcField>
           </div>
         )}
         {'hasScore' in market && market.hasScore && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <BcField label="Home Goals">
-              <input type="number" min={0} max={10} value={home} onChange={(e) => setHome(+e.target.value)} style={bcInputStyle} />
-            </BcField>
-            <BcField label="Away Goals">
-              <input type="number" min={0} max={10} value={away} onChange={(e) => setAway(+e.target.value)} style={bcInputStyle} />
-            </BcField>
+            <BcField label="Home Goals"><input type="number" min={0} max={10} value={home} onChange={(e) => setHome(+e.target.value)} style={bcInputStyle} /></BcField>
+            <BcField label="Away Goals"><input type="number" min={0} max={10} value={away} onChange={(e) => setAway(+e.target.value)} style={bcInputStyle} /></BcField>
           </div>
         )}
         {'hasHtFt' in market && market.hasHtFt && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <BcField label="Half-Time">
-              <select value={ht} onChange={(e) => setHt(e.target.value)} style={{ ...bcInputStyle, cursor: 'pointer' }}>
-                {['Home Win', 'Draw', 'Away Win'].map((v) => <option key={v}>{v}</option>)}
-              </select>
-            </BcField>
-            <BcField label="Full-Time">
-              <select value={ft} onChange={(e) => setFt(e.target.value)} style={{ ...bcInputStyle, cursor: 'pointer' }}>
-                {['Home Win', 'Draw', 'Away Win'].map((v) => <option key={v}>{v}</option>)}
-              </select>
-            </BcField>
+            <BcField label="Half-Time"><select value={ht} onChange={(e) => setHt(e.target.value)} style={{ ...bcInputStyle, cursor: 'pointer' }}>{['Home Win', 'Draw', 'Away Win'].map((v) => <option key={v}>{v}</option>)}</select></BcField>
+            <BcField label="Full-Time"><select value={ft} onChange={(e) => setFt(e.target.value)} style={{ ...bcInputStyle, cursor: 'pointer' }}>{['Home Win', 'Draw', 'Away Win'].map((v) => <option key={v}>{v}</option>)}</select></BcField>
           </div>
         )}
-        <BcField label="Odds">
-          <input type="number" step="0.01" min="1.10" value={odds} onChange={(e) => setOdds(+e.target.value)} style={bcInputStyle} />
-        </BcField>
+        <BcField label="Odds"><input type="number" step="0.01" min="1.10" value={odds} onChange={(e) => setOdds(+e.target.value)} style={bcInputStyle} /></BcField>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose} style={{ flex: 1, padding: '11px 0', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
           <button onClick={() => onPick(buildSelection())} disabled={!canSubmit()}
@@ -1373,8 +1301,11 @@ function BcSelectionPicker({ bookingType, onPick, onClose }: { bookingType: Book
   );
 }
 
-function BcCreateModal({ bookingType, onClose, onBack, onCreate }: { bookingType: BookingTypeId; onClose: () => void; onBack: () => void; onCreate: (code: BookingCode) => void; }) {
+// ─── BcCreateModal — needs currency for stake label + potential payout ────────
+
+function BcCreateModal({ bookingType, onClose, onBack, onCreate }: { bookingType: BookingTypeId; onClose: () => void; onBack: () => void; onCreate: (code: BookingCode) => void }) {
   const { showToast } = useAppStore();
+  const { currency } = useCurrency();
   const typeCfg = bookingTypeConfig(bookingType);
   const [form, setForm] = useState({ label: '', stake: 10, expires_in_hours: 24, selections: [] as any[] });
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -1413,7 +1344,7 @@ function BcCreateModal({ bookingType, onClose, onBack, onCreate }: { bookingType
         kind,
         label:      form.label.trim(),
         stake:      +form.stake,
-        currency:   'USD',
+        currency:   currency.code,          // use detected currency
         selections: form.selections,
         expiresAt,
         ...(bookingType !== 'STANDARD' ? { bookingType } : {}),
@@ -1436,11 +1367,10 @@ function BcCreateModal({ bookingType, onClose, onBack, onCreate }: { bookingType
           <span style={{ fontSize: 12, color: typeCfg.accent, fontWeight: 600 }}>{typeCfg.label}</span>
           <button onClick={onBack} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', cursor: 'pointer', color: typeCfg.accent, fontSize: 11, fontWeight: 600 }}>Change type ›</button>
         </div>
-        <BcField label="Label">
-          <input value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} placeholder="e.g. Weekend Big 4" style={bcInputStyle} />
-        </BcField>
+        <BcField label="Label"><input value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} placeholder="e.g. Weekend Big 4" style={bcInputStyle} /></BcField>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <BcField label="Stake (USD)">
+          {/* Stake label now shows the user's detected currency code */}
+          <BcField label={`Stake (${currency.code})`}>
             <input type="number" min="1" value={form.stake} onChange={(e) => setForm((f) => ({ ...f, stake: +e.target.value || 0 }))} style={bcInputStyle} />
           </BcField>
           <BcField label="Expires in (hours)">
@@ -1458,9 +1388,7 @@ function BcCreateModal({ bookingType, onClose, onBack, onCreate }: { bookingType
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {form.selections.map((s, i) => (
-                <BcSelectionRow key={i} sel={s} onRemove={() => setForm((f) => ({ ...f, selections: f.selections.filter((_, j) => j !== i) }))} />
-              ))}
+              {form.selections.map((s, i) => <BcSelectionRow key={i} sel={s} onRemove={() => setForm((f) => ({ ...f, selections: f.selections.filter((_, j) => j !== i) }))} />)}
             </div>
           )}
         </div>
@@ -1475,7 +1403,8 @@ function BcCreateModal({ bookingType, onClose, onBack, onCreate }: { bookingType
           </div>
           <div>
             <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: 2 }}>Potential Payout</div>
-            <div style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 22, color: '#4ade80', lineHeight: 1 }}>{fmt(potential)}</div>
+            {/* fmt() now converts from GHS to user's local currency */}
+            <div style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 22, color: '#4ade80', lineHeight: 1 }}>{fmt(potential, currency)}</div>
           </div>
         </div>
         {error && <div style={{ fontSize: 12, color: '#f87171', background: 'rgba(239,68,68,0.1)', borderRadius: 8, padding: '8px 12px' }}>{error}</div>}
@@ -1495,6 +1424,7 @@ function BcCreateModal({ bookingType, onClose, onBack, onCreate }: { bookingType
 
 function BcViewModal({ code, onClose }: { code: BookingCode; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
+  const { currency } = useCurrency();
   const totalOdds       = +((code as any).totalOdds ?? (code as any).total_odds ?? 0);
   const potentialPayout = +((code as any).potentialPayout ?? (code as any).potential_payout ?? 0);
   const btCfg           = bookingTypeConfig((code as any).bookingType ?? 'STANDARD');
@@ -1518,11 +1448,11 @@ function BcViewModal({ code, onClose }: { code: BookingCode; onClose: () => void
             )}
           </div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <span>Stake {fmt(code.stake ?? 0)}</span>
+            <span>Stake {fmt(code.stake ?? 0, currency)}</span>
             <span>·</span>
             <span>Odds <strong style={{ color: '#63d2ff' }}>{totalOdds.toFixed(2)}x</strong></span>
             <span>·</span>
-            <span>Payout <strong style={{ color: '#4ade80' }}>{fmt(potentialPayout)}</strong></span>
+            <span>Payout <strong style={{ color: '#4ade80' }}>{fmt(potentialPayout, currency)}</strong></span>
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1561,10 +1491,9 @@ function BcStatCard({ label, value, accent }: { label: string; value: string; ac
   );
 }
 
-// ─── Booking Code Card — with individual hide button ─────────────────────────
-
 function BcCodeCard({ code, onView, onHide }: { code: BookingCode; onView: () => void; onHide: () => void }) {
   const [copied, setCopied] = useState(false);
+  const { currency } = useCurrency();
   const totalOdds       = +((code as any).totalOdds       ?? (code as any).total_odds       ?? 0);
   const potentialPayout = +((code as any).potentialPayout  ?? (code as any).potential_payout ?? 0);
   const redemptionCount = +((code as any).redemptionCount  ?? (code as any).redemption_count ?? 0);
@@ -1591,7 +1520,6 @@ function BcCodeCard({ code, onView, onHide }: { code: BookingCode; onView: () =>
     >
       <div style={{ height: 3, background: sc.text, opacity: 0.7 }} />
       <div style={{ padding: '16px 18px' }}>
-        {/* Header row with code, status, and hide button */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14, gap: 8 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontFamily: 'monospace', fontSize: 20, fontWeight: 800, color: '#63d2ff', letterSpacing: '0.06em' }}>{code.code}</div>
@@ -1602,28 +1530,10 @@ function BcCodeCard({ code, onView, onHide }: { code: BookingCode; onView: () =>
               <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', background: sc.bg, color: sc.text, display: 'flex', alignItems: 'center', gap: 5 }}>
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: sc.dot, display: 'inline-block' }} />{status}
               </span>
-              {/* Individual hide/delete button */}
-              <button
-                onClick={onHide}
-                title="Hide this code"
-                style={{
-                  width: 26, height: 26, borderRadius: 7,
-                  border: '1px solid rgba(255,71,87,0.25)',
-                  background: 'rgba(255,71,87,0.08)',
-                  color: 'rgba(255,71,87,0.6)',
-                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.22)';
-                  (e.currentTarget as HTMLButtonElement).style.color = '#ff4757';
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,71,87,0.5)';
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.08)';
-                  (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,71,87,0.6)';
-                  (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,71,87,0.25)';
-                }}
+              <button onClick={onHide} title="Hide this code"
+                style={{ width: 26, height: 26, borderRadius: 7, border: '1px solid rgba(255,71,87,0.25)', background: 'rgba(255,71,87,0.08)', color: 'rgba(255,71,87,0.6)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.22)'; (e.currentTarget as HTMLButtonElement).style.color = '#ff4757'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,71,87,0.5)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.08)'; (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,71,87,0.6)'; (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,71,87,0.25)'; }}
               >
                 <DeleteIcon style={{ fontSize: 13 }} />
               </button>
@@ -1637,9 +1547,9 @@ function BcCodeCard({ code, onView, onHide }: { code: BookingCode; onView: () =>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
           {[
-            { label: 'Stake',      value: fmt(code.stake ?? 0),        accent: undefined  },
-            { label: 'Total Odds', value: totalOdds.toFixed(2) + 'x',  accent: '#63d2ff' },
-            { label: 'Potential',  value: fmt(potentialPayout),         accent: '#4ade80' },
+            { label: 'Stake',      value: fmt(code.stake ?? 0, currency),  accent: undefined },
+            { label: 'Total Odds', value: totalOdds.toFixed(2) + 'x',      accent: '#63d2ff' },
+            { label: 'Potential',  value: fmt(potentialPayout, currency),   accent: '#4ade80' },
             { label: 'Redeemed',   value: `${redemptionCount}${maxRedemptions != null ? ' / ' + maxRedemptions : ''}`, accent: undefined },
           ].map((s) => (
             <div key={s.label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '8px 10px' }}>
@@ -1668,12 +1578,13 @@ function BcCodeCard({ code, onView, onHide }: { code: BookingCode; onView: () =>
 // ─── Section: Bookings ────────────────────────────────────────────────────────
 
 function BookingsSection() {
-  const [codes, setCodes]             = useState<BookingCode[]>([]);
-  const [hiddenIds, setHiddenIds]     = useState<Set<string>>(new Set());
-  const [loading, setLoading]         = useState(true);
-  const [fetchError, setFetchError]   = useState<string | null>(null);
-  const [modalState, setModalState]   = useState<null | 'picker' | BookingTypeId>(null);
-  const [viewCode, setViewCode]       = useState<BookingCode | null>(null);
+  const { currency } = useCurrency();
+  const [codes, setCodes]           = useState<BookingCode[]>([]);
+  const [hiddenIds, setHiddenIds]   = useState<Set<string>>(new Set());
+  const [loading, setLoading]       = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [modalState, setModalState] = useState<null | 'picker' | BookingTypeId>(null);
+  const [viewCode, setViewCode]     = useState<BookingCode | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setFetchError(null);
@@ -1683,21 +1594,15 @@ function BookingsSection() {
       if (res.success) {
         setCodes(res.data?.content ?? (Array.isArray(res.data) ? res.data as unknown as BookingCode[] : []));
       } else { setFetchError('Failed to load booking codes.'); }
-    } catch (err: unknown) {
-      setFetchError(err instanceof Error ? err.message : 'Network error.');
-    } finally { setLoading(false); }
+    } catch (err: unknown) { setFetchError(err instanceof Error ? err.message : 'Network error.'); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const handleCreate = useCallback((newCode: BookingCode) => { setCodes((prev) => [newCode, ...prev]); setModalState(null); }, []);
 
-  // Hide a single code
-  const hideCode = useCallback((id: string) => {
-    setHiddenIds((prev) => new Set([...prev, id]));
-  }, []);
-
-  // Hide all currently visible codes
+  const hideCode = useCallback((id: string) => { setHiddenIds((prev) => new Set([...prev, id])); }, []);
   const hideAllCodes = useCallback(() => {
     const visibleIds = codes.filter((c) => !hiddenIds.has((c as any).id)).map((c) => (c as any).id);
     setHiddenIds((prev) => new Set([...prev, ...visibleIds]));
@@ -1716,52 +1621,34 @@ function BookingsSection() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h2 className="font-heading text-xl font-bold text-white">Booking Codes</h2>
-          {hiddenCount > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,71,87,0.15)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.25)' }}>
-              {hiddenCount} hidden
-            </span>
-          )}
+          {hiddenCount > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,71,87,0.15)', color: '#ff4757', border: '1px solid rgba(255,71,87,0.25)' }}>{hiddenCount} hidden</span>}
         </div>
         <div className="flex items-center gap-2">
-          {/* Delete All codes button */}
           {visibleCodes.length > 0 && (
-            <button
-              onClick={hideAllCodes}
-              title="Hide all booking codes"
-              style={{
-                display: 'flex', alignItems: 'center', gap: 5,
-                padding: '7px 12px', borderRadius: 8,
-                background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)',
-                color: '#ff4757', fontSize: 11, fontWeight: 800,
-                cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase',
-                transition: 'all 0.15s',
-              }}
+            <button onClick={hideAllCodes} title="Hide all booking codes"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', color: '#ff4757', fontSize: 11, fontWeight: 800, cursor: 'pointer', letterSpacing: '0.05em', textTransform: 'uppercase', transition: 'all 0.15s' }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.2)'; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,71,87,0.1)'; }}
             >
-              <DeleteSweepIcon fontSize="small" />
-              Delete All
+              <DeleteSweepIcon fontSize="small" /> Delete All
             </button>
           )}
-          <button onClick={load} disabled={loading} className="p-1.5 rounded-xl bg-slate-700 text-slate-400 hover:bg-slate-600 disabled:opacity-50 transition-colors">
-            <RefreshIcon fontSize="small" />
-          </button>
+          <button onClick={load} disabled={loading} className="p-1.5 rounded-xl bg-slate-700 text-slate-400 hover:bg-slate-600 disabled:opacity-50 transition-colors"><RefreshIcon fontSize="small" /></button>
           <button onClick={() => setModalState('picker')} style={{ padding: '9px 18px', borderRadius: 9, background: 'linear-gradient(135deg, #63d2ff, #3891ff)', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, letterSpacing: '0.06em', cursor: 'pointer', textTransform: 'uppercase', boxShadow: '0 4px 20px rgba(99,210,255,0.3)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <AddIcon fontSize="small" /> New Code
           </button>
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats — avg stake uses local currency */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
         <BcStatCard label="Active Codes"      value={loading ? '—' : String(stats.active)} />
         <BcStatCard label="Total Redemptions" value={loading ? '—' : String(stats.redeemed)} accent="#63d2ff" />
         <BcStatCard label="Avg Total Odds"    value={loading ? '—' : stats.avgOdds ? stats.avgOdds + 'x' : '—'} accent="#4ade80" />
-        <BcStatCard label="Avg Stake"         value={loading ? '—' : stats.avgStake ? fmt(stats.avgStake) : '—'} accent="#a78bfa" />
+        <BcStatCard label="Avg Stake"         value={loading ? '—' : stats.avgStake != null ? fmt(stats.avgStake, currency) : '—'} accent="#a78bfa" />
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1772,10 +1659,7 @@ function BookingsSection() {
           <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>Live Codes</div>
         </div>
         {hiddenCount > 0 && (
-          <button
-            onClick={() => setHiddenIds(new Set())}
-            style={{ fontSize: 11, fontWeight: 700, color: '#ff4757', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 6, textDecoration: 'underline' }}
-          >
+          <button onClick={() => setHiddenIds(new Set())} style={{ fontSize: 11, fontWeight: 700, color: '#ff4757', background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 6, textDecoration: 'underline' }}>
             Restore {hiddenCount} hidden
           </button>
         )}
@@ -1783,29 +1667,17 @@ function BookingsSection() {
 
       {loading ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="animate-pulse" style={{ height: 220, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div style={{ height: 3, background: 'rgba(255,255,255,0.06)' }} />
-            </div>
-          ))}
+          {[1, 2, 3, 4].map((i) => <div key={i} className="animate-pulse" style={{ height: 220, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}><div style={{ height: 3, background: 'rgba(255,255,255,0.06)' }} /></div>)}
         </div>
       ) : fetchError ? <ErrorState text={fetchError} onRetry={load} />
       : visibleCodes.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 24px' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>🎟️</div>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', fontWeight: 600, marginBottom: 16 }}>
-            No booking codes{hiddenCount > 0 ? ' visible' : ' yet'}
-          </p>
-          {hiddenCount > 0 ? (
-            <button onClick={() => setHiddenIds(new Set())}
-              style={{ marginBottom: 10, padding: '8px 18px', borderRadius: 8, background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', color: '#ff4757', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
-              Restore {hiddenCount} hidden
-            </button>
-          ) : (
-            <button onClick={() => setModalState('picker')} style={{ padding: '10px 22px', borderRadius: 9, background: 'linear-gradient(135deg, #63d2ff, #3891ff)', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              + Create First Code
-            </button>
-          )}
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', fontWeight: 600, marginBottom: 16 }}>No booking codes{hiddenCount > 0 ? ' visible' : ' yet'}</p>
+          {hiddenCount > 0
+            ? <button onClick={() => setHiddenIds(new Set())} style={{ marginBottom: 10, padding: '8px 18px', borderRadius: 8, background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', color: '#ff4757', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Restore {hiddenCount} hidden</button>
+            : <button onClick={() => setModalState('picker')} style={{ padding: '10px 22px', borderRadius: 9, background: 'linear-gradient(135deg, #63d2ff, #3891ff)', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em' }}>+ Create First Code</button>
+          }
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
@@ -1832,14 +1704,14 @@ function BookingsSection() {
 
 // ─── Chat panel ──────────────────────────────────────────────────────────────
 
-function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { chat: AdminUpgradeChatDto; isSuperAdmin: boolean; onClose: () => void; onCommissionSet: () => void; }) {
+function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { chat: AdminUpgradeChatDto; isSuperAdmin: boolean; onClose: () => void; onCommissionSet: () => void }) {
   const { showToast } = useAppStore();
   const [messages, setMessages] = useState<AdminUpgradeChatMessageDto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]   = useState(true);
   const [msgInput, setMsgInput] = useState('');
-  const [sending, setSending] = useState(false);
-  const [commissionInput, setCommissionInput] = useState('');
-  const [settingCommission, setSettingCommission] = useState(false);
+  const [sending, setSending]   = useState(false);
+  const [commissionInput, setCommissionInput]       = useState('');
+  const [settingCommission, setSettingCommission]   = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const fetchMessages = useCallback(async () => {
@@ -1939,6 +1811,7 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
 // ─── Section: Dashboard ───────────────────────────────────────────────────────
 
 function DashboardSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+  const { currency } = useCurrency();
   const [analytics, setAnalytics] = useState<Record<string, unknown> | null>(null);
   const [metrics, setMetrics]     = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -1964,10 +1837,25 @@ function DashboardSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   useEffect(() => { load(); }, [load]);
 
   const kpis = isSuperAdmin && metrics
-    ? [{ label: 'Total Users', value: String(metrics.totalUsers ?? '—') }, { label: 'Total Admins', value: String(metrics.totalAdmins ?? '—') }, { label: 'Total Revenue', value: typeof metrics.totalRevenue === 'number' ? fmt(metrics.totalRevenue) : '—' }, { label: 'Active Chats', value: String(metrics.activeChats ?? '—') }]
+    ? [
+        { label: 'Total Users',   value: String(metrics.totalUsers   ?? '—') },
+        { label: 'Total Admins',  value: String(metrics.totalAdmins  ?? '—') },
+        { label: 'Total Revenue', value: typeof metrics.totalRevenue  === 'number' ? fmt(metrics.totalRevenue, currency)  : '—' },
+        { label: 'Active Chats',  value: String(metrics.activeChats  ?? '—') },
+      ]
     : analytics
-    ? [{ label: 'Total Revenue', value: typeof analytics.totalRevenue === 'number' ? fmt(analytics.totalRevenue) : '—' }, { label: 'Total Bets', value: String(analytics.totalBets ?? '—') }, { label: 'Total Users', value: String(analytics.totalUsers ?? '—') }, { label: 'Aff. Balance', value: affiliateStats ? fmt(affiliateStats.availableBalance) : '—' }]
-    : [{ label: 'Total Revenue', value: '—' }, { label: 'Total Bets', value: '—' }, { label: 'Total Users', value: '—' }, { label: 'Aff. Balance', value: '—' }];
+    ? [
+        { label: 'Total Revenue', value: typeof analytics.totalRevenue === 'number' ? fmt(analytics.totalRevenue, currency) : '—' },
+        { label: 'Total Bets',    value: String(analytics.totalBets  ?? '—') },
+        { label: 'Total Users',   value: String(analytics.totalUsers  ?? '—') },
+        { label: 'Aff. Balance',  value: affiliateStats ? fmt(affiliateStats.availableBalance, currency) : '—' },
+      ]
+    : [
+        { label: 'Total Revenue', value: '—' },
+        { label: 'Total Bets',    value: '—' },
+        { label: 'Total Users',   value: '—' },
+        { label: 'Aff. Balance',  value: '—' },
+      ];
 
   return (
     <div className="space-y-5">
@@ -1992,7 +1880,12 @@ function DashboardSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
         <div className="bg-slate-800 rounded-2xl p-4 border border-slate-700">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Affiliate Summary</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[{ label: 'Total Referrals', value: String(affiliateStats.totalReferrals) }, { label: 'Users Total Deposit', value: fmt(affiliateStats.lifetimeStake) }, { label: 'Lifetime Commissions', value: fmt(affiliateStats.lifetimeCommission) }, { label: 'Available Balance', value: fmt(affiliateStats.availableBalance) }].map((s) => (
+            {[
+              { label: 'Total Referrals',     value: String(affiliateStats.totalReferrals) },
+              { label: 'Users Total Deposit', value: fmt(affiliateStats.lifetimeStake, currency) },
+              { label: 'Lifetime Commissions',value: fmt(affiliateStats.lifetimeCommission, currency) },
+              { label: 'Available Balance',   value: fmt(affiliateStats.availableBalance, currency) },
+            ].map((s) => (
               <div key={s.label}><p className="text-xs text-slate-500">{s.label}</p><p className="text-sm font-bold text-white mt-0.5">{s.value}</p></div>
             ))}
           </div>
@@ -2018,6 +1911,7 @@ function DashboardSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
 function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const { showToast } = useAppStore();
+  const { currency } = useCurrency();
   const [stats, setStats]                   = useState<AffiliateStatsDTO | null>(null);
   const [payoutWindow, setPayoutWindow]     = useState<boolean | null>(null);
   const [payoutHistory, setPayoutHistory]   = useState<PayoutRequest[]>([]);
@@ -2046,7 +1940,6 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
       const historyRes = normalise<{ content: PayoutRequest[] }>(historyRaw);
       const linksRes   = normalise<ReferralLink[]>(linksRaw);
       const usersRes   = normalise<any[]>(usersRaw);
-
       if (statsRes.success)   setStats(statsRes.data);
       if (windowRes.success)  setPayoutWindow(!!(windowRes.data as { open?: boolean })?.open);
       if (historyRes.success) setPayoutHistory(historyRes.data?.content ?? (Array.isArray(historyRes.data) ? historyRes.data as unknown as PayoutRequest[] : []));
@@ -2072,12 +1965,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
     try {
       const raw = await adminAffiliate.createLink({ label: newLinkLabel.trim() || undefined });
       const res = normalise<ReferralLink>(raw);
-      if (res.success) {
-        setLinks(prev => [res.data, ...prev]);
-        setNewLinkLabel('');
-        setShowLinkForm(false);
-        showToast('Referral link created!', 'success');
-      }
+      if (res.success) { setLinks(prev => [res.data, ...prev]); setNewLinkLabel(''); setShowLinkForm(false); showToast('Referral link created!', 'success'); }
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : 'Failed to create link.', 'error'); }
     finally { setCreatingLink(false); }
   };
@@ -2093,7 +1981,6 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const primaryLink = links[0];
   const primaryUrl  = primaryLink ? buildUrl(primaryLink.code) : null;
   const primaryCode = primaryLink?.code ?? '—';
-  const currency    = 'USD';
 
   const copyMainLink = () => {
     if (!primaryUrl) return;
@@ -2103,11 +1990,15 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
     showToast('Link copied!', 'success');
   };
 
+  // All amounts come from backend in GHS; fmt() converts to user's local currency
+  const totalPaid = payoutHistory.reduce((s, p) => s + (p.status === 'PAID' ? +p.amount : 0), 0);
+  const owed      = stats ? Math.max(0, stats.lifetimeCommission - totalPaid) : 0;
+
   const statCards = [
-    { label: 'TOTAL EARNED',        value: stats ? fmt(stats.lifetimeCommission, currency) : '$0.00',  color: '#22c55e', icon: '↗' },
-    { label: 'PAID OUT',            value: stats ? fmt(payoutHistory.reduce((s, p) => s + (p.status === 'PAID' ? +p.amount : 0), 0), currency) : '$0.00', color: '#fff', icon: '📋' },
-    { label: 'OWED TO YOU',         value: stats ? fmt(Math.max(0, stats.lifetimeCommission - payoutHistory.reduce((s, p) => s + (p.status === 'PAID' ? +p.amount : 0), 0)), currency) : '$0.00', color: '#fff', icon: '%' },
-    { label: 'USERS BROUGHT',       value: stats ? String(stats.totalReferrals) : '0',                  color: '#fff', icon: '👤' },
+    { label: 'TOTAL EARNED',  value: stats ? fmt(stats.lifetimeCommission, currency) : `${currency.symbol}0.00`, color: '#22c55e', icon: '↗' },
+    { label: 'PAID OUT',      value: fmt(totalPaid, currency),                                                    color: '#fff',    icon: '📋' },
+    { label: 'OWED TO YOU',   value: fmt(owed, currency),                                                         color: '#fff',    icon: '%'  },
+    { label: 'USERS BROUGHT', value: stats ? String(stats.totalReferrals) : '0',                                  color: '#fff',    icon: '👤' },
   ];
 
   return (
@@ -2115,17 +2006,12 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>DASHBOARD</h2>
-          {userEmail && (
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-              Signed in as <span style={{ color: '#63d2ff', fontWeight: 600 }}>{userEmail}</span>
-            </p>
-          )}
+          {userEmail && <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Signed in as <span style={{ color: '#63d2ff', fontWeight: 600 }}>{userEmail}</span></p>}
         </div>
-        <button onClick={load} style={{ padding: '8px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-          <RefreshIcon fontSize="small" />
-        </button>
+        <button onClick={load} style={{ padding: '8px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><RefreshIcon fontSize="small" /></button>
       </div>
 
+      {/* Referral link card */}
       <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#374151' }}>YOUR REFERRAL LINK</span>
@@ -2138,6 +2024,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         </button>
       </div>
 
+      {/* Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {statCards.map((card) => (
           <div key={card.label} style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
@@ -2150,27 +2037,36 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         ))}
       </div>
 
+      {/* Withdraw card */}
       <div style={{ background: '#fff', borderRadius: 16, padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
         <p style={{ margin: '0 0 6px', fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280' }}>AVAILABLE TO WITHDRAW</p>
-        {loading ? <div style={{ height: 32, background: '#f3f4f6', borderRadius: 6, marginBottom: 16 }} /> : <p style={{ margin: '0 0 16px', fontSize: 28, fontWeight: 900, color: '#111827', lineHeight: 1 }}>{stats ? fmt(stats.availableBalance, currency) : '$0.00'}</p>}
-        <button onClick={requestPayout} disabled={requesting || !payoutWindow || (stats?.availableBalance ?? 0) <= 0} style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: payoutWindow && (stats?.availableBalance ?? 0) > 0 ? 'linear-gradient(135deg, #f87171, #dc2626)' : '#d1d5db', color: '#fff', fontSize: 13, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: payoutWindow && (stats?.availableBalance ?? 0) > 0 ? 'pointer' : 'not-allowed', boxShadow: payoutWindow ? '0 4px 16px rgba(220,38,38,0.35)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        {loading ? <div style={{ height: 32, background: '#f3f4f6', borderRadius: 6, marginBottom: 16 }} /> : <p style={{ margin: '0 0 16px', fontSize: 28, fontWeight: 900, color: '#111827', lineHeight: 1 }}>{stats ? fmt(stats.availableBalance, currency) : `${currency.symbol}0.00`}</p>}
+        <button onClick={requestPayout} disabled={requesting || !payoutWindow || (stats?.availableBalance ?? 0) <= 0}
+          style={{ width: '100%', padding: '14px', borderRadius: 10, border: 'none', background: payoutWindow && (stats?.availableBalance ?? 0) > 0 ? 'linear-gradient(135deg, #f87171, #dc2626)' : '#d1d5db', color: '#fff', fontSize: 13, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: payoutWindow && (stats?.availableBalance ?? 0) > 0 ? 'pointer' : 'not-allowed', boxShadow: payoutWindow ? '0 4px 16px rgba(220,38,38,0.35)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           {requesting ? <Spinner /> : null}
           {requesting ? 'Requesting…' : payoutWindow ? 'REQUEST PAYOUT' : 'PAYOUT WINDOW CLOSED'}
         </button>
         {!payoutWindow && !loading && <p style={{ margin: '8px 0 0', fontSize: 11, color: '#9ca3af', textAlign: 'center' }}>Payouts are available on Fridays only</p>}
       </div>
 
+      {/* Referral stats */}
       {stats && (
         <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
           <p style={{ margin: '0 0 14px', fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280' }}>REFERRAL STATS</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {[{ label: 'Total Referrals', value: String(stats.totalReferrals) }, { label: 'Users Total Deposit', value: fmt(stats.lifetimeStake, currency) }, { label: 'Lifetime Commissions', value: fmt(stats.lifetimeCommission, currency) }, { label: 'Available Balance', value: fmt(stats.availableBalance, currency) }].map((s) => (
+            {[
+              { label: 'Total Referrals',     value: String(stats.totalReferrals) },
+              { label: 'Users Total Deposit', value: fmt(stats.lifetimeStake, currency) },
+              { label: 'Lifetime Commissions',value: fmt(stats.lifetimeCommission, currency) },
+              { label: 'Available Balance',   value: fmt(stats.availableBalance, currency) },
+            ].map((s) => (
               <div key={s.label}><p style={{ margin: '0 0 2px', fontSize: 10, color: '#9ca3af', fontWeight: 600 }}>{s.label}</p><p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#111827' }}>{s.value}</p></div>
             ))}
           </div>
         </div>
       )}
 
+      {/* Referral links */}
       <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <p style={{ margin: 0, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Referral Links <span style={{ color: '#63d2ff' }}>({links.length})</span></p>
@@ -2213,6 +2109,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         )}
       </div>
 
+      {/* Referred players */}
       <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.08)' }}>
         <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Referred Players <span style={{ color: '#63d2ff' }}>({referredUsers.length})</span></p>
         {loading ? (
@@ -2250,6 +2147,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         )}
       </div>
 
+      {/* Payout history */}
       {payoutHistory.length > 0 && (
         <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.08)' }}>
           <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Payout History</p>
@@ -2271,6 +2169,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
 
 function WithdrawalsSection() {
   const { showToast } = useAppStore();
+  const { currency } = useCurrency();
   const [list, setList]             = useState<WithdrawalRequest[]>([]);
   const [loading, setLoading]       = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -2329,7 +2228,10 @@ function WithdrawalsSection() {
             {list.map((w) => (
               <div key={w.id} className="bg-slate-800 rounded-2xl p-4 border border-slate-700 flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-white truncate">{w.user?.firstName ?? ''} {w.user?.lastName ?? ''} · {fmt(w.amount)}</p>
+                  {/* Amount shown in user's local currency */}
+                  <p className="text-sm font-bold text-white truncate">
+                    {w.user?.firstName ?? ''} {w.user?.lastName ?? ''} · {fmt(w.amount, currency)}
+                  </p>
                   <p className="text-xs text-slate-400">{w.method} · {w.accountName} · {w.accountNumber}</p>
                   <p className="text-xs text-slate-500">{fmtDate(w.createdAt)}</p>
                 </div>
@@ -2418,6 +2320,7 @@ function UpgradeChatsSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
 function PayoutsSection() {
   const { showToast } = useAppStore();
+  const { currency } = useCurrency();
   const [list, setList]             = useState<PayoutRequest[]>([]);
   const [loading, setLoading]       = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
@@ -2458,7 +2361,11 @@ function PayoutsSection() {
             {list.map((pr) => (
               <div key={pr.id} className="bg-slate-800 rounded-2xl p-4 border border-slate-700">
                 <div className="flex items-center justify-between gap-3 mb-3">
-                  <div className="flex-1 min-w-0"><p className="text-sm font-bold text-white">{fmt(pr.amount)}</p><p className="text-xs text-slate-400">{fmtDate(pr.createdAt)}</p></div>
+                  <div className="flex-1 min-w-0">
+                    {/* Amount in local currency */}
+                    <p className="text-sm font-bold text-white">{fmt(pr.amount, currency)}</p>
+                    <p className="text-xs text-slate-400">{fmtDate(pr.createdAt)}</p>
+                  </div>
                   <StatusBadge status={pr.status} />
                 </div>
                 {(pr.status === 'REQUESTED' || pr.status === 'APPROVED') && (
@@ -2564,8 +2471,6 @@ export default function AdminModal() {
 
   return (
     <div className="fixed inset-0 z-[70] bg-slate-900 flex flex-col">
-
-      {/* HEADER */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0 bg-slate-900">
         <div className="flex items-center gap-2">
           {isSuperAdmin
@@ -2585,8 +2490,6 @@ export default function AdminModal() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-
-        {/* DESKTOP SIDEBAR */}
         <nav className="hidden md:flex w-52 flex-col border-r border-slate-700 bg-slate-800 p-3 gap-1 shrink-0 overflow-y-auto">
           {visibleSections.map((section) => (
             <button key={section.key} onClick={() => setActiveSection(section.key)}
@@ -2597,7 +2500,6 @@ export default function AdminModal() {
           ))}
         </nav>
 
-        {/* MOBILE TAB BAR */}
         <div className="md:hidden absolute top-[52px] left-0 right-0 flex overflow-x-auto gap-1.5 px-3 py-2 border-b border-slate-700 bg-slate-900 z-10 shrink-0" style={{ scrollbarWidth: 'none' }}>
           {visibleSections.map((section) => (
             <button key={section.key} onClick={() => setActiveSection(section.key)}
@@ -2608,7 +2510,6 @@ export default function AdminModal() {
           ))}
         </div>
 
-        {/* MAIN CONTENT */}
         <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 mt-[52px] md:mt-0 bg-slate-900">
           {activeSection === 'affiliate'     && <AffiliateSection userEmail={user.email} />}
           {activeSection === 'dashboard'     && <DashboardSection isSuperAdmin={isSuperAdmin} />}

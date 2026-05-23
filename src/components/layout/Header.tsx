@@ -18,6 +18,114 @@ import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlined';
+
+// ---------------------------------------------------------------------------
+// Currency detection (mirrors WalletPage logic)
+// ---------------------------------------------------------------------------
+
+interface CurrencyInfo {
+  code: string;
+  symbol: string;
+  rateFromGhs: number; // 1 GHS = X this currency
+}
+
+const COUNTRY_CURRENCY: Record<string, { code: string; symbol: string }> = {
+  GH: { code: 'GHS', symbol: 'GH₵' },
+  NG: { code: 'NGN', symbol: '₦'   },
+  KE: { code: 'KES', symbol: 'KSh' },
+  TZ: { code: 'TZS', symbol: 'TSh' },
+  UG: { code: 'UGX', symbol: 'USh' },
+  ZA: { code: 'ZAR', symbol: 'R'   },
+  EG: { code: 'EGP', symbol: 'E£'  },
+  ET: { code: 'ETB', symbol: 'Br'  },
+  SN: { code: 'XOF', symbol: 'CFA' },
+  CI: { code: 'XOF', symbol: 'CFA' },
+  CM: { code: 'XAF', symbol: 'FCFA'},
+  ZM: { code: 'ZMW', symbol: 'ZK'  },
+  ZW: { code: 'ZWL', symbol: 'Z$'  },
+  RW: { code: 'RWF', symbol: 'FRw' },
+  MW: { code: 'MWK', symbol: 'MK'  },
+  MZ: { code: 'MZN', symbol: 'MT'  },
+  GB: { code: 'GBP', symbol: '£'   },
+  DE: { code: 'EUR', symbol: '€'   },
+  FR: { code: 'EUR', symbol: '€'   },
+  IT: { code: 'EUR', symbol: '€'   },
+  NL: { code: 'EUR', symbol: '€'   },
+  US: { code: 'USD', symbol: '$'   },
+  CA: { code: 'CAD', symbol: 'CA$' },
+  AU: { code: 'AUD', symbol: 'A$'  },
+};
+
+const DEFAULT_CURRENCY: CurrencyInfo = { code: 'GHS', symbol: 'GH₵', rateFromGhs: 1 };
+
+// Cache across re-renders so we don't hit geo APIs on every poll tick
+let _currencyCache: CurrencyInfo | null = null;
+
+async function detectCurrency(): Promise<CurrencyInfo> {
+  if (_currencyCache) return _currencyCache;
+
+  let countryCode = '';
+
+  // 1) ip-api
+  try {
+    const res = await fetch('http://ip-api.com/json/?fields=status,countryCode', {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      if (d.status === 'success') countryCode = d.countryCode ?? '';
+    }
+  } catch { /* fall through */ }
+
+  // 2) ipapi.co
+  if (!countryCode) {
+    try {
+      const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+      if (res.ok) {
+        const d = await res.json();
+        countryCode = d.country_code ?? '';
+      }
+    } catch { /* fall through */ }
+  }
+
+  const local = countryCode ? COUNTRY_CURRENCY[countryCode] : undefined;
+  if (!local) {
+    _currencyCache = DEFAULT_CURRENCY;
+    return _currencyCache;
+  }
+
+  let rateFromGhs = 1;
+  if (local.code !== 'GHS') {
+    // 3) Fetch live GHS → local rate
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/GHS', {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        rateFromGhs = d.rates?.[local.code] ?? 1;
+      }
+    } catch { /* fall through */ }
+  }
+
+  _currencyCache = { code: local.code, symbol: local.symbol, rateFromGhs };
+  return _currencyCache;
+}
+
+function formatBalance(amountGhs: number, currency: CurrencyInfo): string {
+  const converted = amountGhs * currency.rateFromGhs;
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency.code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(converted);
+  } catch {
+    return `${currency.symbol} ${converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Nav links
 // ---------------------------------------------------------------------------
@@ -26,14 +134,14 @@ const navLinks = [
   {
     to: '/live',
     label: 'Live',
-    icon: <FiberManualRecordIcon className="text-green-500 animate-pulse-green" sx={{ fontSize: 16 }} />
+    icon: <FiberManualRecordIcon className="text-green-500 animate-pulse-green" sx={{ fontSize: 16 }} />,
   },
   { to: '/casino',    label: 'Casino',    icon: <CasinoIcon sx={{ fontSize: 16 }} /> },
   { to: '/affiliate', label: 'Affiliate', icon: <GroupAddIcon sx={{ fontSize: 16 }} /> },
 ];
 
 // ---------------------------------------------------------------------------
-// Helper – user initials
+// Helpers
 // ---------------------------------------------------------------------------
 function getUserInitials(fullName: string): string {
   const parts = fullName.trim().split(' ').filter(Boolean);
@@ -43,158 +151,84 @@ function getUserInitials(fullName: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// NxtBetLogo — Option 3: Orbit Mark
+// NxtBetLogo
 // ---------------------------------------------------------------------------
 function NxtBetLogo() {
   return (
     <div className="flex items-center gap-2 select-none" aria-label="NxtBet">
-      {/* Orbit mark icon */}
       <div style={{ position: 'relative', width: 36, height: 36, flexShrink: 0 }}>
-        <svg
-          width="36"
-          height="36"
-          viewBox="0 0 36 36"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-        >
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <defs>
             <linearGradient id="nxtbet-bg" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#1565C0" />
               <stop offset="100%" stopColor="#42A5F5" />
             </linearGradient>
           </defs>
-
-          {/* Outer filled circle */}
           <circle cx="18" cy="18" r="17" fill="url(#nxtbet-bg)" />
-
-          {/* Orbit ring (dashed) */}
-          <circle
-            cx="18"
-            cy="18"
-            r="12"
-            fill="none"
-            stroke="rgba(255,255,255,0.35)"
-            strokeWidth="1.2"
-            strokeDasharray="4 2.5"
-          />
-
-          {/* Inner translucent circle */}
+          <circle cx="18" cy="18" r="12" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2" strokeDasharray="4 2.5" />
           <circle cx="18" cy="18" r="8" fill="rgba(255,255,255,0.12)" />
-
-          {/* "N" letterform */}
-          <text
-            x="18"
-            y="23"
-            textAnchor="middle"
-            fontFamily="Inter, system-ui, sans-serif"
-            fontWeight="900"
-            fontSize="14"
-            fill="#ffffff"
-          >
-            N
-          </text>
-
-          {/* Orbit dot – right */}
+          <text x="18" y="23" textAnchor="middle" fontFamily="Inter, system-ui, sans-serif" fontWeight="900" fontSize="14" fill="#ffffff">N</text>
           <circle cx="30" cy="18" r="2.8" fill="#ffffff" />
-
-          {/* Orbit dot – left (smaller, faded) */}
-          <circle cx="6" cy="18" r="1.8" fill="rgba(255,255,255,0.45)" />
+          <circle cx="6"  cy="18" r="1.8" fill="rgba(255,255,255,0.45)" />
         </svg>
       </div>
-
-      {/* Wordmark */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 0, lineHeight: 1 }}>
-        <span
-          style={{
-            fontFamily: 'Inter, system-ui, sans-serif',
-            fontWeight: 900,
-            fontSize: '1.15rem',
-            letterSpacing: '-0.02em',
-            background: 'linear-gradient(90deg, #1565C0 0%, #42A5F5 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}
-        >
-          Nxt
-        </span>
-        <span
-          style={{
-            fontFamily: 'Inter, system-ui, sans-serif',
-            fontWeight: 900,
-            fontSize: '1.15rem',
-            letterSpacing: '-0.02em',
-            color: 'var(--text-main)',
-          }}
-        >
-          Bet
-        </span>
+        <span style={{ fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 900, fontSize: '1.15rem', letterSpacing: '-0.02em', background: 'linear-gradient(90deg, #1565C0 0%, #42A5F5 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Nxt</span>
+        <span style={{ fontFamily: 'Inter, system-ui, sans-serif', fontWeight: 900, fontSize: '1.15rem', letterSpacing: '-0.02em', color: 'var(--text-main)' }}>Bet</span>
       </div>
-
-      {/* Small blue accent dot */}
-      <span
-        style={{
-          display: 'inline-block',
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #1565C0, #42A5F5)',
-          marginBottom: 8,
-          flexShrink: 0,
-        }}
-        aria-hidden="true"
-      />
+      <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'linear-gradient(135deg, #1565C0, #42A5F5)', marginBottom: 8, flexShrink: 0 }} aria-hidden="true" />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Main component
+// Main Header
 // ---------------------------------------------------------------------------
 export default function Header() {
   const { theme, toggleTheme, user } = useAppStore();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // -------- Wallet state – always USD ----------
-  const [walletBalance, setWalletBalance] = useState<number | null>(null);
-  const [balanceLoading, setBalanceLoading] = useState(false);
-  const [balanceFlash, setBalanceFlash] = useState(false);
+  // Wallet state — balance stored in GHS (backend native), displayed in local currency
+  const [walletBalanceGhs, setWalletBalanceGhs] = useState<number | null>(null);
+  const [currency,         setCurrency]         = useState<CurrencyInfo>(DEFAULT_CURRENCY);
+  const [balanceLoading,   setBalanceLoading]   = useState(false);
+  const [balanceFlash,     setBalanceFlash]     = useState(false);
 
-  const location = useLocation();
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const prevBalanceRef = useRef<number | null>(null);
+  const location    = useLocation();
+  const pollRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevBalRef  = useRef<number | null>(null);
 
   const isDark = theme.endsWith('-dark');
 
   // Close mobile menu on route change
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [location.pathname]);
+  useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
 
-  // ---------------- Wallet polling ----------------
+  // Detect local currency once on mount
+  useEffect(() => {
+    detectCurrency().then(setCurrency);
+  }, []);
+
+  // Fetch wallet balance, compare to previous, flash on change
   const fetchBalance = async () => {
     if (!user) return;
     try {
       const res = await wallet.getWallet();
       if (res.success && res.data) {
         const d = res.data as Record<string, unknown>;
+        // Backend returns balance in GHS
         const newBal =
-          typeof d.balanceUsd === 'number'
-            ? d.balanceUsd
-            : typeof d.balance === 'number'
-            ? d.balance
-            : typeof d.availableBalance === 'number'
-            ? d.availableBalance
-            : null;
+          typeof d.balance === 'number'         ? d.balance :
+          typeof d.balanceGhs === 'number'       ? d.balanceGhs :
+          typeof d.availableBalance === 'number' ? d.availableBalance :
+          null;
 
         if (newBal !== null) {
-          if (prevBalanceRef.current !== null && prevBalanceRef.current !== newBal) {
+          if (prevBalRef.current !== null && prevBalRef.current !== newBal) {
             setBalanceFlash(true);
             setTimeout(() => setBalanceFlash(false), 600);
           }
-          prevBalanceRef.current = newBal;
-          setWalletBalance(newBal);
+          prevBalRef.current = newBal;
+          setWalletBalanceGhs(newBal);
         }
       }
     } catch { /* silent */ }
@@ -202,8 +236,8 @@ export default function Header() {
 
   useEffect(() => {
     if (!user) {
-      setWalletBalance(null);
-      prevBalanceRef.current = null;
+      setWalletBalanceGhs(null);
+      prevBalRef.current = null;
       setMobileMenuOpen(false);
       if (pollRef.current) clearInterval(pollRef.current);
       return;
@@ -211,16 +245,15 @@ export default function Header() {
     setBalanceLoading(true);
     fetchBalance().finally(() => setBalanceLoading(false));
     pollRef.current = setInterval(fetchBalance, 15_000);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [user]);
 
-  // ---------------- Helpers ----------------
-  const formatBalance = (a: number) =>
-    a.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Formatted balance string in local currency
+  const balanceDisplay = walletBalanceGhs !== null
+    ? formatBalance(walletBalanceGhs, currency)
+    : null;
 
-  // ---------------- Render ----------------
+  // ---------------------------------------------------------------------------
   return (
     <header
       className="sticky top-0 z-50 border-b shadow-sm"
@@ -228,12 +261,12 @@ export default function Header() {
     >
       <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
 
-        {/* ---------- LOGO ---------- */}
+        {/* LOGO */}
         <Link to="/" className="flex items-center shrink-0">
           <NxtBetLogo />
         </Link>
 
-        {/* ---------- DESKTOP NAV ---------- */}
+        {/* DESKTOP NAV */}
         <nav className="hidden lg:flex items-center gap-0.5">
           {navLinks.map(l => {
             const active = location.pathname === l.to;
@@ -246,12 +279,8 @@ export default function Header() {
                   backgroundColor: active ? 'color-mix(in srgb, #1565C0 12%, transparent)' : undefined,
                   color: active ? '#1565C0' : 'var(--text-muted)',
                 }}
-                onMouseEnter={e => {
-                  if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)';
-                }}
-                onMouseLeave={e => {
-                  if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = '';
-                }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)'; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
               >
                 {l.icon}
                 <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.01em' }}>
@@ -262,7 +291,7 @@ export default function Header() {
           })}
         </nav>
 
-        {/* ---------- RIGHT ACTIONS ---------- */}
+        {/* RIGHT ACTIONS */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
 
           {/* Theme toggle */}
@@ -274,18 +303,16 @@ export default function Header() {
             onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = ''}
             aria-label="Toggle theme"
           >
-            {isDark ? (
-              <LightModeIcon fontSize="small" className="text-yellow-400" />
-            ) : (
-              <DarkModeIcon fontSize="small" />
-            )}
+            {isDark
+              ? <LightModeIcon fontSize="small" className="text-yellow-400" />
+              : <DarkModeIcon fontSize="small" />}
           </button>
 
-          {/* USER LOGGED IN */}
+          {/* ── LOGGED IN ── */}
           {user ? (
             <div className="flex items-center gap-2">
 
-              {/* Wallet balance pill */}
+              {/* Wallet balance pill — local currency */}
               <Link
                 to="/wallet"
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all touch-manipulation"
@@ -295,25 +322,31 @@ export default function Header() {
                     ? 'color-mix(in srgb, #4ade80 15%, transparent)'
                     : 'var(--card-alt)',
                 }}
-                title="Wallet balance (USD)"
+                title={`Wallet balance (${currency.code})`}
               >
-                <span className="relative flex h-2 w-2">
+                {/* Live indicator dot */}
+                <span className="relative flex h-2 w-2 shrink-0">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
                 </span>
+
                 <AccountBalanceWalletIcon sx={{ fontSize: 14, color: 'var(--text-muted)' }} />
-                {balanceLoading && walletBalance === null ? (
-                  <span className="text-xs w-12 animate-pulse" style={{ color: 'var(--text-muted)' }}>Loading…</span>
-                ) : walletBalance !== null ? (
-                  <span className="text-sm font-bold tabular-nums" style={{ color: balanceFlash ? '#16a34a' : 'var(--text-main)' }}>
-                    ${formatBalance(walletBalance)}
+
+                {balanceLoading && walletBalanceGhs === null ? (
+                  <span className="text-xs w-14 animate-pulse" style={{ color: 'var(--text-muted)' }}>Loading…</span>
+                ) : balanceDisplay !== null ? (
+                  <span
+                    className="text-sm font-bold tabular-nums"
+                    style={{ color: balanceFlash ? '#16a34a' : 'var(--text-main)' }}
+                  >
+                    {balanceDisplay}
                   </span>
                 ) : (
                   <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>
                 )}
               </Link>
 
-              {/* Deposit button — visible on sm+ screens */}
+              {/* Deposit button */}
               <Link
                 to="/deposit"
                 className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full touch-manipulation font-bold text-sm whitespace-nowrap"
@@ -345,9 +378,7 @@ export default function Header() {
               >
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 select-none"
-                  style={{
-                    background: 'linear-gradient(135deg, #1565C0 0%, #42A5F5 100%)',
-                  }}
+                  style={{ background: 'linear-gradient(135deg, #1565C0 0%, #42A5F5 100%)' }}
                 >
                   {getUserInitials(user.fullName)}
                 </div>
@@ -357,10 +388,8 @@ export default function Header() {
               </Link>
             </div>
           ) : (
-            /* USER NOT LOGGED IN */
+            /* ── NOT LOGGED IN ── */
             <div className="flex items-center gap-1 sm:gap-2">
-
-              {/* Login */}
               <Link
                 to="/login"
                 className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg transition-colors touch-manipulation whitespace-nowrap"
@@ -372,7 +401,6 @@ export default function Header() {
                 <span>Login</span>
               </Link>
 
-              {/* Register – blue gradient button */}
               <Link
                 to="/register"
                 className="flex items-center gap-1.5 text-sm py-2 px-4 rounded-full touch-manipulation font-bold whitespace-nowrap"
@@ -399,7 +427,7 @@ export default function Header() {
             </div>
           )}
 
-          {/* Hamburger – only shown when user is logged in, mobile/tablet only */}
+          {/* Hamburger — mobile/tablet, logged-in only */}
           {user && (
             <button
               onClick={() => setMobileMenuOpen(prev => !prev)}
@@ -416,7 +444,7 @@ export default function Header() {
         </div>
       </div>
 
-      {/* ------------------- MOBILE MENU ------------------- */}
+      {/* ── MOBILE MENU ── */}
       {mobileMenuOpen && (
         <div
           className="lg:hidden border-t animate-fade-in"
@@ -424,7 +452,6 @@ export default function Header() {
         >
           <nav className="flex flex-col p-3 gap-1">
 
-            {/* Nav links */}
             {navLinks.map(l => {
               const active = location.pathname === l.to;
               return (
@@ -446,12 +473,10 @@ export default function Header() {
               );
             })}
 
-            {/* Bottom block */}
             <div className="border-t mt-1 pt-2 flex flex-col gap-2" style={{ borderColor: 'var(--border-light)' }}>
-
               {user ? (
                 <>
-                  {/* Wallet balance row */}
+                  {/* Wallet balance row — local currency */}
                   <Link
                     to="/wallet"
                     onClick={() => setMobileMenuOpen(false)}
@@ -468,7 +493,7 @@ export default function Header() {
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
                       </span>
                       <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--text-main)' }}>
-                        {walletBalance !== null ? `$${formatBalance(walletBalance)}` : '—'}
+                        {balanceDisplay ?? '—'}
                       </span>
                     </div>
                   </Link>
@@ -500,9 +525,7 @@ export default function Header() {
                   >
                     <div
                       className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
-                      style={{
-                        background: 'linear-gradient(135deg, #1565C0 0%, #42A5F5 100%)',
-                      }}
+                      style={{ background: 'linear-gradient(135deg, #1565C0 0%, #42A5F5 100%)' }}
                     >
                       {getUserInitials(user.fullName)}
                     </div>
@@ -511,22 +534,16 @@ export default function Header() {
                 </>
               ) : (
                 <>
-                  {/* Login */}
                   <Link
                     to="/login"
                     onClick={() => setMobileMenuOpen(false)}
                     className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold min-h-[48px] touch-manipulation border transition-colors"
-                    style={{
-                      color: 'var(--text-main)',
-                      borderColor: 'var(--border-light)',
-                      backgroundColor: 'var(--card-alt)',
-                    }}
+                    style={{ color: 'var(--text-main)', borderColor: 'var(--border-light)', backgroundColor: 'var(--card-alt)' }}
                   >
                     <LoginIcon fontSize="small" />
                     Login
                   </Link>
 
-                  {/* Register – blue gradient, full width */}
                   <Link
                     to="/register"
                     onClick={() => setMobileMenuOpen(false)}

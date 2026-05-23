@@ -35,45 +35,152 @@ interface WalletData {
   [key: string]: unknown;
 }
 
-interface ExchangeRates {
-  usdToGhs: number;
-  ghsToUsd: number;
-  fetchedAt: number;
+interface CurrencyInfo {
+  code: string;        // e.g. "GHS", "NGN", "USD"
+  symbol: string;      // e.g. "GH₵", "₦", "$"
+  countryCode: string; // e.g. "GH", "NG", "US"
+  name: string;        // e.g. "Ghanaian Cedi"
+  // Rate: how many units of this currency = 1 GHS (the backend's base currency)
+  // For GHS itself, rate = 1
+  rateFromGhs: number;
 }
 
-// ── Currency helpers ──────────────────────────────────────────────────────────
+// Known MoMo / mobile-money networks by country code
+const MOMO_NETWORKS: Record<string, string[]> = {
+  GH: ['MTN', 'AirtelTigo', 'Telecel'],
+  NG: ['MTN', 'Airtel', 'Glo', '9mobile'],
+  KE: ['M-Pesa', 'Airtel Money', 'T-Kash'],
+  TZ: ['M-Pesa', 'Airtel Money', 'Tigo Pesa', 'Halotel'],
+  UG: ['MTN Mobile Money', 'Airtel Money'],
+  SN: ['Orange Money', 'Wave', 'Free Money'],
+  CI: ['Orange Money', 'MTN MoMo', 'Moov Money'],
+  CM: ['MTN MoMo', 'Orange Money'],
+  ZM: ['MTN Money', 'Airtel Money', 'Zamtel Kwacha'],
+  ZW: ['EcoCash', 'OneMoney', 'Telecash'],
+};
 
-function formatUSD(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
+// ── Geo + currency detection ──────────────────────────────────────────────────
 
-async function fetchExchangeRates(): Promise<ExchangeRates> {
-  const FALLBACK = 15.5;
+// Fallback map: country ISO → currency code + symbol
+const COUNTRY_CURRENCY: Record<string, { code: string; symbol: string; name: string }> = {
+  GH: { code: 'GHS', symbol: 'GH₵', name: 'Ghanaian Cedi' },
+  NG: { code: 'NGN', symbol: '₦',   name: 'Nigerian Naira' },
+  KE: { code: 'KES', symbol: 'KSh', name: 'Kenyan Shilling' },
+  TZ: { code: 'TZS', symbol: 'TSh', name: 'Tanzanian Shilling' },
+  UG: { code: 'UGX', symbol: 'USh', name: 'Ugandan Shilling' },
+  ZA: { code: 'ZAR', symbol: 'R',   name: 'South African Rand' },
+  EG: { code: 'EGP', symbol: 'E£',  name: 'Egyptian Pound' },
+  ET: { code: 'ETB', symbol: 'Br',  name: 'Ethiopian Birr' },
+  SN: { code: 'XOF', symbol: 'CFA', name: 'West African CFA Franc' },
+  CI: { code: 'XOF', symbol: 'CFA', name: 'West African CFA Franc' },
+  CM: { code: 'XAF', symbol: 'FCFA', name: 'Central African CFA Franc' },
+  ZM: { code: 'ZMW', symbol: 'ZK',  name: 'Zambian Kwacha' },
+  ZW: { code: 'ZWL', symbol: 'Z$',  name: 'Zimbabwean Dollar' },
+  RW: { code: 'RWF', symbol: 'FRw', name: 'Rwandan Franc' },
+  MW: { code: 'MWK', symbol: 'MK',  name: 'Malawian Kwacha' },
+  MZ: { code: 'MZN', symbol: 'MT',  name: 'Mozambican Metical' },
+  GB: { code: 'GBP', symbol: '£',   name: 'British Pound' },
+  DE: { code: 'EUR', symbol: '€',   name: 'Euro' },
+  FR: { code: 'EUR', symbol: '€',   name: 'Euro' },
+  US: { code: 'USD', symbol: '$',   name: 'US Dollar' },
+  CA: { code: 'CAD', symbol: 'CA$', name: 'Canadian Dollar' },
+  AU: { code: 'AUD', symbol: 'A$',  name: 'Australian Dollar' },
+};
+
+const DEFAULT_CURRENCY: CurrencyInfo = {
+  code: 'GHS', symbol: 'GH₵', name: 'Ghanaian Cedi',
+  countryCode: 'GH', rateFromGhs: 1,
+};
+
+async function detectCurrencyInfo(): Promise<CurrencyInfo> {
+  // 1. Try ip-api (free, no key required)
+  let countryCode = '';
   try {
-    const res = await fetch('https://open.er-api.com/v6/latest/USD', {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-    const usdToGhs = data.rates?.GHS ?? FALLBACK;
-    return { usdToGhs, ghsToUsd: 1 / usdToGhs, fetchedAt: Date.now() };
-  } catch { /* fall through */ }
-  try {
-    const res = await fetch('https://api.exchangerate.host/convert?from=USD&to=GHS&amount=1', {
-      signal: AbortSignal.timeout(5000),
+    const res = await fetch('https://ip-api.com/json/?fields=countryCode', {
+      signal: AbortSignal.timeout(4000),
     });
     if (res.ok) {
       const d = await res.json();
-      if (d.success && d.result)
-        return { usdToGhs: d.result, ghsToUsd: 1 / d.result, fetchedAt: Date.now() };
+      countryCode = d.countryCode ?? '';
     }
   } catch { /* fall through */ }
-  return { usdToGhs: FALLBACK, ghsToUsd: 1 / FALLBACK, fetchedAt: Date.now() };
+
+  // 2. Fallback: ipapi.co
+  if (!countryCode) {
+    try {
+      const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+      if (res.ok) {
+        const d = await res.json();
+        countryCode = d.country_code ?? '';
+      }
+    } catch { /* fall through */ }
+  }
+
+  const localCurrency = countryCode ? COUNTRY_CURRENCY[countryCode] : undefined;
+  if (!localCurrency) return DEFAULT_CURRENCY;
+
+  // 3. Fetch GHS → localCurrency rate
+  //    Backend stores everything in GHS, so we need: 1 GHS = X localCurrency
+  let rateFromGhs = 1;
+
+  if (localCurrency.code !== 'GHS') {
+    try {
+      const res = await fetch(`https://open.er-api.com/v6/latest/GHS`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        rateFromGhs = d.rates?.[localCurrency.code] ?? 1;
+      }
+    } catch { /* fall through */ }
+
+    // Fallback rate API
+    if (rateFromGhs === 1) {
+      try {
+        const res = await fetch(
+          `https://api.exchangerate.host/convert?from=GHS&to=${localCurrency.code}&amount=1`,
+          { signal: AbortSignal.timeout(5000) },
+        );
+        if (res.ok) {
+          const d = await res.json();
+          if (d.success && d.result) rateFromGhs = d.result;
+        }
+      } catch { /* fall through */ }
+    }
+  }
+
+  return {
+    code: localCurrency.code,
+    symbol: localCurrency.symbol,
+    name: localCurrency.name,
+    countryCode,
+    rateFromGhs,
+  };
+}
+
+// ── Currency formatting ───────────────────────────────────────────────────────
+
+function formatCurrency(amountInGhs: number, currency: CurrencyInfo): string {
+  const converted = amountInGhs * currency.rateFromGhs;
+
+  // Use Intl if we can (handles decimals, grouping, etc.)
+  try {
+    return new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: currency.code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(converted);
+  } catch {
+    // Fallback for codes Intl doesn't know
+    return `${currency.symbol} ${converted.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+}
+
+// Convert a user-entered amount in local currency back to GHS for the API
+function localToGhs(localAmount: number, currency: CurrencyInfo): number {
+  if (currency.rateFromGhs === 0) return localAmount;
+  return localAmount / currency.rateFromGhs;
 }
 
 // ── Tx helpers ────────────────────────────────────────────────────────────────
@@ -331,26 +438,34 @@ interface WithdrawModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  balanceUsd: number;
-  rates: ExchangeRates | null;
+  balanceGhs: number;
+  currency: CurrencyInfo;
 }
 
-function WithdrawModal({ open, onClose, onSuccess, balanceUsd, rates }: WithdrawModalProps) {
+function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: WithdrawModalProps) {
   const [step, setStep]                   = useState<'form' | 'confirm' | 'done'>('form');
   const [amount, setAmount]               = useState('');
   const [method, setMethod]               = useState('momo');
-  const [network, setNetwork]             = useState('MTN');
+  const [network, setNetwork]             = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [accountName, setAccountName]     = useState('');
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState('');
 
-  const amountUsd = parseFloat(amount) || 0;
-  const amountGhs = rates ? Math.round(amountUsd * rates.usdToGhs * 100) / 100 : amountUsd;
+  const momoNetworks = MOMO_NETWORKS[currency.countryCode] ?? MOMO_NETWORKS['GH'];
+
+  // Initialize default network when networks change
+  useEffect(() => {
+    setNetwork(momoNetworks[0] ?? '');
+  }, [currency.countryCode]);
+
+  const amountLocal = parseFloat(amount) || 0;
+  const amountGhs   = localToGhs(amountLocal, currency);
+  const balanceLocal = balanceGhs * currency.rateFromGhs;
 
   const reset = () => {
     setStep('form'); setAmount(''); setMethod('momo');
-    setNetwork('MTN'); setAccountNumber(''); setAccountName(''); setError('');
+    setNetwork(momoNetworks[0] ?? ''); setAccountNumber(''); setAccountName(''); setError('');
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -359,7 +474,7 @@ function WithdrawModal({ open, onClose, onSuccess, balanceUsd, rates }: Withdraw
     setLoading(true); setError('');
     try {
       await withdrawals.submit({
-        amount: amountGhs,
+        amount: amountGhs, // API always receives GHS
         method,
         accountNumber,
         accountName,
@@ -374,11 +489,12 @@ function WithdrawModal({ open, onClose, onSuccess, balanceUsd, rates }: Withdraw
     }
   };
 
-  const canProceed = amountUsd > 0 && amountUsd <= balanceUsd && !!accountNumber && !!accountName;
+  const canProceed = amountLocal > 0 && amountLocal <= balanceLocal && !!accountNumber && !!accountName;
+
+  const currencyLabel = `Amount (${currency.code})`;
 
   return (
     <ModalShell open={open} onClose={handleClose}>
-      {/* ── Done ── */}
       {step === 'done' && (
         <div className="text-center py-4 space-y-5">
           <div
@@ -397,17 +513,18 @@ function WithdrawModal({ open, onClose, onSuccess, balanceUsd, rates }: Withdraw
         </div>
       )}
 
-      {/* ── Confirm ── */}
       {step === 'confirm' && (
         <div className="space-y-5">
           <h3 className="text-lg font-bold" style={{ color: 'var(--text-main)' }}>Confirm Withdrawal</h3>
           <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--border-light)' }}>
-            <ModalRow label="Amount (USD)" value={formatUSD(amountUsd)} />
-            <ModalRow label="Amount (GHS)" value={`GHS ${amountGhs.toFixed(2)}`} />
-            <ModalRow label="Method"       value={method === 'momo' ? 'Mobile Money' : 'Bank Transfer'} />
+            <ModalRow label={`Amount (${currency.code})`} value={formatCurrency(amountGhs, currency)} />
+            {currency.code !== 'GHS' && (
+              <ModalRow label="Amount (GHS)" value={`GH₵ ${amountGhs.toFixed(2)}`} />
+            )}
+            <ModalRow label="Method" value={method === 'momo' ? 'Mobile Money' : 'Bank Transfer'} />
             {method === 'momo' && <ModalRow label="Network" value={network} />}
-            <ModalRow label="Account"      value={accountNumber} />
-            <ModalRow label="Name"         value={accountName} last />
+            <ModalRow label="Account" value={accountNumber} />
+            <ModalRow label="Name"    value={accountName} last />
           </div>
           {error && <AlertBanner type="error" message={error} />}
           <div className="flex gap-3">
@@ -419,7 +536,6 @@ function WithdrawModal({ open, onClose, onSuccess, balanceUsd, rates }: Withdraw
         </div>
       )}
 
-      {/* ── Form ── */}
       {step === 'form' && (
         <div className="space-y-5">
           <div className="flex items-center justify-between">
@@ -434,7 +550,9 @@ function WithdrawModal({ open, onClose, onSuccess, balanceUsd, rates }: Withdraw
             style={{ backgroundColor: 'var(--card-alt)', border: '1px solid var(--border-light)' }}
           >
             <span style={{ color: 'var(--text-muted)' }}>Available</span>
-            <span className="font-bold" style={{ color: 'var(--text-main)' }}>{formatUSD(balanceUsd)}</span>
+            <span className="font-bold" style={{ color: 'var(--text-main)' }}>
+              {formatCurrency(balanceGhs, currency)}
+            </span>
           </div>
 
           <div className="space-y-2">
@@ -447,26 +565,19 @@ function WithdrawModal({ open, onClose, onSuccess, balanceUsd, rates }: Withdraw
           </div>
 
           <GroupedFields>
-            <GroupedField label="Amount (USD)">
+            <GroupedField label={currencyLabel}>
               <GroupedInput
                 type="number" value={amount}
                 onChange={e => setAmount(e.target.value)}
-                placeholder="0.00" min="1" step="0.01" max={balanceUsd}
+                placeholder="0.00" min="0.01" step="0.01"
+                max={balanceLocal}
               />
             </GroupedField>
-
-            {amountUsd > 0 && rates && (
-              <div className="px-4 py-2" style={{ backgroundColor: 'var(--card-alt)', borderBottom: '1px solid var(--border-light)' }}>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  ≈ GHS {amountGhs.toFixed(2)} at live rate
-                </p>
-              </div>
-            )}
 
             {method === 'momo' ? (
               <GroupedField label="Network">
                 <GroupedSelect value={network} onChange={e => setNetwork(e.target.value)}>
-                  {['MTN', 'AirtelTigo', 'Telecel'].map(n => <option key={n} value={n}>{n}</option>)}
+                  {momoNetworks.map(n => <option key={n} value={n}>{n}</option>)}
                 </GroupedSelect>
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-xs" style={{ color: 'var(--text-muted)', marginTop: '0.5rem' }}>▾</span>
               </GroupedField>
@@ -506,11 +617,11 @@ interface AffiliateWithdrawModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  availableBalanceUsd: number;
-  rates: ExchangeRates | null;
+  availableBalanceGhs: number;
+  currency: CurrencyInfo;
 }
 
-function AffiliateWithdrawModal({ open, onClose, onSuccess, availableBalanceUsd, rates }: AffiliateWithdrawModalProps) {
+function AffiliateWithdrawModal({ open, onClose, onSuccess, availableBalanceGhs, currency }: AffiliateWithdrawModalProps) {
   const [step, setStep]                   = useState<'form' | 'done'>('form');
   const [amount, setAmount]               = useState('');
   const [bankName, setBankName]           = useState('');
@@ -520,8 +631,9 @@ function AffiliateWithdrawModal({ open, onClose, onSuccess, availableBalanceUsd,
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState('');
 
-  const amountUsd = parseFloat(amount) || 0;
-  const amountGhs = rates ? Math.round(amountUsd * rates.usdToGhs * 100) / 100 : amountUsd;
+  const amountLocal = parseFloat(amount) || 0;
+  const amountGhs   = localToGhs(amountLocal, currency);
+  const availableLocal = availableBalanceGhs * currency.rateFromGhs;
 
   const reset = () => {
     setStep('form'); setAmount(''); setBankName('');
@@ -534,7 +646,7 @@ function AffiliateWithdrawModal({ open, onClose, onSuccess, availableBalanceUsd,
     setLoading(true); setError('');
     try {
       await affiliate.requestWithdrawal({
-        amount: amountGhs,
+        amount: amountGhs, // API always receives GHS
         accountDetails: { bankName, accountNumber, accountName, mobileMoneyNumber: momoNumber || undefined },
       });
       setStep('done');
@@ -546,7 +658,7 @@ function AffiliateWithdrawModal({ open, onClose, onSuccess, availableBalanceUsd,
     }
   };
 
-  const canSubmit = amountUsd > 0 && amountUsd <= availableBalanceUsd && !!bankName && !!accountNumber && !!accountName;
+  const canSubmit = amountLocal > 0 && amountLocal <= availableLocal && !!bankName && !!accountNumber && !!accountName;
 
   return (
     <ModalShell open={open} onClose={handleClose}>
@@ -578,24 +690,19 @@ function AffiliateWithdrawModal({ open, onClose, onSuccess, availableBalanceUsd,
             style={{ backgroundColor: 'var(--card-alt)', border: '1px solid var(--border-light)' }}
           >
             <span style={{ color: 'var(--text-muted)' }}>Available</span>
-            <span className="font-bold" style={{ color: '#10b981' }}>{formatUSD(availableBalanceUsd)}</span>
+            <span className="font-bold" style={{ color: '#10b981' }}>
+              {formatCurrency(availableBalanceGhs, currency)}
+            </span>
           </div>
 
           <GroupedFields>
-            <GroupedField label="Amount (USD)">
+            <GroupedField label={`Amount (${currency.code})`}>
               <GroupedInput
                 type="number" value={amount}
                 onChange={e => setAmount(e.target.value)}
-                placeholder="0.00" min="1" step="0.01" max={availableBalanceUsd}
+                placeholder="0.00" min="0.01" step="0.01" max={availableLocal}
               />
             </GroupedField>
-            {amountUsd > 0 && rates && (
-              <div className="px-4 py-2" style={{ backgroundColor: 'var(--card-alt)', borderBottom: '1px solid var(--border-light)' }}>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  ≈ GHS {amountGhs.toFixed(2)} at live rate
-                </p>
-              </div>
-            )}
             <GroupedField label="Bank Name">
               <GroupedInput type="text" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. GCB Bank" />
             </GroupedField>
@@ -639,16 +746,19 @@ export default function WalletPage() {
   const [showAffBalance,  setShowAffBalance]  = useState(true);
   const [showWithdraw,    setShowWithdraw]    = useState(false);
   const [showAffWithdraw, setShowAffWithdraw] = useState(false);
-  const [rates,           setRates]           = useState<ExchangeRates | null>(null);
-  const [rateLoading,     setRateLoading]     = useState(true);
+  const [currency,        setCurrency]        = useState<CurrencyInfo>(DEFAULT_CURRENCY);
+  const [currencyLoading, setCurrencyLoading] = useState(true);
 
   useEffect(() => {
     if (!currentUser) navigate('/login', { replace: true, state: { from: '/wallet' } });
   }, [currentUser, navigate]);
 
+  // Auto-detect country + currency
   useEffect(() => {
-    setRateLoading(true);
-    fetchExchangeRates().then(setRates).finally(() => setRateLoading(false));
+    setCurrencyLoading(true);
+    detectCurrencyInfo()
+      .then(setCurrency)
+      .finally(() => setCurrencyLoading(false));
   }, []);
 
   const fetchWallet = useCallback(async () => {
@@ -690,18 +800,13 @@ export default function WalletPage() {
     if (currentUser) initLoad();
   }, [currentUser, initLoad]);
 
-  // ── Conversions ───────────────────────────────────────────────────────────
-  const ghsBalance     = walletData?.balance ?? 0;
-  const mainBalanceUsd = rates ? ghsBalance * rates.ghsToUsd : ghsBalance / 15.5;
-
-  const affBalanceGhs  = affiliateStats?.availableBalance ?? 0;
-  const affBalanceUsd  = rates ? affBalanceGhs * rates.ghsToUsd : affBalanceGhs / 15.5;
-
+  // ── All balances kept in GHS (backend native). Currency converts for display only.
+  const ghsBalance    = walletData?.balance ?? 0;
+  const affBalanceGhs = affiliateStats?.availableBalance   ?? 0;
   const affLifetimeGhs = affiliateStats?.lifetimeCommission ?? 0;
-  const affLifetimeUsd = rates ? affLifetimeGhs * rates.ghsToUsd : affLifetimeGhs / 15.5;
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
-  if (loading || rateLoading) {
+  if (loading || currencyLoading) {
     return (
       <div className="max-w-lg mx-auto p-4 space-y-4">
         {[1, 2, 3].map(i => (
@@ -752,7 +857,9 @@ export default function WalletPage() {
             style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-dark, color-mix(in srgb, var(--primary) 70%, #000)))' }}
           >
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-white/70">Main Balance · USD</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-white/70">
+                Main Balance · {currency.code}
+              </span>
               <button
                 type="button"
                 onClick={() => setShowBalance(v => !v)}
@@ -766,10 +873,9 @@ export default function WalletPage() {
             </div>
 
             <p className="text-3xl sm:text-4xl font-bold tracking-tight text-white mb-5">
-              {showBalance ? formatUSD(mainBalanceUsd) : 'USD ••••'}
+              {showBalance ? formatCurrency(ghsBalance, currency) : `${currency.code} ••••`}
             </p>
 
-            {/* ── Deposit / Withdraw buttons — text only, no icons ── */}
             <div className="grid grid-cols-2 gap-3">
               <Link
                 to="/deposit"
@@ -814,7 +920,7 @@ export default function WalletPage() {
             </div>
 
             <p className="text-3xl font-bold mb-4" style={{ color: 'var(--text-main)' }}>
-              {showAffBalance ? formatUSD(affBalanceUsd) : 'USD ••••'}
+              {showAffBalance ? formatCurrency(affBalanceGhs, currency) : `${currency.code} ••••`}
             </p>
 
             {affiliateStats && (
@@ -822,7 +928,7 @@ export default function WalletPage() {
                 <div className="rounded-2xl p-3 text-center" style={{ backgroundColor: 'var(--card-alt)', border: '1px solid var(--border-light)' }}>
                   <PaidIcon style={{ color: '#10b981', fontSize: 20 }} className="mx-auto mb-1" />
                   <p className="text-[10px] mb-0.5" style={{ color: 'var(--text-muted)' }}>Total Earned</p>
-                  <p className="text-xs font-bold" style={{ color: '#10b981' }}>{formatUSD(affLifetimeUsd)}</p>
+                  <p className="text-xs font-bold" style={{ color: '#10b981' }}>{formatCurrency(affLifetimeGhs, currency)}</p>
                 </div>
                 <div className="rounded-2xl p-3 text-center" style={{ backgroundColor: 'var(--card-alt)', border: '1px solid var(--border-light)' }}>
                   <PeopleAltIcon style={{ color: '#3b82f6', fontSize: 20 }} className="mx-auto mb-1" />
@@ -832,7 +938,7 @@ export default function WalletPage() {
                 <div className="rounded-2xl p-3 text-center" style={{ backgroundColor: 'var(--card-alt)', border: '1px solid var(--border-light)' }}>
                   <AccountBalanceIcon style={{ color: 'var(--text-main)', fontSize: 20 }} className="mx-auto mb-1" />
                   <p className="text-[10px] mb-0.5" style={{ color: 'var(--text-muted)' }}>Available</p>
-                  <p className="text-xs font-bold" style={{ color: 'var(--text-main)' }}>{formatUSD(affBalanceUsd)}</p>
+                  <p className="text-xs font-bold" style={{ color: 'var(--text-main)' }}>{formatCurrency(affBalanceGhs, currency)}</p>
                 </div>
               </div>
             )}
@@ -862,10 +968,7 @@ export default function WalletPage() {
                 {transactions.map((tx, idx) => {
                   const incoming    = isIncoming(tx.kind);
                   const isLast      = idx === transactions.length - 1;
-                  const amountUsd   = rates ? tx.amount * rates.ghsToUsd : tx.amount / 15.5;
-                  const balAfterUsd = tx.balanceAfter !== undefined
-                    ? (rates ? tx.balanceAfter * rates.ghsToUsd : tx.balanceAfter / 15.5)
-                    : undefined;
+                  const balAfterGhs = tx.balanceAfter;
                   return (
                     <div
                       key={tx.id}
@@ -892,11 +995,11 @@ export default function WalletPage() {
 
                       <div className="text-right flex-shrink-0">
                         <p className="text-sm font-bold tabular-nums" style={{ color: incoming ? '#10b981' : '#f43f5e' }}>
-                          {incoming ? '+' : '-'}{formatUSD(amountUsd)}
+                          {incoming ? '+' : '-'}{formatCurrency(tx.amount, currency)}
                         </p>
-                        {balAfterUsd !== undefined && (
+                        {balAfterGhs !== undefined && (
                           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                            Bal: {formatUSD(balAfterUsd)}
+                            Bal: {formatCurrency(balAfterGhs, currency)}
                           </p>
                         )}
                       </div>
@@ -928,15 +1031,15 @@ export default function WalletPage() {
         open={showWithdraw}
         onClose={() => setShowWithdraw(false)}
         onSuccess={() => { setShowWithdraw(false); fetchWallet(); fetchTransactions(0); }}
-        balanceUsd={mainBalanceUsd}
-        rates={rates}
+        balanceGhs={ghsBalance}
+        currency={currency}
       />
       <AffiliateWithdrawModal
         open={showAffWithdraw}
         onClose={() => setShowAffWithdraw(false)}
         onSuccess={() => { setShowAffWithdraw(false); fetchAffiliateStats(); }}
-        availableBalanceUsd={affBalanceUsd}
-        rates={rates}
+        availableBalanceGhs={affBalanceGhs}
+        currency={currency}
       />
     </>
   );

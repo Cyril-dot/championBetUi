@@ -4,36 +4,166 @@ import { useAppStore } from '../store';
 import { user as userApi, wallet, affiliate, auth } from '../utils/api';
 import type { UpdateProfileRequest, Transaction } from '../utils/api';
 
-import EditIcon from '@mui/icons-material/Edit';
-import SaveIcon from '@mui/icons-material/Save';
-import CloseIcon from '@mui/icons-material/Close';
-import SettingsIcon from '@mui/icons-material/Settings';
-import NotificationsIcon from '@mui/icons-material/Notifications';
-import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
-import LogoutIcon from '@mui/icons-material/Logout';
+import EditIcon               from '@mui/icons-material/Edit';
+import SaveIcon               from '@mui/icons-material/Save';
+import CloseIcon              from '@mui/icons-material/Close';
+import SettingsIcon           from '@mui/icons-material/Settings';
+import NotificationsIcon      from '@mui/icons-material/Notifications';
+import VerifiedUserIcon       from '@mui/icons-material/VerifiedUser';
+import LogoutIcon             from '@mui/icons-material/Logout';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import GroupAddIcon from '@mui/icons-material/GroupAdd';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import CircularProgress from '@mui/icons-material/Loop';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import PersonIcon from '@mui/icons-material/Person';
-import ShieldIcon from '@mui/icons-material/Shield';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import BarChartIcon from '@mui/icons-material/BarChart';
+import GroupAddIcon           from '@mui/icons-material/GroupAdd';
+import RefreshIcon            from '@mui/icons-material/Refresh';
+import CircularProgress       from '@mui/icons-material/Loop';
+import VisibilityIcon         from '@mui/icons-material/Visibility';
+import VisibilityOffIcon      from '@mui/icons-material/VisibilityOff';
+import OpenInNewIcon          from '@mui/icons-material/OpenInNew';
+import PersonIcon             from '@mui/icons-material/Person';
+import ShieldIcon             from '@mui/icons-material/Shield';
+import TrendingUpIcon         from '@mui/icons-material/TrendingUp';
+import CheckCircleIcon        from '@mui/icons-material/CheckCircle';
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Currency detection (matches WalletPage pattern exactly)
 // ---------------------------------------------------------------------------
-function formatUSD(amount: number) {
-  return `$${amount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+
+interface CurrencyInfo {
+  code: string;
+  symbol: string;
+  countryCode: string;
+  name: string;
+  rateFromGhs: number;
 }
+
+const COUNTRY_CURRENCY: Record<string, { code: string; symbol: string; name: string }> = {
+  GH: { code: 'GHS', symbol: 'GH₵', name: 'Ghanaian Cedi' },
+  NG: { code: 'NGN', symbol: '₦',   name: 'Nigerian Naira' },
+  KE: { code: 'KES', symbol: 'KSh', name: 'Kenyan Shilling' },
+  TZ: { code: 'TZS', symbol: 'TSh', name: 'Tanzanian Shilling' },
+  UG: { code: 'UGX', symbol: 'USh', name: 'Ugandan Shilling' },
+  ZA: { code: 'ZAR', symbol: 'R',   name: 'South African Rand' },
+  EG: { code: 'EGP', symbol: 'E£',  name: 'Egyptian Pound' },
+  ET: { code: 'ETB', symbol: 'Br',  name: 'Ethiopian Birr' },
+  SN: { code: 'XOF', symbol: 'CFA', name: 'West African CFA Franc' },
+  CI: { code: 'XOF', symbol: 'CFA', name: 'West African CFA Franc' },
+  CM: { code: 'XAF', symbol: 'FCFA', name: 'Central African CFA Franc' },
+  ZM: { code: 'ZMW', symbol: 'ZK',  name: 'Zambian Kwacha' },
+  ZW: { code: 'ZWL', symbol: 'Z$',  name: 'Zimbabwean Dollar' },
+  RW: { code: 'RWF', symbol: 'FRw', name: 'Rwandan Franc' },
+  MW: { code: 'MWK', symbol: 'MK',  name: 'Malawian Kwacha' },
+  MZ: { code: 'MZN', symbol: 'MT',  name: 'Mozambican Metical' },
+  GB: { code: 'GBP', symbol: '£',   name: 'British Pound' },
+  DE: { code: 'EUR', symbol: '€',   name: 'Euro' },
+  FR: { code: 'EUR', symbol: '€',   name: 'Euro' },
+  US: { code: 'USD', symbol: '$',   name: 'US Dollar' },
+  CA: { code: 'CAD', symbol: 'CA$', name: 'Canadian Dollar' },
+  AU: { code: 'AUD', symbol: 'A$',  name: 'Australian Dollar' },
+};
+
+const DEFAULT_CURRENCY: CurrencyInfo = {
+  code: 'GHS', symbol: 'GH₵', name: 'Ghanaian Cedi',
+  countryCode: 'GH', rateFromGhs: 1,
+};
+
+// Module-level cache so detection only runs once per session
+let _currencyCache: CurrencyInfo | null = null;
+
+async function detectCurrencyInfo(): Promise<CurrencyInfo> {
+  if (_currencyCache) return _currencyCache;
+
+  // 1. Try ip-api (free, no key required)
+  let countryCode = '';
+  try {
+    const res = await fetch('https://ip-api.com/json/?fields=countryCode', {
+      signal: AbortSignal.timeout(4000),
+    });
+    if (res.ok) {
+      const d = await res.json();
+      countryCode = d.countryCode ?? '';
+    }
+  } catch { /* fall through */ }
+
+  // 2. Fallback: ipapi.co
+  if (!countryCode) {
+    try {
+      const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+      if (res.ok) {
+        const d = await res.json();
+        countryCode = d.country_code ?? '';
+      }
+    } catch { /* fall through */ }
+  }
+
+  const localCurrency = countryCode ? COUNTRY_CURRENCY[countryCode] : undefined;
+  if (!localCurrency) {
+    _currencyCache = DEFAULT_CURRENCY;
+    return DEFAULT_CURRENCY;
+  }
+
+  // 3. Fetch GHS → localCurrency rate
+  let rateFromGhs = 1;
+
+  if (localCurrency.code !== 'GHS') {
+    try {
+      const res = await fetch(`https://open.er-api.com/v6/latest/GHS`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        rateFromGhs = d.rates?.[localCurrency.code] ?? 1;
+      }
+    } catch { /* fall through */ }
+
+    // Fallback rate API
+    if (rateFromGhs === 1) {
+      try {
+        const res = await fetch(
+          `https://api.exchangerate.host/convert?from=GHS&to=${localCurrency.code}&amount=1`,
+          { signal: AbortSignal.timeout(5000) },
+        );
+        if (res.ok) {
+          const d = await res.json();
+          if (d.success && d.result) rateFromGhs = d.result;
+        }
+      } catch { /* fall through */ }
+    }
+  }
+
+  _currencyCache = {
+    code: localCurrency.code,
+    symbol: localCurrency.symbol,
+    name: localCurrency.name,
+    countryCode,
+    rateFromGhs,
+  };
+  return _currencyCache;
+}
+
+// ---------------------------------------------------------------------------
+// Currency formatting helpers
+// ---------------------------------------------------------------------------
+
+function formatCurrency(amountInGhs: number, currency: CurrencyInfo): string {
+  const converted = amountInGhs * currency.rateFromGhs;
+  try {
+    return new Intl.NumberFormat('en', {
+      style: 'currency',
+      currency: currency.code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(converted);
+  } catch {
+    return `${currency.symbol} ${converted.toLocaleString('en', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Other helpers
+// ---------------------------------------------------------------------------
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-GH', {
@@ -324,6 +454,10 @@ export default function AccountPage() {
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
 
+  // Currency state
+  const [currency, setCurrency]               = useState<CurrencyInfo>(DEFAULT_CURRENCY);
+  const [currencyLoading, setCurrencyLoading] = useState(true);
+
   // Data state
   const [profileData, setProfileData]           = useState<Record<string, unknown> | null>(null);
   const [profileLoading, setProfileLoading]     = useState(true);
@@ -352,6 +486,14 @@ export default function AccountPage() {
   useEffect(() => {
     if (!user) navigate('/login');
   }, [user, navigate]);
+
+  // Auto-detect currency on mount (uses module-level cache after first load)
+  useEffect(() => {
+    setCurrencyLoading(true);
+    detectCurrencyInfo()
+      .then(setCurrency)
+      .finally(() => setCurrencyLoading(false));
+  }, []);
 
   const fetchProfile = useCallback(async () => {
     setProfileLoading(true);
@@ -408,14 +550,18 @@ export default function AccountPage() {
   const displayName  = [apiFirstName, apiLastName].filter(Boolean).join(' ') || user.fullName;
   const roleLabel    = apiRole.replace('_', ' ');
 
-  const walletBalance =
+  // All balances stored in GHS on the backend; display-only conversion via currency
+  const walletBalanceGhs: number | null =
     typeof walletData?.balance === 'number'
       ? (walletData.balance as number)
       : typeof walletData?.availableBalance === 'number'
       ? (walletData.availableBalance as number)
       : null;
 
-  const affBalance = affiliateBalance?.balance ?? null;
+  const affBalanceGhs: number | null = affiliateBalance?.balance ?? null;
+
+  // Show skeleton shimmer in balance cards while currency is still resolving
+  const balanceReady = !currencyLoading;
 
   // Handlers
   const saveProfile = async () => {
@@ -572,11 +718,11 @@ export default function AccountPage() {
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                   </span>
                 </div>
-                {walletLoading ? (
+                {walletLoading || !balanceReady ? (
                   <SkeletonLine h="h-6" />
                 ) : (
                   <p className="font-bold text-sm tabular-nums leading-tight" style={{ color: 'var(--text-main)' }}>
-                    {walletBalance !== null ? formatUSD(walletBalance) : '—'}
+                    {walletBalanceGhs !== null ? formatCurrency(walletBalanceGhs, currency) : '—'}
                   </p>
                 )}
                 <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>Main Wallet</p>
@@ -600,11 +746,11 @@ export default function AccountPage() {
                     className="group-hover:text-emerald-500 transition-colors"
                   />
                 </div>
-                {walletLoading ? (
+                {walletLoading || !balanceReady ? (
                   <SkeletonLine h="h-6" />
                 ) : (
                   <p className="font-bold text-sm tabular-nums leading-tight text-emerald-500">
-                    {affBalance !== null ? formatUSD(affBalance) : '—'}
+                    {affBalanceGhs !== null ? formatCurrency(affBalanceGhs, currency) : '—'}
                   </p>
                 )}
                 <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>Affiliate</p>
@@ -632,7 +778,7 @@ export default function AccountPage() {
                 }
               />
               <div>
-                {walletLoading ? (
+                {walletLoading || !balanceReady ? (
                   [1, 2, 3].map((i) => (
                     <div
                       key={i}
@@ -675,10 +821,10 @@ export default function AccountPage() {
                             className="text-sm font-bold tabular-nums"
                             style={{ color: credit ? '#10b981' : '#f43f5e' }}
                           >
-                            {credit ? '+' : '-'}{formatUSD(tx.amount)}
+                            {credit ? '+' : '-'}{formatCurrency(tx.amount, currency)}
                           </p>
                           <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                            Bal: {formatUSD(tx.balanceAfter)}
+                            Bal: {formatCurrency(tx.balanceAfter, currency)}
                           </p>
                         </div>
                       </div>
@@ -960,8 +1106,11 @@ export default function AccountPage() {
               <CardHeader icon={<VerifiedUserIcon sx={{ fontSize: 15 }} />} title="Responsible Gambling" />
               <div className="px-4 py-4 space-y-4">
                 <div>
+                  {/* Dynamic label: shows detected currency code, skeleton while loading */}
                   <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
-                    Daily Deposit Limit (USD)
+                    {currencyLoading
+                      ? 'Daily Deposit Limit'
+                      : `Daily Deposit Limit (${currency.code})`}
                   </label>
                   <input
                     type="number"
@@ -970,6 +1119,7 @@ export default function AccountPage() {
                     placeholder="No limit set"
                     className="input-field"
                     min="0"
+                    disabled={currencyLoading}
                   />
                 </div>
                 <div>
