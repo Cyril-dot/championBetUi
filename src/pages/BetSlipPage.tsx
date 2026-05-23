@@ -51,7 +51,7 @@ export interface CurrencyInfo {
   code: string;
   symbol: string;
   name: string;
-  rateToGHS: number;
+  rateToGHS: number; // how many units of this currency = 1 GHS  (e.g. NGN: ~107)
   countryCode: string;
 }
 
@@ -78,13 +78,17 @@ const CURRENCY_MAP: Record<string, CurrencyInfo> = {
 
 const DEFAULT_CURRENCY = CURRENCY_MAP['GH'];
 
-function ghsToLocal(ghsAmount: number, currency: CurrencyInfo): number {
-  return ghsAmount * currency.rateToGHS;
-}
+// local → GHS  (divide by rateToGHS since rateToGHS = local/GHS)
 function localToGHS(localAmount: number, currency: CurrencyInfo): number {
   if (currency.rateToGHS === 0) return 0;
   return localAmount / currency.rateToGHS;
 }
+
+// GHS → local
+function ghsToLocal(ghsAmount: number, currency: CurrencyInfo): number {
+  return ghsAmount * currency.rateToGHS;
+}
+
 function formatLocal(amount: number, currency: CurrencyInfo, decimals = 2): string {
   if (amount === 0) return `${currency.symbol}0`;
   return `${currency.symbol}${amount.toLocaleString(undefined, {
@@ -100,21 +104,37 @@ async function detectCurrencyFromIP(): Promise<CurrencyInfo> {
     const geo = await geoRes.json();
     const countryCode: string = (geo.country_code ?? '').toUpperCase();
     const currencyCode: string = (geo.currency ?? '').toUpperCase();
+
+    // Start with static map entry or build a base
     let base: CurrencyInfo = CURRENCY_MAP[countryCode] ?? {
-      code: currencyCode || 'GHS', symbol: currencyCode || 'GH₵',
-      name: geo.currency_name ?? currencyCode ?? 'Unknown', rateToGHS: 1, countryCode,
+      code: currencyCode || 'GHS',
+      symbol: currencyCode || 'GH₵',
+      name: geo.currency_name ?? currencyCode ?? 'Unknown',
+      rateToGHS: 1,
+      countryCode,
     };
+
+    // Override code/symbol if the geo api says something different
     if (currencyCode && base.code !== currencyCode) {
       base = { ...base, code: currencyCode, symbol: currencyCode };
     }
+
+    // Try to get a live exchange rate: GHS → local currency
     try {
-      const rateRes = await fetch(`https://api.exchangerate-api.com/v4/latest/GHS`, { signal: AbortSignal.timeout(5000) });
+      const rateRes = await fetch('https://api.exchangerate-api.com/v4/latest/GHS', {
+        signal: AbortSignal.timeout(5000),
+      });
       if (rateRes.ok) {
         const rateData = await rateRes.json();
         const live = rateData?.rates?.[base.code];
-        if (typeof live === 'number' && live > 0) base = { ...base, rateToGHS: live };
+        if (typeof live === 'number' && live > 0) {
+          log('currency', `Live rate GHS→${base.code} = ${live}`);
+          base = { ...base, rateToGHS: live };
+        }
       }
-    } catch { /* use static */ }
+    } catch { /* use static fallback */ }
+
+    log('currency', 'Detected:', base);
     return base;
   } catch {
     return DEFAULT_CURRENCY;
@@ -369,7 +389,7 @@ function ShareImageModal({ imageUrl, onClose }: { imageUrl: string; onClose: () 
 }
 
 // ---------------------------------------------------------------------------
-// 🏆 WIN MODAL — Stake-style bet slip card
+// 🏆 WIN MODAL
 // ---------------------------------------------------------------------------
 function WinModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
   const [generatingImage, setGeneratingImage] = useState(false);
@@ -430,10 +450,15 @@ function WinModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
           ))}
         </div>
 
-        {/* Card — Stake-style dark */}
+        {/* Card */}
         <div
           className="relative z-20 w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl overflow-hidden stake-slide-up"
-          style={{ background: '#1a2332', border: '1px solid rgba(255,255,255,0.08)' }}
+          style={{
+            background: '#1a2332',
+            border: '1px solid rgba(255,255,255,0.08)',
+            // FIX: push card up above bottom nav on mobile
+            paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)',
+          }}
         >
           {/* Top bar */}
           <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -449,8 +474,7 @@ function WinModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
           </div>
 
           {/* Scrollable body */}
-          <div className="overflow-y-auto max-h-[80vh]">
-            {/* Selections */}
+          <div className="overflow-y-auto" style={{ maxHeight: 'calc(85vh - 80px)' }}>
             {bet.selections.map((sel, i) => {
               const matchLabel = buildMatchLabel(sel as unknown as Record<string, unknown>);
               const settledAt  = bet.settledAt
@@ -546,7 +570,7 @@ function WinModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Loss modal — Stake-style
+// Loss modal
 // ---------------------------------------------------------------------------
 function LossModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
   const [generatingImage, setGeneratingImage] = useState(false);
@@ -570,12 +594,24 @@ function LossModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
 
   return (
     <>
+      <style>{`
+        @keyframes stakeSlideUp {
+          from { opacity: 0; transform: translateY(32px) scale(0.98); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
       <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center overflow-hidden">
         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
 
         <div
           className="relative z-20 w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl overflow-hidden"
-          style={{ background: '#1a2332', border: '1px solid rgba(255,255,255,0.08)', animation: 'stakeSlideUp 0.35s cubic-bezier(0.16,1,0.3,1) both' }}
+          style={{
+            background: '#1a2332',
+            border: '1px solid rgba(255,255,255,0.08)',
+            animation: 'stakeSlideUp 0.35s cubic-bezier(0.16,1,0.3,1) both',
+            // FIX: push card up above bottom nav on mobile
+            paddingBottom: 'calc(env(safe-area-inset-bottom) + 80px)',
+          }}
         >
           {/* Top bar */}
           <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -590,8 +626,7 @@ function LossModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
             </button>
           </div>
 
-          <div className="overflow-y-auto max-h-[80vh]">
-            {/* Selections */}
+          <div className="overflow-y-auto" style={{ maxHeight: 'calc(85vh - 80px)' }}>
             {bet.selections.map((sel, i) => {
               const matchLabel = buildMatchLabel(sel as unknown as Record<string, unknown>);
               const settledAt  = bet.settledAt
@@ -682,7 +717,7 @@ function LossModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Bet detail bottom sheet
+// Bet detail bottom sheet — FIXED: no longer covered by bottom nav on mobile
 // ---------------------------------------------------------------------------
 function BetDetailSheet({ bet, onClose }: { bet: Bet; onClose: () => void }) {
   const [showWin, setShowWin]   = useState(false);
@@ -690,10 +725,25 @@ function BetDetailSheet({ bet, onClose }: { bet: Bet; onClose: () => void }) {
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-        <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+      <div
+        className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-md overflow-y-auto"
+          style={{
+            // FIX: constrain max-height so it never goes behind bottom nav
+            // 80px is the typical bottom nav height; safe-area-inset-bottom handles notch phones
+            maxHeight: 'calc(100vh - 80px - env(safe-area-inset-bottom))',
+            // FIX: add bottom padding inside sheet so CTA button is never clipped
+            paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
           <div className="w-10 h-1 bg-slate-200 dark:bg-slate-700 rounded-full mx-auto mt-3 mb-1 sm:hidden" />
-          <div className="sticky top-0 bg-white dark:bg-slate-900 flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
+
+          {/* Sticky header */}
+          <div className="sticky top-0 bg-white dark:bg-slate-900 flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800 z-10">
             <div>
               <h3 className="font-bold text-base text-slate-900 dark:text-white">Bet Details</h3>
               <p className="text-xs text-slate-400 mt-0.5">#{bet.id.slice(-8).toUpperCase()}</p>
@@ -705,6 +755,8 @@ function BetDetailSheet({ bet, onClose }: { bet: Bet; onClose: () => void }) {
               </button>
             </div>
           </div>
+
+          {/* Selections */}
           <div className="px-5 py-4 space-y-2">
             {bet.selections.map((sel, i) => (
               <div key={sel.id ?? i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
@@ -719,7 +771,10 @@ function BetDetailSheet({ bet, onClose }: { bet: Bet; onClose: () => void }) {
               </div>
             ))}
           </div>
+
           <div className="border-t border-slate-100 dark:border-slate-800 mx-5" />
+
+          {/* Summary rows */}
           <div className="px-5 py-4 space-y-2.5">
             {[
               { label: 'Stake',            value: formatCurrency(bet.stake) },
@@ -734,8 +789,10 @@ function BetDetailSheet({ bet, onClose }: { bet: Bet; onClose: () => void }) {
               </div>
             ))}
           </div>
+
+          {/* CTA */}
           {(bet.status === 'WON' || bet.status === 'LOST') && (
-            <div className="px-5 pb-6 pt-1">
+            <div className="px-5 pt-1 pb-2">
               <button
                 onClick={() => bet.status === 'WON' ? setShowWin(true) : setShowLoss(true)}
                 className={`w-full py-3 rounded-xl text-sm font-bold transition-colors ${
@@ -749,7 +806,7 @@ function BetDetailSheet({ bet, onClose }: { bet: Bet; onClose: () => void }) {
             </div>
           )}
           {bet.status === 'VOID' && (
-            <div className="px-5 pb-6 pt-1">
+            <div className="px-5 pt-1 pb-2">
               <div className="w-full py-3 px-4 rounded-xl text-sm font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-center">
                 ↩ Stake refunded to your wallet
               </div>
@@ -954,7 +1011,7 @@ function BookingCodePanel() {
 }
 
 // ---------------------------------------------------------------------------
-// Slip tab — FIXED & RESTYLED stake input section
+// Slip tab
 // ---------------------------------------------------------------------------
 function SlipTab() {
   const { betSlip, removeFromBetSlip, clearBetSlip, showToast, user } = useAppStore();
@@ -963,26 +1020,30 @@ function SlipTab() {
   const [stakeInput, setStakeInput]           = useState('');
   const [placing, setPlacing]                 = useState(false);
   const [placed, setPlaced]                   = useState(false);
-  const [walletBalance, setWalletBalance]     = useState<number | null>(null);
+  const [walletBalanceGHS, setWalletBalanceGHS] = useState<number | null>(null);
   const [balanceLoading, setBalanceLoading]   = useState(false);
   const [currency, setCurrency]               = useState<CurrencyInfo>(DEFAULT_CURRENCY);
   const [currencyLoading, setCurrencyLoading] = useState(true);
   const stakeInputRef = useRef<HTMLInputElement>(null);
 
+  // Minimum stake expressed in the user's local currency
   const minStakeLocal = ghsToLocal(MIN_STAKE_GHS, currency);
 
+  // Quick-add buttons (×1, ×2, ×5, ×10 of min stake, rounded to nice numbers)
   const QUICK_AMOUNTS = [
     minStakeLocal,
     minStakeLocal * 2,
     minStakeLocal * 5,
     minStakeLocal * 10,
-  ].map(v => Math.round(v));
+  ].map(v => (currency.code === 'GHS' ? Math.round(v * 100) / 100 : Math.round(v)));
 
+  // Detect local currency on mount
   useEffect(() => {
     setCurrencyLoading(true);
     getCurrency().then(c => setCurrency(c)).finally(() => setCurrencyLoading(false));
   }, []);
 
+  // Fetch wallet balance (stored in GHS)
   const fetchBalance = useCallback(async () => {
     if (!user) return;
     setBalanceLoading(true);
@@ -994,7 +1055,7 @@ function SlipTab() {
           typeof data.balance          === 'number' ? data.balance :
           typeof data.mainBalance      === 'number' ? data.mainBalance :
           typeof data.availableBalance === 'number' ? data.availableBalance : null;
-        setWalletBalance(balGHS);
+        setWalletBalanceGHS(balGHS);
       }
     } catch (err) {
       logError('SlipTab', 'Failed to fetch wallet:', err);
@@ -1005,19 +1066,21 @@ function SlipTab() {
 
   useEffect(() => { fetchBalance(); }, [fetchBalance]);
 
-  const totalOdds      = calculateTotalOdds(betSlip.map(s => s.odd));
-  const parsedLocal    = parseFloat(stakeInput) || 0;
-  const parsedGHS      = localToGHS(parsedLocal, currency);
-  const potentialGHS   = calculatePotentialReturn(parsedGHS, totalOdds);
+  // ── Derived values ────────────────────────────────────────────────────────
+  const totalOdds    = calculateTotalOdds(betSlip.map(s => s.odd));
+  const parsedLocal  = parseFloat(stakeInput) || 0;
+  const parsedGHS    = localToGHS(parsedLocal, currency);         // what gets submitted
+  const potentialGHS = calculatePotentialReturn(parsedGHS, totalOdds);
   const potentialLocal = ghsToLocal(potentialGHS, currency);
 
-  const walletGHS         = walletBalance ?? 0;
-  const walletLocal       = ghsToLocal(walletGHS, currency);
+  const walletGHS   = walletBalanceGHS ?? 0;
+  const walletLocal = ghsToLocal(walletGHS, currency);            // for display
+
   const belowMinStake     = parsedLocal > 0 && parsedLocal < minStakeLocal;
-  const insufficientFunds = parsedLocal > 0 && walletBalance !== null && parsedGHS > walletGHS;
+  const insufficientFunds = parsedLocal > 0 && walletBalanceGHS !== null && parsedGHS > walletGHS;
   const canPlace          = !!user && parsedLocal >= minStakeLocal && !insufficientFunds && betSlip.length > 0;
 
-  // FIX: addToStake now correctly appends to the current numeric value
+  // ── Input helpers ─────────────────────────────────────────────────────────
   const addToStake = (amount: number) => {
     const current = parseFloat(stakeInput) || 0;
     const next = current + amount;
@@ -1029,12 +1092,9 @@ function SlipTab() {
     stakeInputRef.current?.focus();
   };
 
-  // FIX: Controlled input handler that strips non-numeric chars and prevents negative
   const handleStakeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    // Allow digits and at most one decimal point; strip everything else
     const cleaned = raw.replace(/[^0-9.]/g, '').replace(/^(\d*\.?\d*).*$/, '$1');
-    // Prevent negative or multiple decimals
     if (cleaned === '' || (!isNaN(Number(cleaned)) && Number(cleaned) >= 0)) {
       setStakeInput(cleaned);
     }
@@ -1045,9 +1105,13 @@ function SlipTab() {
     stakeInputRef.current?.focus();
   };
 
+  // ── Place bet ─────────────────────────────────────────────────────────────
   const handlePlace = async () => {
     if (!user) { navigate('/login'); return; }
-    if (parsedGHS < MIN_STAKE_GHS) { showToast(`Minimum stake is ${formatLocal(minStakeLocal, currency)}`, 'error'); return; }
+    if (parsedGHS < MIN_STAKE_GHS) {
+      showToast(`Minimum stake is ${formatLocal(minStakeLocal, currency)}`, 'error');
+      return;
+    }
     setPlacing(true);
     try {
       const verifiedSelections = await Promise.all(
@@ -1068,7 +1132,8 @@ function SlipTab() {
       );
 
       const payload = {
-        stake: parsedGHS, currency: 'GHS',
+        stake: parsedGHS,         // always GHS to backend
+        currency: 'GHS',
         selections: verifiedSelections.map(s => ({
           matchId: s.matchId, fixtureId: s.matchId,
           market: s.market, selection: s.selection,
@@ -1091,6 +1156,7 @@ function SlipTab() {
     }
   };
 
+  // ── Success screen ────────────────────────────────────────────────────────
   if (placed) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
@@ -1104,6 +1170,7 @@ function SlipTab() {
     );
   }
 
+  // ── Empty slip ────────────────────────────────────────────────────────────
   if (betSlip.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-center px-6">
@@ -1120,19 +1187,22 @@ function SlipTab() {
     );
   }
 
+  // ── Main slip UI ──────────────────────────────────────────────────────────
   return (
     <div className="space-y-3">
 
-      {/* ── Selections list ── */}
+      {/* ── Selections list — UPDATED: bolder team names ── */}
       <div className="space-y-2">
         {betSlip.map(sel => (
           <div
             key={`${sel.matchId}-${sel.market}-${sel.selection}`}
             className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden"
           >
-            {/* Top row: match name + delete */}
+            {/* Top row: match/team name — BIGGER & BOLDER */}
             <div className="flex items-center justify-between px-4 pt-3 pb-1.5">
-              <p className="text-[11px] text-slate-400 truncate leading-tight flex-1 mr-2">{sel.matchName}</p>
+              <p className="text-sm font-extrabold text-slate-800 dark:text-slate-100 truncate leading-tight flex-1 mr-2">
+                {sel.matchName}
+              </p>
               <button
                 onClick={() => removeFromBetSlip(sel.matchId, sel.market, sel.selection)}
                 className="p-1.5 text-slate-300 hover:text-rose-500 active:scale-90 transition-all rounded-lg shrink-0"
@@ -1144,7 +1214,8 @@ function SlipTab() {
             {/* Bottom row: market label + odds badge */}
             <div className="flex items-center justify-between px-4 pb-3">
               <div className="min-w-0 flex-1 mr-3">
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">
+                {/* Market name — medium weight */}
+                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
                   {sel.market}
                   {sel.selection && (
                     <span className="text-slate-400 font-normal"> · {sel.selection}</span>
@@ -1162,7 +1233,7 @@ function SlipTab() {
         ))}
       </div>
 
-      {/* ── Stake card (FIXED & RESTYLED) ── */}
+      {/* ── Stake card ── */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
 
         {/* Card header */}
@@ -1174,12 +1245,10 @@ function SlipTab() {
             <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Stake</p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Wallet balance badge in header for quick reference */}
-            {user && walletBalance !== null && !balanceLoading && (
+            {/* Wallet balance badge */}
+            {user && walletBalanceGHS !== null && !balanceLoading && (
               <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg">
-                {currency.code !== 'GHS'
-                  ? formatLocal(walletLocal, currency, 0)
-                  : `GH₵${walletGHS.toFixed(2)}`}
+                {formatLocal(walletLocal, currency, currency.code === 'GHS' ? 2 : 0)}
               </span>
             )}
             {user && balanceLoading && (
@@ -1191,7 +1260,7 @@ function SlipTab() {
 
         <div className="p-4 space-y-3">
 
-          {/* ── FIXED Stake input ── */}
+          {/* ── Stake input ── */}
           <div className="relative">
             {/* Currency symbol prefix */}
             <div
@@ -1209,7 +1278,7 @@ function SlipTab() {
               inputMode="decimal"
               value={stakeInput}
               onChange={handleStakeChange}
-              placeholder={`0`}
+              placeholder="0"
               className={[
                 'w-full rounded-2xl border-2 text-2xl font-black',
                 'bg-slate-50 dark:bg-slate-800',
@@ -1217,11 +1286,8 @@ function SlipTab() {
                 'placeholder:text-slate-300 dark:placeholder:text-slate-600',
                 'outline-none transition-all',
                 'focus:bg-white dark:focus:bg-slate-800/80',
-                // right padding to avoid overlap with clear button
                 stakeInput ? 'pr-10' : 'pr-4',
-                // left padding: wide enough for symbol + spacing
                 'pl-14',
-                // vertical padding for big comfortable tap target
                 'py-4',
                 belowMinStake
                   ? 'border-amber-400 dark:border-amber-600 focus:ring-2 focus:ring-amber-200/50'
@@ -1233,7 +1299,7 @@ function SlipTab() {
               ].join(' ')}
             />
 
-            {/* Clear (×) button — only when there is input */}
+            {/* Clear (×) button */}
             {stakeInput && (
               <button
                 onClick={clearStake}
@@ -1245,7 +1311,7 @@ function SlipTab() {
               </button>
             )}
 
-            {/* Min-stake watermark hint (shows when input empty) */}
+            {/* Min-stake watermark hint */}
             {!stakeInput && (
               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                 <span className="text-xs text-slate-300 dark:text-slate-600 font-medium">
@@ -1261,6 +1327,7 @@ function SlipTab() {
               <p className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
                 <InfoOutlinedIcon sx={{ fontSize: 13 }} />
                 Minimum stake is {formatLocal(minStakeLocal, currency, 0)}
+                {currency.code !== 'GHS' && <span className="text-amber-500/70 ml-1">(GH₵{MIN_STAKE_GHS})</span>}
               </p>
               <button
                 onClick={setStakeToMin}
@@ -1276,11 +1343,12 @@ function SlipTab() {
               <p className="text-xs text-rose-600 dark:text-rose-400">
                 Insufficient balance · available{' '}
                 <span className="font-bold">{formatLocal(walletLocal, currency, 0)}</span>
+                {currency.code !== 'GHS' && <span className="text-rose-400/70 ml-1">(GH₵{walletGHS.toFixed(2)})</span>}
               </p>
             </div>
           )}
 
-          {/* Quick-add amount buttons */}
+          {/* Quick-add buttons */}
           <div className="grid grid-cols-4 gap-2">
             {QUICK_AMOUNTS.map((amount, idx) => (
               <button
@@ -1301,7 +1369,7 @@ function SlipTab() {
               <p className="text-xs text-slate-500">
                 {formatLocal(parsedLocal, currency)} ≈{' '}
                 <span className="font-bold text-slate-700 dark:text-slate-300">GH₵{parsedGHS.toFixed(2)}</span>
-                <span className="text-slate-400 ml-1">· settled in GH₵</span>
+                <span className="text-slate-400 ml-1">· bet settled in GH₵</span>
               </p>
             </div>
           )}
@@ -1326,7 +1394,7 @@ function SlipTab() {
               </span>
             </div>
 
-            {/* Potential return highlight */}
+            {/* Potential return */}
             <div className="flex justify-between items-center p-3 bg-emerald-50 dark:bg-emerald-900/10 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
               <div className="flex items-center gap-2">
                 <TrendingUpIcon sx={{ fontSize: 16 }} className="text-emerald-600" />
@@ -1335,13 +1403,13 @@ function SlipTab() {
               <span className="font-black text-emerald-600 dark:text-emerald-400 text-sm">
                 {parsedLocal > 0
                   ? currency.code !== 'GHS'
-                    ? `${formatLocal(potentialLocal, currency)} (GH₵${potentialGHS.toFixed(2)})`
-                    : formatLocal(potentialGHS, currency)
+                    ? `${formatLocal(potentialLocal, currency, 0)} (GH₵${potentialGHS.toFixed(2)})`
+                    : formatLocal(potentialGHS, { ...currency, symbol: 'GH₵' })
                   : '—'}
               </span>
             </div>
 
-            {/* Wallet balance row (logged in) */}
+            {/* Wallet balance row */}
             {user && (
               <div className="flex justify-between items-center text-xs pt-0.5">
                 <span className="text-slate-400 flex items-center gap-1.5">
@@ -1351,7 +1419,7 @@ function SlipTab() {
                 <span className="text-slate-500 font-semibold">
                   {balanceLoading ? (
                     <span className="inline-block w-16 h-3 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
-                  ) : walletBalance !== null
+                  ) : walletBalanceGHS !== null
                     ? currency.code !== 'GHS'
                       ? `${formatLocal(walletLocal, currency, 0)} (GH₵${walletGHS.toFixed(2)})`
                       : `GH₵${walletGHS.toFixed(2)}`
@@ -1378,13 +1446,15 @@ function SlipTab() {
                 <>
                   Place Bet ·{' '}
                   {currency.code !== 'GHS'
-                    ? `${formatLocal(parsedLocal, currency)} (GH₵${parsedGHS.toFixed(2)})`
+                    ? `${formatLocal(parsedLocal, currency, 0)} (GH₵${parsedGHS.toFixed(2)})`
                     : `GH₵${parsedGHS.toFixed(2)}`}
                 </>
               ) : (
                 <>
                   Place Bet
-                  {belowMinStake ? ` · min ${formatLocal(minStakeLocal, currency, 0)}` : parsedLocal === 0 ? ' · enter stake' : ''}
+                  {belowMinStake
+                    ? ` · min ${formatLocal(minStakeLocal, currency, 0)}`
+                    : parsedLocal === 0 ? ' · enter stake' : ''}
                 </>
               )}
             </button>
