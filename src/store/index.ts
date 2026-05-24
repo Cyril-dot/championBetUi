@@ -2,10 +2,9 @@ import { create } from 'zustand';
 import type { User, BetSlipSelection, Bet, Transaction } from '../types';
 import { mockBets, mockTransactions } from '../data/mock';
 
-// Define the new theme types
 type Theme =
-  | 'nxtbet-primary' // Default NxtBet theme (light)
-  | 'nxtbet-dark';   // NxtBet dark theme
+  | 'nxtbet-primary'
+  | 'nxtbet-dark';
 
 interface AppState {
   user: User | null;
@@ -16,6 +15,7 @@ interface AppState {
   transactions: Transaction[];
   theme: Theme;
   isAdminModalOpen: boolean;
+  modalOpen: boolean;
   toast: { message: string; type: 'success' | 'error' | 'info' } | null;
 
   login: (user: User) => void;
@@ -26,6 +26,7 @@ interface AppState {
   placeBet: (stake: number) => void;
   toggleTheme: () => void;
   setAdminModalOpen: (open: boolean) => void;
+  setModalOpen: (open: boolean) => void;
   showToast: (message: string, type: 'success' | 'error' | 'info') => void;
   clearToast: () => void;
   deposit: (amount: number) => void;
@@ -33,7 +34,6 @@ interface AppState {
   withdrawAffiliate: (amount: number) => void;
 }
 
-// Define allowed themes and determine the initial theme
 const allowedThemes: Theme[] = ['nxtbet-primary', 'nxtbet-dark'];
 const savedTheme = localStorage.getItem('theme') as Theme;
 const initialTheme: Theme = allowedThemes.includes(savedTheme) ? savedTheme : 'nxtbet-primary';
@@ -47,6 +47,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   transactions: mockTransactions,
   theme: initialTheme,
   isAdminModalOpen: false,
+  modalOpen: false,
   toast: null,
 
   login: (user) => set({ user }),
@@ -110,6 +111,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }),
 
   setAdminModalOpen: (open) => set({ isAdminModalOpen: open }),
+
+  setModalOpen: (open) => set({ modalOpen: open }),
 
   showToast: (message, type) => {
     set({ toast: { message, type } });

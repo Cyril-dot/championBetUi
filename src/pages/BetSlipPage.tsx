@@ -871,6 +871,7 @@ function LossModal({ bet, currency, onClose }: { bet: Bet; currency: CurrencyInf
 // ─── Bet detail bottom sheet ──────────────────────────────────────────────────
 
 function BetDetailSheet({ bet, currency, onClose }: { bet: Bet; currency: CurrencyInfo; onClose: () => void }) {
+  const { setModalOpen } = useAppStore();
   const [showWin, setShowWin] = useState(false);
   const [showLoss, setShowLoss] = useState(false);
 
@@ -925,7 +926,10 @@ function BetDetailSheet({ bet, currency, onClose }: { bet: Bet; currency: Curren
           {(bet.status === 'WON' || bet.status === 'LOST') && (
             <div className="px-5 pt-1 pb-2">
               <button
-                onClick={() => bet.status === 'WON' ? setShowWin(true) : setShowLoss(true)}
+                onClick={() => {
+                  if (bet.status === 'WON') { setShowWin(true); setModalOpen(true); }
+                  else { setShowLoss(true); setModalOpen(true); }
+                }}
                 className={`w-full py-3 rounded-xl text-sm font-bold transition-colors ${bet.status === 'WON' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
               >
                 {bet.status === 'WON' ? '🏆 View Winnings' : '😭 View Result'}
@@ -939,8 +943,8 @@ function BetDetailSheet({ bet, currency, onClose }: { bet: Bet; currency: Curren
           )}
         </div>
       </div>
-      {showWin  && <WinModal  bet={bet} currency={currency} onClose={() => { setShowWin(false);  onClose(); }} />}
-      {showLoss && <LossModal bet={bet} currency={currency} onClose={() => { setShowLoss(false); onClose(); }} />}
+      {showWin  && <WinModal  bet={bet} currency={currency} onClose={() => { setShowWin(false); setModalOpen(false); onClose(); }} />}
+      {showLoss && <LossModal bet={bet} currency={currency} onClose={() => { setShowLoss(false); setModalOpen(false); onClose(); }} />}
     </>
   );
 }
@@ -1360,7 +1364,7 @@ const EMPTY_STATE: Record<BetsFilter, { emoji: string; label: string; sub: strin
 };
 
 function MyBetsTab() {
-  const { user } = useAppStore();
+  const { user, setModalOpen } = useAppStore();
   const [apiBets, setApiBets] = useState<Bet[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
@@ -1399,7 +1403,11 @@ function MyBetsTab() {
     didCheckUnseen.current = true;
     try {
       const res = await betsApi.getUnseenWins();
-      if (res.success && res.data.length > 0) { setUnseenWins(res.data); setWinPopup(res.data[0]); }
+      if (res.success && res.data.length > 0) {
+        setUnseenWins(res.data);
+        setWinPopup(res.data[0]);
+        setModalOpen(true);
+      }
     } catch { }
   }, [user]);
 
@@ -1410,6 +1418,7 @@ function MyBetsTab() {
     const remaining = unseenWins.filter(b => b.id !== bet.id);
     setUnseenWins(remaining);
     setWinPopup(remaining[0] ?? null);
+    if (!remaining[0]) setModalOpen(false);
   };
 
   if (!user) return <GuestPrompt message="Log in to view your bets" />;
@@ -1482,7 +1491,7 @@ function MyBetsTab() {
         return (
           <button
             key={bet.id}
-            onClick={() => setDetailBet(bet)}
+            onClick={() => { setDetailBet(bet); setModalOpen(true); }}
             className={`w-full text-left bg-white dark:bg-slate-900 rounded-2xl border transition-all active:scale-[0.98] p-4 ${isWon ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-900/10' : isLost ? 'border-slate-100 dark:border-slate-800 opacity-70' : isVoid ? 'border-blue-100 dark:border-blue-900/40 opacity-70' : 'border-slate-100 dark:border-slate-800 hover:border-primary/20'}`}
           >
             <div className="flex justify-between items-start mb-2.5">
@@ -1529,12 +1538,11 @@ function MyBetsTab() {
         <div className="flex justify-center py-4"><CircularProgress className="text-primary animate-spin" fontSize="small" /></div>
       )}
 
-      {detailBet && <BetDetailSheet bet={detailBet} currency={currency} onClose={() => setDetailBet(null)} />}
+      {detailBet && <BetDetailSheet bet={detailBet} currency={currency} onClose={() => { setDetailBet(null); setModalOpen(false); }} />}
       {winPopup && <WinModal bet={winPopup} currency={currency} onClose={() => dismissWin(winPopup)} />}
     </div>
   );
 }
-
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export default function BetSlipPage() {

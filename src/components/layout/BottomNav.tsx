@@ -15,10 +15,13 @@ const navItems = [
 export default function BottomNav() {
   const location = useLocation();
   const betSlip = useAppStore((s) => s.betSlip);
+  const modalOpen = useAppStore((s) => (s as any).modalOpen ?? false);
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-[9999] bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700"
+      className={`lg:hidden fixed bottom-0 left-0 right-0 z-[9999] bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 transition-transform duration-300 ease-in-out ${
+        modalOpen ? 'translate-y-full' : 'translate-y-0'
+      }`}
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="flex items-center justify-around h-16">
