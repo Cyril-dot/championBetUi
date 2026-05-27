@@ -27,6 +27,24 @@ const CHANNELS: MoolreChannel[] = [
 
 const MIN_GHS = 300;
 
+/**
+ * Moolre OTP-required response codes.
+ * "OTP_REQ" is the documented code; "TP14" is the code observed in production.
+ * Both mean: OTP has been sent to the customer's phone — show the OTP input screen.
+ */
+const OTP_REQUIRED_CODES = new Set(['OTP_REQ', 'TP14']);
+
+/**
+ * Moolre txstatus codes returned by the /verify endpoint.
+ *  0 = pending
+ *  1 = success
+ *  2 = failed / cancelled
+ *  3 = transaction not found (OTP not completed or payment never initiated)
+ */
+const TX_SUCCESS   = 1;
+const TX_FAILED    = 2;
+const TX_NOT_FOUND = 3;
+
 // ── Inline Moolre API calls ───────────────────────────────────────────────────
 
 function getAuthHeader(): Record<string, string> {
@@ -57,7 +75,7 @@ async function moolreInit(body: {
 
 async function moolreVerify(externalref: string): Promise<Record<string, unknown>> {
   const res = await fetch(
-   'https://futballbackend-production-aefb.up.railway.app/api/wallet/deposit/moolre/verify',
+    'https://futballbackend-production-aefb.up.railway.app/api/wallet/deposit/moolre/verify',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
@@ -163,11 +181,11 @@ export default function DepositPage() {
   const [otp,         setOtp]         = useState('');
 
   // flow state
-  const [step,        setStep]        = useState<Step>('form');
-  const [loading,     setLoading]     = useState(false);
-  const [errorMsg,    setErrorMsg]    = useState('');
-  const [externalRef, setExternalRef] = useState('');
-  const [verifyMsg,   setVerifyMsg]   = useState('');
+  const [step,          setStep]          = useState<Step>('form');
+  const [loading,       setLoading]       = useState(false);
+  const [errorMsg,      setErrorMsg]      = useState('');
+  const [externalRef,   setExternalRef]   = useState('');
+  const [verifyMsg,     setVerifyMsg]     = useState('');
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
@@ -205,18 +223,19 @@ export default function DepositPage() {
       };
       if (withOtp && otp.trim()) body.otpcode = otp.trim();
 
-      const res      = await moolreInit(body);
-      const inner    = (res?.data ?? res) as Record<string, unknown>;
-      const code     = (inner?.code ?? res?.code ?? '') as string;
-      const ref      = (inner?.externalref ?? res?.externalref ?? '') as string;
+      const res   = await moolreInit(body);
+      const inner = (res?.data ?? res) as Record<string, unknown>;
+      const code  = (inner?.code ?? res?.code ?? '') as string;
+      const ref   = (inner?.externalref ?? res?.externalref ?? '') as string;
 
       if (ref) setExternalRef(ref);
 
-      if (code === 'OTP_REQ') {
-        // Moolre wants an OTP first
+      // FIX: treat both "OTP_REQ" and "TP14" as the OTP step.
+      // "TP14" is Moolre's production code for "OTP sent — please verify."
+      if (OTP_REQUIRED_CODES.has(code)) {
         setStep('otp');
       } else {
-        // code === 'PAYMENT_REQ' or similar — USSD prompt sent to phone
+        // code === "PAYMENT_REQ" or similar — USSD prompt sent to phone
         setStep('awaiting');
       }
     } catch (e: unknown) {
@@ -240,18 +259,27 @@ export default function DepositPage() {
     try {
       const res   = await moolreVerify(externalRef);
       const inner = (res?.data ?? res) as Record<string, unknown>;
-      const credited  = inner?.credited as boolean | undefined;
-      const txStatus  = inner?.txstatus as number | undefined;
-      const message   = (inner?.message ?? '') as string;
+      const credited = inner?.credited as boolean | undefined;
+      const txStatus = inner?.txstatus as number | undefined;
+      const message  = (inner?.message ?? '') as string;
 
-      if (credited === true || txStatus === 1) {
+      if (credited === true || txStatus === TX_SUCCESS) {
         setStep('success');
-      } else if (txStatus === 2) {
+      } else if (txStatus === TX_FAILED) {
         setErrorMsg('Payment failed or was cancelled.');
         setStep('error');
+      } else if (txStatus === TX_NOT_FOUND) {
+        // FIX: txstatus=3 means "transaction not found" — the OTP step was not
+        // completed. Show a clear, actionable message instead of "contact support".
+        setVerifyMsg(
+          message ||
+          'Payment not found. Please complete the OTP verification first, then approve the USSD prompt on your phone.'
+        );
       } else {
-        // still pending
-        setVerifyMsg(message || 'Payment is still pending. Please approve the USSD prompt on your phone, then tap Check Again.');
+        // still pending (txstatus=0) or unknown
+        setVerifyMsg(
+          message || 'Payment is still pending. Please approve the USSD prompt on your phone, then tap Check Again.'
+        );
       }
     } catch (e: unknown) {
       setVerifyMsg(e instanceof Error ? e.message : 'Could not verify payment. Please try again.');
@@ -429,11 +457,7 @@ export default function DepositPage() {
                     boxShadow: active ? '0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent)' : 'none',
                   }}
                 >
-                  {/* Coloured dot */}
-                  <span
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: ch.color }}
-                  />
+                  <span className="w-3 h-3 rounded-full" style={{ backgroundColor: ch.color }} />
                   <span className="text-xs font-bold" style={{ color: active ? 'var(--primary)' : 'var(--text-main)' }}>
                     {ch.short}
                   </span>
