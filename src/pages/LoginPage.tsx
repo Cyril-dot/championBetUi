@@ -37,12 +37,11 @@ function mapRole(apiRole: string): 'user' | 'admin' {
 }
 
 // ---------------------------------------------------------------------------
-// OddsKingLogo — same as Header
+// ZynoBetLogo — same as Header
 // ---------------------------------------------------------------------------
-function OddsKingLogo() {
+function ZynoBetLogo() {
   return (
-    <div className="flex items-center gap-0 select-none" aria-label="OddsKing">
-      {/* Crown icon */}
+    <div className="flex items-center gap-0 select-none" aria-label="ZynoBet">
       <svg
         width="28"
         height="28"
@@ -53,23 +52,30 @@ function OddsKingLogo() {
         style={{ marginRight: 6, flexShrink: 0 }}
       >
         <defs>
-          <linearGradient id="ok-crown-grad-login" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#FFD740" />
-            <stop offset="100%" stopColor="#D4900A" />
+          <linearGradient id="zb-grad-login" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#38bdf8" />
+            <stop offset="100%" stopColor="#6366f1" />
           </linearGradient>
         </defs>
-        <rect x="8" y="34" width="40" height="8" rx="2" fill="url(#ok-crown-grad-login)" />
-        <polygon
-          points="8,34 14,12 22,22 28,10 34,22 42,12 48,34"
-          fill="url(#ok-crown-grad-login)"
-        />
-        <polygon points="28,2 34,10 28,16 22,10" fill="#FFE57A" />
-        <circle cx="14" cy="12" r="3.5" fill="#FFD740" />
-        <circle cx="42" cy="12" r="3.5" fill="#FFD740" />
+        <polygon points="32,4 18,28 27,28 24,52 38,28 29,28" fill="url(#zb-grad-login)" />
       </svg>
 
-      {/* Wordmark */}
       <div style={{ display: 'flex', alignItems: 'baseline', lineHeight: 1 }}>
+        <span
+          style={{
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontWeight: 900,
+            fontStyle: 'italic',
+            fontSize: '1.25rem',
+            letterSpacing: '-0.02em',
+            background: 'linear-gradient(135deg, #38bdf8 0%, #6366f1 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+          }}
+        >
+          Zyno
+        </span>
         <span
           style={{
             fontFamily: 'Georgia, "Times New Roman", serif',
@@ -80,22 +86,7 @@ function OddsKingLogo() {
             color: 'var(--text-main)',
           }}
         >
-          Odds
-        </span>
-        <span
-          style={{
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            fontSize: '1.25rem',
-            letterSpacing: '-0.02em',
-            background: 'linear-gradient(135deg, #FFD740 0%, #D4900A 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}
-        >
-          King
+          Bet
         </span>
       </div>
     </div>
@@ -103,12 +94,11 @@ function OddsKingLogo() {
 }
 
 // ---------------------------------------------------------------------------
-// OddsKingLogo — large variant for the decorative left panel
+// ZynoBetLogoLarge — large variant for the decorative left panel
 // ---------------------------------------------------------------------------
-function OddsKingLogoLarge() {
+function ZynoBetLogoLarge() {
   return (
-    <div className="flex flex-col items-center gap-3 select-none" aria-label="OddsKing">
-      {/* Crown icon — large */}
+    <div className="flex flex-col items-center gap-3 select-none" aria-label="ZynoBet">
       <svg
         width="72"
         height="72"
@@ -118,23 +108,27 @@ function OddsKingLogoLarge() {
         aria-hidden="true"
       >
         <defs>
-          <linearGradient id="ok-crown-grad-login-lg" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#FFD740" />
-            <stop offset="100%" stopColor="#D4900A" />
+          <linearGradient id="zb-grad-login-lg" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#38bdf8" />
+            <stop offset="100%" stopColor="#6366f1" />
           </linearGradient>
         </defs>
-        <rect x="8" y="34" width="40" height="8" rx="2" fill="url(#ok-crown-grad-login-lg)" />
-        <polygon
-          points="8,34 14,12 22,22 28,10 34,22 42,12 48,34"
-          fill="url(#ok-crown-grad-login-lg)"
-        />
-        <polygon points="28,2 34,10 28,16 22,10" fill="#FFE57A" />
-        <circle cx="14" cy="12" r="3.5" fill="#FFD740" />
-        <circle cx="42" cy="12" r="3.5" fill="#FFD740" />
+        <polygon points="32,4 18,28 27,28 24,52 38,28 29,28" fill="url(#zb-grad-login-lg)" />
       </svg>
 
-      {/* Wordmark */}
       <div style={{ display: 'flex', alignItems: 'baseline', lineHeight: 1 }}>
+        <span
+          style={{
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontWeight: 900,
+            fontStyle: 'italic',
+            fontSize: '2.5rem',
+            letterSpacing: '-0.02em',
+            color: '#38bdf8',
+          }}
+        >
+          Zyno
+        </span>
         <span
           style={{
             fontFamily: 'Georgia, "Times New Roman", serif',
@@ -145,22 +139,7 @@ function OddsKingLogoLarge() {
             color: '#ffffff',
           }}
         >
-          Odds
-        </span>
-        <span
-          style={{
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            fontSize: '2.5rem',
-            letterSpacing: '-0.02em',
-            background: 'linear-gradient(135deg, #FFD740 0%, #D4900A 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}
-        >
-          King
+          Bet
         </span>
       </div>
     </div>
@@ -234,16 +213,15 @@ export default function LoginPage() {
       {/* ── Left decorative panel — hidden on mobile ── */}
       <div
         className="hidden md:flex flex-1 items-center justify-center p-12 relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, var(--primary) 0%, #b91c1c 100%)' }}
+        style={{ background: 'linear-gradient(135deg, #6366f1 0%, #1e40af 100%)' }}
       >
         <div className="absolute -top-16 -left-16 w-64 h-64 rounded-full opacity-10" style={{ backgroundColor: '#fff' }} />
         <div className="absolute -bottom-24 -right-12 w-80 h-80 rounded-full opacity-10" style={{ backgroundColor: '#fff' }} />
         <div className="absolute top-1/2 left-1/4 w-32 h-32 rounded-full opacity-5" style={{ backgroundColor: '#fff' }} />
 
         <div className="relative text-white text-center max-w-sm">
-          {/* OddsKing logo — large, white wordmark */}
           <div className="mb-6">
-            <OddsKingLogoLarge />
+            <ZynoBetLogoLarge />
           </div>
 
           <p className="text-sm font-semibold tracking-[3px] uppercase opacity-60 mb-6">Sports Betting</p>
@@ -268,9 +246,8 @@ export default function LoginPage() {
       {/* ── Mobile top banner ── */}
       <div
         className="md:hidden px-5 py-5 text-white flex items-center gap-3"
-        style={{ background: 'linear-gradient(135deg, var(--primary) 0%, #b91c1c 100%)' }}
+        style={{ background: 'linear-gradient(135deg, #6366f1 0%, #1e40af 100%)' }}
       >
-        {/* Crown icon — small for mobile banner */}
         <svg
           width="32"
           height="32"
@@ -281,16 +258,12 @@ export default function LoginPage() {
           style={{ flexShrink: 0 }}
         >
           <defs>
-            <linearGradient id="ok-crown-grad-login-mob" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#FFD740" />
-              <stop offset="100%" stopColor="#D4900A" />
+            <linearGradient id="zb-grad-login-mob" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#38bdf8" />
+              <stop offset="100%" stopColor="#ffffff" />
             </linearGradient>
           </defs>
-          <rect x="8" y="34" width="40" height="8" rx="2" fill="url(#ok-crown-grad-login-mob)" />
-          <polygon points="8,34 14,12 22,22 28,10 34,22 42,12 48,34" fill="url(#ok-crown-grad-login-mob)" />
-          <polygon points="28,2 34,10 28,16 22,10" fill="#FFE57A" />
-          <circle cx="14" cy="12" r="3.5" fill="#FFD740" />
-          <circle cx="42" cy="12" r="3.5" fill="#FFD740" />
+          <polygon points="32,4 18,28 27,28 24,52 38,28 29,28" fill="url(#zb-grad-login-mob)" />
         </svg>
 
         <div>
@@ -302,10 +275,10 @@ export default function LoginPage() {
                 fontStyle: 'italic',
                 fontSize: '1.25rem',
                 letterSpacing: '-0.02em',
-                color: '#ffffff',
+                color: '#38bdf8',
               }}
             >
-              Odds
+              Zyno
             </span>
             <span
               style={{
@@ -314,10 +287,10 @@ export default function LoginPage() {
                 fontStyle: 'italic',
                 fontSize: '1.25rem',
                 letterSpacing: '-0.02em',
-                color: '#FFD740',
+                color: '#ffffff',
               }}
             >
-              King
+              Bet
             </span>
           </div>
           <p className="text-xs opacity-70 mt-0.5">Sports Betting</p>
