@@ -37,7 +37,8 @@ export default function DepositPage() {
   }, [step, sub]);
 
   const fmt = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
-  const tok = () => localStorage.getItem("token") || sessionStorage.getItem("token") || "";
+  // Same key used in LoginPage.tsx — TOKEN_KEY = "accessToken"
+  const tok = () => localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken") || "";
 
   const handleInit = async () => {
     setError("");
