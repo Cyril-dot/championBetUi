@@ -321,43 +321,66 @@ function PaymentOverlay({
   };
 
   return (
-    <div style={{
-      minHeight: '100vh', backgroundColor: 'var(--card-alt)',
-      display: 'flex', flexDirection: 'column',
-    }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999 }}>
       <style>{`
-        @keyframes spin  { to { transform: rotate(360deg) } }
-        @keyframes fadeUp { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }
+        @keyframes spin    { to { transform: rotate(360deg) } }
+        @keyframes slideUp { from { opacity:0; transform:translateY(40px) } to { opacity:1; transform:translateY(0) } }
         input[type=number]::-webkit-inner-spin-button,
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
       `}</style>
 
-      {/* Hidden Moolre iframe — loads in background */}
+      {/* ── Moolre iframe fills entire screen behind overlay ── */}
       <iframe
         ref={iframeRef}
         src={authUrl}
-        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', border: 'none' }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
         title="moolre-payment"
         onLoad={() => setIframeReady(true)}
       />
 
-      {/* ── Custom payment UI ── */}
-      <div style={{ maxWidth: 440, margin: '0 auto', width: '100%', padding: '0 14px 40px', animation: 'fadeUp 0.3s ease' }}>
+      {/* ── Dark backdrop over iframe ── */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        backdropFilter: 'blur(2px)',
+      }} />
+
+      {/* ── Custom overlay card — centred, floats above everything ── */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: 16,
+      }}>
+      <div style={{ maxWidth: 420, width: '100%', animation: 'slideUp 0.3s ease' }}>
+
+        <div style={{
+          backgroundColor: 'var(--card-bg)',
+          border: '1px solid var(--border-light)',
+          borderRadius: 20,
+          padding: '20px 18px 22px',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.22)',
+          display: 'flex', flexDirection: 'column', gap: 10,
+        }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '16px 0 14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>📱</span>
+            <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-main)' }}>Mobile Money</span>
+          </div>
           <button
             type="button"
             onClick={onCancel}
             style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-muted)', fontSize: 20, padding: '0 8px 0 0', lineHeight: 1,
+              background: 'rgba(0,0,0,0.06)', border: 'none', cursor: 'pointer',
+              color: 'var(--text-muted)', fontSize: 16, width: 30, height: 30,
+              borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              lineHeight: 1, fontWeight: 700,
             }}
           >
-            ←
+            ✕
           </button>
-          <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-main)' }}>Mobile Money</span>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -507,9 +530,12 @@ function PaymentOverlay({
           <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>
             🔒 Secured by Moolre · MTN · Telecel · AirtelTigo
           </div>
-        </div>
-      </div>
-    </div>
+
+        </div>{/* end inner flex col */}
+        </div>{/* end card */}
+      </div>{/* end max-width wrapper */}
+      </div>{/* end centering flex */}
+    </div>{/* end fixed root */}
   );
 }
 
