@@ -531,11 +531,11 @@ function PaymentOverlay({
             🔒 Secured by Moolre · MTN · Telecel · AirtelTigo
           </div>
 
-        </div>{/* end inner flex col */}
-        </div>{/* end card */}
-      </div>{/* end max-width wrapper */}
-      </div>{/* end centering flex */}
-    </div>{/* end fixed root */}
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
   );
 }
 
