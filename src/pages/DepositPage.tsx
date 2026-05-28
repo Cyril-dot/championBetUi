@@ -8,7 +8,7 @@ const TX_FAILED       = 2;
 const API_BASE        = "https://futballbackend-production-aefb.up.railway.app";
 const POLL_INTERVAL   = 5000;
 
-// ── Network Logos (real SVG-based brand logos) ─────────────────────────────────
+// ── Network Logos ──────────────────────────────────────────────────────────────
 const MTNLogo = () => (
   <svg viewBox="0 0 40 40" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
     <circle cx="20" cy="20" r="20" fill="#FFCC00"/>
@@ -40,37 +40,84 @@ const NETWORKS = [
   { id: "AIRTELTIGO", label: "AirtelTigo", sub: "Money", color: "#0058a3", bg: "#eaf3ff", border: "#7ab8f5", Logo: AirtelTigoLogo },
 ];
 
-// ── API helpers ────────────────────────────────────────────────────────────────
+// ── Auth header helper — reads from localStorage (set by LoginPage.saveSession) ─
 function getAuthHeader() {
   if (typeof window === "undefined") return {};
-  const token = localStorage.getItem("accessToken");
+  const token =
+    localStorage.getItem("accessToken") ||
+    sessionStorage.getItem("accessToken");
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// ── Phone normalisation ────────────────────────────────────────────────────────
+/**
+ * Moolre requires the number to start with "0" and NOT include the country code.
+ * Examples of accepted: "0244123456", "0551234567"
+ * Examples of what users might type: "233244123456", "+233244123456", "244123456"
+ *
+ * Strategy:
+ *   1. Strip all non-digits.
+ *   2. If starts with "233" (Ghana country code), remove it → prefix with "0".
+ *   3. If already starts with "0", keep as-is.
+ *   4. Otherwise (9-digit local without leading 0), prefix with "0".
+ */
+function normalisePhone(raw) {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.startsWith("233")) return "0" + digits.slice(3);
+  if (digits.startsWith("0"))   return digits;
+  return "0" + digits; // bare 9-digit number → add leading 0
+}
+
+// ── API helpers ────────────────────────────────────────────────────────────────
 async function moolreInit(amount, phone, network) {
+  const normalisedPhone = normalisePhone(phone);
+
   const res = await fetch(`${API_BASE}/api/wallet/deposit/moolre/init`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...getAuthHeader() },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeader(),
+    },
     credentials: "include",
-    body: JSON.stringify({ amount, phone, network }),
+    body: JSON.stringify({ amount, phone: normalisedPhone, network }),
   });
+
   const json = await res.json();
-  if (!res.ok) throw new Error(json?.message ?? `HTTP ${res.status}`);
-  const inner = json?.data ?? json;
+  if (!res.ok) {
+    // Surface the backend error message directly so users see exactly what went wrong
+    throw new Error(
+      json?.message ||
+      json?.error   ||
+      `Request failed (HTTP ${res.status}). Please try again.`
+    );
+  }
+
+  const inner      = json?.data ?? json;
   const externalref = inner?.externalref ?? "";
-  if (!externalref) throw new Error("No transaction reference returned. Please try again.");
-  return { externalref, message: inner?.message ?? "Please approve the USSD prompt on your phone." };
+  if (!externalref)
+    throw new Error("No transaction reference returned. Please try again.");
+
+  return {
+    externalref,
+    message: inner?.message ?? "Please approve the USSD prompt on your phone.",
+  };
 }
 
 async function moolreVerify(externalref) {
   const res = await fetch(`${API_BASE}/api/wallet/deposit/moolre/verify`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...getAuthHeader() },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeader(),
+    },
     credentials: "include",
     body: JSON.stringify({ externalref }),
   });
+
   const json = await res.json();
-  if (!res.ok) throw new Error(json?.message ?? `HTTP ${res.status}`);
+  if (!res.ok)
+    throw new Error(json?.message ?? `HTTP ${res.status}`);
+
   const inner = json?.data ?? json;
   return {
     credited: Boolean(inner?.credited),
@@ -82,8 +129,12 @@ async function moolreVerify(externalref) {
 // ── Formatters ─────────────────────────────────────────────────────────────────
 function fmtGHS(n) {
   try {
-    return new Intl.NumberFormat("en-GH", { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n);
-  } catch { return `GHS ${Number(n).toFixed(2)}`; }
+    return new Intl.NumberFormat("en-GH", {
+      style: "currency", currency: "GHS", maximumFractionDigits: 2,
+    }).format(n);
+  } catch {
+    return `GHS ${Number(n).toFixed(2)}`;
+  }
 }
 function fmtQuick(n) { return n >= 1000 ? `${n / 1000}k` : String(n); }
 
@@ -103,7 +154,6 @@ const GLOBAL_CSS = `
   .dp input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
   .dp input[type=number] { -moz-appearance: textfield; }
 
-  /* Page */
   .dp .page {
     min-height: 100vh;
     background: #f0f6ff;
@@ -111,7 +161,6 @@ const GLOBAL_CSS = `
     padding: 1.5rem 1rem;
   }
 
-  /* Card */
   .dp .card {
     background: #fff;
     border-radius: 20px;
@@ -121,7 +170,6 @@ const GLOBAL_CSS = `
     animation: fadeUp 0.28s ease both;
   }
 
-  /* Header */
   .dp .card-header {
     display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem;
   }
@@ -135,11 +183,8 @@ const GLOBAL_CSS = `
     font-size: 16px; font-weight: 800; color: #0c447c;
     margin: 0; letter-spacing: -0.02em;
   }
-  .dp .header-sub {
-    font-size: 10px; font-weight: 600; color: #378ADD; margin: 1px 0 0;
-  }
+  .dp .header-sub { font-size: 10px; font-weight: 600; color: #378ADD; margin: 1px 0 0; }
 
-  /* Balance pill */
   .dp .balance-pill {
     margin-left: auto;
     display: flex; align-items: center; gap: 5px;
@@ -149,7 +194,6 @@ const GLOBAL_CSS = `
   }
   .dp .balance-dot { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; }
 
-  /* Progress */
   .dp .progress-track {
     height: 3px; border-radius: 2px; background: #e6f1fb;
     margin-bottom: 1.25rem; overflow: hidden;
@@ -160,7 +204,6 @@ const GLOBAL_CSS = `
     transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
   }
 
-  /* Step indicator */
   .dp .step-row    { display: flex; align-items: center; gap: 0; margin-bottom: 3px; }
   .dp .step-dot    {
     width: 22px; height: 22px; border-radius: 50%;
@@ -175,22 +218,18 @@ const GLOBAL_CSS = `
   .dp .step-labels     { display: flex; justify-content: space-between; margin-top: 3px; margin-bottom: 1.25rem; }
   .dp .step-lbl        { font-size: 8px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; flex: 1; text-align: center; }
 
-  /* Section label */
   .dp .sec-label {
     display: block; font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
     text-transform: uppercase; color: #378ADD; margin-bottom: 6px;
   }
 
-  /* Divider */
   .dp .divider { border: none; border-top: 1px solid #e6f1fb; margin: 0 0 1.25rem; }
 
-  /* Amount card */
   .dp .field-card {
     border: 1.5px solid #b5d4f4; border-radius: 13px;
     padding: 12px; background: #f7fbff; margin-bottom: 10px;
   }
 
-  /* Amount input */
   .dp .amount-row {
     display: flex; align-items: center;
     border: 1.5px solid #b5d4f4; border-radius: 10px;
@@ -214,7 +253,6 @@ const GLOBAL_CSS = `
   .dp .amount-input::placeholder { color: #b5d4f4; }
   .dp .amount-hint { font-size: 10px; font-weight: 600; margin-top: 5px; }
 
-  /* Quick chips */
   .dp .quick-grid { display: grid; grid-template-columns: repeat(6,1fr); gap: 5px; margin-top: 10px; }
   .dp .quick-chip {
     padding: 6px 3px; border-radius: 7px; text-align: center;
@@ -225,7 +263,7 @@ const GLOBAL_CSS = `
   .dp .quick-chip:hover { border-color: #185FA5; color: #0c447c; background: #e6f1fb; }
   .dp .quick-chip.on { border-color: #185FA5; background: #185FA5; color: #fff; }
 
-  /* Phone input */
+  /* Phone field */
   .dp .phone-row {
     display: flex; align-items: center;
     border: 1.5px solid #b5d4f4; border-radius: 10px;
@@ -248,6 +286,7 @@ const GLOBAL_CSS = `
     font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em;
   }
   .dp .phone-input::placeholder { color: #b5d4f4; }
+  .dp .phone-hint { font-size: 10px; font-weight: 600; margin-top: 5px; color: #378ADD; }
 
   /* Network cards */
   .dp .net-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-top: 10px; }
@@ -269,7 +308,6 @@ const GLOBAL_CSS = `
     justify-content: center; font-size: 8px; color: #fff; font-weight: 800;
   }
 
-  /* Tip */
   .dp .tip {
     display: flex; gap: 8px; align-items: flex-start;
     padding: 9px 11px; border-radius: 10px;
@@ -277,12 +315,10 @@ const GLOBAL_CSS = `
     font-size: 11px; color: #378ADD; line-height: 1.6; margin-bottom: 10px;
   }
 
-  /* Alert boxes */
   .dp .box-err  { padding: 9px 12px; border-radius: 10px; background: #fff0f0; border: 1.5px solid #f4a0a8; font-size: 11px; color: #9b1c1c; line-height: 1.55; font-weight: 500; margin-bottom: 8px; }
   .dp .box-info { padding: 9px 12px; border-radius: 10px; background: #e6f1fb; border: 1.5px solid #b5d4f4; font-size: 11px; color: #0c447c; line-height: 1.55; font-weight: 500; margin-bottom: 8px; }
   .dp .box-ok   { padding: 9px 12px; border-radius: 10px; background: #ecfdf5; border: 1.5px solid #6ee7b7; font-size: 11px; color: #065f46; line-height: 1.55; font-weight: 500; margin-bottom: 8px; }
 
-  /* Buttons */
   .dp .btn-primary {
     width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px;
     padding: 12px 18px; border-radius: 10px; border: none;
@@ -312,7 +348,6 @@ const GLOBAL_CSS = `
     animation: spin 0.65s linear infinite; flex-shrink: 0;
   }
 
-  /* Awaiting card */
   .dp .await-card {
     border-radius: 16px; padding: 22px 16px;
     background: #f7fbff; border: 1.5px solid #b5d4f4;
@@ -339,7 +374,6 @@ const GLOBAL_CSS = `
     animation: breathe 2.4s ease-in-out infinite;
   }
 
-  /* Poll dots */
   .dp .poll-dots { display: flex; gap: 4px; align-items: center; }
   .dp .poll-dot  {
     width: 4px; height: 4px; border-radius: 50%; background: #378ADD;
@@ -348,7 +382,6 @@ const GLOBAL_CSS = `
   .dp .poll-dot:nth-child(2) { animation-delay: 0.2s; }
   .dp .poll-dot:nth-child(3) { animation-delay: 0.4s; }
 
-  /* Result cards */
   .dp .result-card {
     border-radius: 16px; padding: 22px 16px;
     display: flex; flex-direction: column; align-items: center; gap: 14px;
@@ -359,7 +392,6 @@ const GLOBAL_CSS = `
     display: flex; align-items: center; justify-content: center; font-size: 26px;
   }
 
-  /* Ref box */
   .dp .ref-box {
     background: #e6f1fb; border-radius: 8px;
     padding: 8px 12px; width: 100%;
@@ -369,6 +401,14 @@ const GLOBAL_CSS = `
   .dp .ref-label { font-size: 8px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #378ADD; display: block; margin-bottom: 2px; }
 
   .dp .security-note { text-align: center; font-size: 10px; color: #b5d4f4; font-weight: 500; margin-top: 4px; }
+
+  /* Not-authenticated banner */
+  .dp .auth-banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 14px; border-radius: 12px; margin-bottom: 14px;
+    background: #fff8dc; border: 1.5px solid #ffe066;
+    font-size: 12px; font-weight: 600; color: #7a5a00;
+  }
 `;
 
 // ── Step Indicator ─────────────────────────────────────────────────────────────
@@ -406,7 +446,6 @@ function Shell({ children, step, walletBalance }) {
       <style>{GLOBAL_CSS}</style>
       <div className="page">
         <div className="card">
-          {/* Header */}
           <div className="card-header">
             <div className="header-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -427,14 +466,11 @@ function Shell({ children, step, walletBalance }) {
             )}
           </div>
 
-          {/* Progress bar */}
           <div className="progress-track">
             <div className="progress-fill" style={{ width: `${progress}%` }} />
           </div>
 
-          {/* Step indicator */}
           <StepIndicator step={step} />
-
           <hr className="divider" />
 
           {children}
@@ -456,16 +492,35 @@ function GhostBtn({ children, onClick }) {
   return <button className="btn-ghost" onClick={onClick}>{children}</button>;
 }
 
+// ── Not-authenticated banner ───────────────────────────────────────────────────
+function AuthBanner() {
+  return (
+    <div className="auth-banner">
+      <span style={{ fontSize: 16 }}>⚠️</span>
+      <span>
+        You are not logged in. Please{" "}
+        <a href="/login" style={{ color: "#185FA5", fontWeight: 700, textDecoration: "underline" }}>
+          log in
+        </a>{" "}
+        to make a deposit.
+      </span>
+    </div>
+  );
+}
+
 // ── Step 1: Amount + Phone + Network ──────────────────────────────────────────
-function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, onPay, loading, error }) {
+function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, onPay, loading, error, isAuthed }) {
   const parsed      = parseFloat(amount);
   const amountValid = !isNaN(parsed) && parsed >= MIN_GHS;
   const phoneClean  = phone.replace(/\D/g, "");
+  // Accept 9–12 digits (covers 0XXXXXXXXX format and raw 9-digit without leading 0)
   const phoneValid  = phoneClean.length >= 9 && phoneClean.length <= 12;
-  const canPay      = amountValid && phoneValid && network !== "";
+  const canPay      = amountValid && phoneValid && network !== "" && isAuthed;
 
   return (
     <div>
+      {!isAuthed && <AuthBanner />}
+
       {/* Amount */}
       <div className="field-card">
         <span className="sec-label">Amount</span>
@@ -486,7 +541,11 @@ function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, o
         </div>
         <div className="quick-grid">
           {QUICK_AMOUNTS.map((qa) => (
-            <button key={qa} className={`quick-chip${amount === qa.toString() ? " on" : ""}`} onClick={() => setAmount(qa.toString())}>
+            <button
+              key={qa}
+              className={`quick-chip${amount === qa.toString() ? " on" : ""}`}
+              onClick={() => setAmount(qa.toString())}
+            >
               {fmtQuick(qa)}
             </button>
           ))}
@@ -503,12 +562,14 @@ function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, o
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 12))}
-            placeholder="244 123 456"
+            placeholder="0244 123 456"
             inputMode="numeric"
           />
         </div>
-        <div style={{ fontSize: 10, fontWeight: 600, marginTop: 5, color: phone && !phoneValid ? "#e53e3e" : "#378ADD" }}>
-          {phone && !phoneValid ? "Enter a valid MoMo number" : "e.g. 0244123456"}
+        <div className="phone-hint" style={{ color: phone && !phoneValid ? "#e53e3e" : "#378ADD" }}>
+          {phone && !phoneValid
+            ? "Enter a valid MoMo number (e.g. 0244123456)"
+            : "Enter your full number starting with 0 (e.g. 0244123456)"}
         </div>
 
         <span className="sec-label" style={{ marginTop: 12 }}>Select Network</span>
@@ -537,14 +598,21 @@ function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, o
       <div className="tip">
         <span style={{ fontSize: 13, flexShrink: 0 }}>📲</span>
         <span>
-          A <strong style={{ color: "#0c447c" }}>USSD prompt</strong> will be sent to your MoMo phone. Approve it to complete your deposit.
+          A <strong style={{ color: "#0c447c" }}>USSD prompt</strong> will be sent to your MoMo phone.
+          Approve it within 2 minutes to complete your deposit.
         </span>
       </div>
 
       {error && <div className="box-err">⚠️ {error}</div>}
 
       <PrimaryBtn onClick={onPay} disabled={!canPay} loading={loading}>
-        {!loading && (canPay ? `Send USSD Prompt · ${fmtGHS(parsed)}` : "Fill in amount, phone & network")}
+        {!loading && (
+          isAuthed
+            ? canPay
+              ? `Send USSD Prompt · ${fmtGHS(parsed)}`
+              : "Fill in amount, phone & network"
+            : "Log in to deposit"
+        )}
       </PrimaryBtn>
       <p className="security-note" style={{ marginTop: 8 }}>🔒 Secured by Moolre · USSD Direct Charge</p>
     </div>
@@ -553,8 +621,11 @@ function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, o
 
 // ── Step 2: Awaiting ───────────────────────────────────────────────────────────
 function AwaitingStep({ amount, phone, network, externalRef, verifyMsg, verifyLoading, pollCount, onVerify, onCancel }) {
-  const net = NETWORKS.find((n) => n.id === network);
+  const net  = NETWORKS.find((n) => n.id === network);
   const Logo = net?.Logo;
+  // Show normalised phone in the UI (starts with 0)
+  const displayPhone = normalisePhone(phone || "");
+
   return (
     <div className="await-card">
       <div className="pulse-wrap">
@@ -577,7 +648,7 @@ function AwaitingStep({ amount, phone, network, externalRef, verifyMsg, verifyLo
           fontSize: 12, fontWeight: 700, fontFamily: "JetBrains Mono, monospace", color: "#0c447c",
         }}>
           {Logo && <Logo />}
-          +233 {phone.replace(/^0/, "")}
+          {displayPhone}
         </div>
         <div style={{ fontSize: 11, color: "#378ADD", marginTop: 10, lineHeight: 1.65 }}>
           Check your phone for a <strong style={{ color: "#0c447c" }}>USSD prompt</strong> and approve the payment.
@@ -599,8 +670,14 @@ function AwaitingStep({ amount, phone, network, externalRef, verifyMsg, verifyLo
       </div>
 
       {verifyMsg && (
-        <div className={verifyMsg.toLowerCase().includes("fail") || verifyMsg.toLowerCase().includes("cancel") ? "box-err" : "box-info"}
-          style={{ width: "100%", margin: 0 }}>
+        <div
+          className={
+            verifyMsg.toLowerCase().includes("fail") || verifyMsg.toLowerCase().includes("cancel")
+              ? "box-err"
+              : "box-info"
+          }
+          style={{ width: "100%", margin: 0 }}
+        >
           {verifyMsg}
         </div>
       )}
@@ -672,10 +749,19 @@ export default function DepositPage() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(null);
   const [pollCount,     setPollCount]     = useState(0);
+  const [isAuthed,      setIsAuthed]      = useState(false);
 
   const pollTimer = useRef(null);
 
-  // Resume in-progress payment on page reload
+  // ── Check auth on mount ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const token =
+      localStorage.getItem("accessToken") ||
+      sessionStorage.getItem("accessToken");
+    setIsAuthed(!!token);
+  }, []);
+
+  // ── Resume in-progress payment on page reload ─────────────────────────────
   useEffect(() => {
     const savedRef     = localStorage.getItem("moolre_externalref");
     const savedAmount  = localStorage.getItem("moolre_amount");
@@ -690,7 +776,7 @@ export default function DepositPage() {
     }
   }, []);
 
-  // Auto-poll while on awaiting screen
+  // ── Auto-poll while on awaiting screen ───────────────────────────────────
   useEffect(() => {
     if (step !== "awaiting" || !externalRef) return;
     const poll = async () => {
@@ -698,18 +784,22 @@ export default function DepositPage() {
       try {
         const { credited, txstatus } = await moolreVerify(externalRef);
         if (credited || txstatus === TX_SUCCESS) { clearSavedRef(); setStep("success"); }
-        else if (txstatus === TX_FAILED) { clearSavedRef(); setErrorMsg("Payment failed or was cancelled."); setStep("error"); }
-        else { pollTimer.current = setTimeout(poll, POLL_INTERVAL); }
-      } catch { pollTimer.current = setTimeout(poll, POLL_INTERVAL); }
+        else if (txstatus === TX_FAILED)          { clearSavedRef(); setErrorMsg("Payment failed or was cancelled."); setStep("error"); }
+        else                                      { pollTimer.current = setTimeout(poll, POLL_INTERVAL); }
+      } catch {
+        pollTimer.current = setTimeout(poll, POLL_INTERVAL);
+      }
     };
     pollTimer.current = setTimeout(poll, POLL_INTERVAL);
     return () => { if (pollTimer.current) clearTimeout(pollTimer.current); };
   }, [step, externalRef]);
 
   const clearSavedRef = () => {
-    ["moolre_externalref", "moolre_amount", "moolre_phone", "moolre_network"].forEach((k) => localStorage.removeItem(k));
+    ["moolre_externalref", "moolre_amount", "moolre_phone", "moolre_network"]
+      .forEach((k) => localStorage.removeItem(k));
   };
 
+  // ── Initiate payment ──────────────────────────────────────────────────────
   const handlePay = async () => {
     const parsed = parseFloat(amount);
     if (isNaN(parsed) || parsed < MIN_GHS || !phone || !network) return;
@@ -725,12 +815,17 @@ export default function DepositPage() {
       setVerifyMsg(message);
       setStep("awaiting");
     } catch (e) {
-      setInitError(e instanceof Error ? e.message : "Could not start payment. Please try again.");
+      setInitError(
+        e instanceof Error
+          ? e.message
+          : "Could not start payment. Please try again."
+      );
     } finally {
       setInitLoading(false);
     }
   };
 
+  // ── Manual verify ─────────────────────────────────────────────────────────
   const handleVerify = async () => {
     if (!externalRef) return;
     if (pollTimer.current) clearTimeout(pollTimer.current);
@@ -738,9 +833,14 @@ export default function DepositPage() {
     setVerifyMsg("");
     try {
       const { credited, txstatus, message } = await moolreVerify(externalRef);
-      if (credited || txstatus === TX_SUCCESS) { clearSavedRef(); setStep("success"); }
-      else if (txstatus === TX_FAILED) { clearSavedRef(); setErrorMsg("Payment failed or was cancelled."); setStep("error"); }
-      else {
+      if (credited || txstatus === TX_SUCCESS) {
+        clearSavedRef();
+        setStep("success");
+      } else if (txstatus === TX_FAILED) {
+        clearSavedRef();
+        setErrorMsg("Payment failed or was cancelled.");
+        setStep("error");
+      } else {
         setVerifyMsg(message || "Payment still pending. Please approve the USSD prompt on your phone.");
         pollTimer.current = setTimeout(handleAutoPoll, POLL_INTERVAL);
       }
@@ -758,29 +858,35 @@ export default function DepositPage() {
     try {
       const { credited, txstatus } = await moolreVerify(externalRef);
       if (credited || txstatus === TX_SUCCESS) { clearSavedRef(); setStep("success"); }
-      else if (txstatus === TX_FAILED) { clearSavedRef(); setErrorMsg("Payment failed or was cancelled."); setStep("error"); }
-      else { pollTimer.current = setTimeout(handleAutoPoll, POLL_INTERVAL); }
-    } catch { pollTimer.current = setTimeout(handleAutoPoll, POLL_INTERVAL); }
+      else if (txstatus === TX_FAILED)          { clearSavedRef(); setErrorMsg("Payment failed or was cancelled."); setStep("error"); }
+      else                                      { pollTimer.current = setTimeout(handleAutoPoll, POLL_INTERVAL); }
+    } catch {
+      pollTimer.current = setTimeout(handleAutoPoll, POLL_INTERVAL);
+    }
   };
 
   const resetAll = () => {
     if (pollTimer.current) clearTimeout(pollTimer.current);
     clearSavedRef();
-    setStep("amount"); setAmount(""); setPhone(""); setNetwork("");
+    setStep("amount");
+    setAmount(""); setPhone(""); setNetwork("");
     setExternalRef(""); setErrorMsg(""); setVerifyMsg(""); setInitError("");
     setPollCount(0);
   };
 
-  const parsedAmount = parseFloat(amount) || parseFloat(localStorage.getItem("moolre_amount") || "0");
+  const parsedAmount =
+    parseFloat(amount) ||
+    parseFloat(localStorage.getItem("moolre_amount") || "0");
 
   return (
     <Shell step={step} walletBalance={walletBalance}>
       {step === "amount" && (
         <AmountStep
-          amount={amount} setAmount={setAmount}
-          phone={phone}   setPhone={setPhone}
+          amount={amount}   setAmount={setAmount}
+          phone={phone}     setPhone={setPhone}
           network={network} setNetwork={setNetwork}
-          onPay={handlePay} loading={initLoading} error={initError}
+          onPay={handlePay} loading={initLoading}
+          error={initError} isAuthed={isAuthed}
         />
       )}
       {step === "awaiting" && (
@@ -797,7 +903,8 @@ export default function DepositPage() {
       {step === "success" && (
         <SuccessStep
           amount={parsedAmount} externalRef={externalRef}
-          onWallet={() => window.location.href = "/wallet"} onAgain={resetAll}
+          onWallet={() => (window.location.href = "/wallet")}
+          onAgain={resetAll}
         />
       )}
       {step === "error" && (
