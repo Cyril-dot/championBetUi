@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAppStore } from "../store";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const MIN_GHS         = 1;
-const QUICK_AMOUNTS   = [1, 500, 1000, 2000, 5000, 10000];
-const TX_SUCCESS      = 1;
-const TX_FAILED       = 2;
-const API_BASE        = "https://futballbackend-production-aefb.up.railway.app";
-const POLL_INTERVAL   = 5000;
+const MIN_GHS       = 1;
+const QUICK_AMOUNTS = [1, 500, 1000, 2000, 5000, 10000];
+const TX_SUCCESS    = 1;
+const TX_FAILED     = 2;
+const API_BASE      = "https://futballbackend-production-aefb.up.railway.app";
+const POLL_INTERVAL = 5000;
 
 // ── Network Logos ──────────────────────────────────────────────────────────────
 const MTNLogo = () => (
@@ -35,12 +37,14 @@ const AirtelTigoLogo = () => (
 );
 
 const NETWORKS = [
-  { id: "MTN",        label: "MTN",        sub: "MoMo",  color: "#c89a00", bg: "#fff8dc", border: "#ffe066", Logo: MTNLogo },
-  { id: "VODAFONE",   label: "Telecel",    sub: "Cash",  color: "#b30015", bg: "#fff0f0", border: "#f4a0a8", Logo: TelecelLogo },
-  { id: "AIRTELTIGO", label: "AirtelTigo", sub: "Money", color: "#0058a3", bg: "#eaf3ff", border: "#7ab8f5", Logo: AirtelTigoLogo },
+  { id: "MTN",        label: "MTN",        sub: "MoMo",  color: "#c89a00", bg: "#fff8dc", Logo: MTNLogo },
+  { id: "VODAFONE",   label: "Telecel",    sub: "Cash",  color: "#b30015", bg: "#fff0f0", Logo: TelecelLogo },
+  { id: "AIRTELTIGO", label: "AirtelTigo", sub: "Money", color: "#0058a3", bg: "#eaf3ff", Logo: AirtelTigoLogo },
 ];
 
-// ── Auth header helper — reads from localStorage (set by LoginPage.saveSession) ─
+// ── Auth token helper — mirrors LoginPage.saveSession ──────────────────────────
+// saveSession writes to localStorage always, and also sessionStorage when !remember.
+// So localStorage is the reliable source — same as what the Header's wallet API uses.
 function getAuthHeader() {
   if (typeof window === "undefined") return {};
   const token =
@@ -50,74 +54,42 @@ function getAuthHeader() {
 }
 
 // ── Phone normalisation ────────────────────────────────────────────────────────
-/**
- * Moolre requires the number to start with "0" and NOT include the country code.
- * Examples of accepted: "0244123456", "0551234567"
- * Examples of what users might type: "233244123456", "+233244123456", "244123456"
- *
- * Strategy:
- *   1. Strip all non-digits.
- *   2. If starts with "233" (Ghana country code), remove it → prefix with "0".
- *   3. If already starts with "0", keep as-is.
- *   4. Otherwise (9-digit local without leading 0), prefix with "0".
- */
+// Moolre requires the number to start with "0", no country code.
+// Handles: "0244123456", "233244123456", "+233244123456", "244123456"
 function normalisePhone(raw) {
   const digits = raw.replace(/\D/g, "");
   if (digits.startsWith("233")) return "0" + digits.slice(3);
   if (digits.startsWith("0"))   return digits;
-  return "0" + digits; // bare 9-digit number → add leading 0
+  return "0" + digits;
 }
 
 // ── API helpers ────────────────────────────────────────────────────────────────
 async function moolreInit(amount, phone, network) {
   const normalisedPhone = normalisePhone(phone);
-
   const res = await fetch(`${API_BASE}/api/wallet/deposit/moolre/init`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeader(),
-    },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     credentials: "include",
     body: JSON.stringify({ amount, phone: normalisedPhone, network }),
   });
-
   const json = await res.json();
-  if (!res.ok) {
-    // Surface the backend error message directly so users see exactly what went wrong
-    throw new Error(
-      json?.message ||
-      json?.error   ||
-      `Request failed (HTTP ${res.status}). Please try again.`
-    );
-  }
-
-  const inner      = json?.data ?? json;
+  if (!res.ok)
+    throw new Error(json?.message || json?.error || `Request failed (HTTP ${res.status}). Please try again.`);
+  const inner = json?.data ?? json;
   const externalref = inner?.externalref ?? "";
-  if (!externalref)
-    throw new Error("No transaction reference returned. Please try again.");
-
-  return {
-    externalref,
-    message: inner?.message ?? "Please approve the USSD prompt on your phone.",
-  };
+  if (!externalref) throw new Error("No transaction reference returned. Please try again.");
+  return { externalref, message: inner?.message ?? "Please approve the USSD prompt on your phone." };
 }
 
 async function moolreVerify(externalref) {
   const res = await fetch(`${API_BASE}/api/wallet/deposit/moolre/verify`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeader(),
-    },
+    headers: { "Content-Type": "application/json", ...getAuthHeader() },
     credentials: "include",
     body: JSON.stringify({ externalref }),
   });
-
   const json = await res.json();
-  if (!res.ok)
-    throw new Error(json?.message ?? `HTTP ${res.status}`);
-
+  if (!res.ok) throw new Error(json?.message ?? `HTTP ${res.status}`);
   const inner = json?.data ?? json;
   return {
     credited: Boolean(inner?.credited),
@@ -129,12 +101,8 @@ async function moolreVerify(externalref) {
 // ── Formatters ─────────────────────────────────────────────────────────────────
 function fmtGHS(n) {
   try {
-    return new Intl.NumberFormat("en-GH", {
-      style: "currency", currency: "GHS", maximumFractionDigits: 2,
-    }).format(n);
-  } catch {
-    return `GHS ${Number(n).toFixed(2)}`;
-  }
+    return new Intl.NumberFormat("en-GH", { style: "currency", currency: "GHS", maximumFractionDigits: 2 }).format(n);
+  } catch { return `GHS ${Number(n).toFixed(2)}`; }
 }
 function fmtQuick(n) { return n >= 1000 ? `${n / 1000}k` : String(n); }
 
@@ -142,273 +110,174 @@ function fmtQuick(n) { return n >= 1000 ? `${n / 1000}k` : String(n); }
 const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap');
 
-  @keyframes spin    { to { transform: rotate(360deg); } }
-  @keyframes fadeUp  { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-  @keyframes popIn   { 0% { transform: scale(0.94); opacity: 0; } 65% { transform: scale(1.02); } 100% { transform: scale(1); opacity: 1; } }
-  @keyframes breathe { 0%,100% { box-shadow: 0 0 0 0 rgba(24,95,165,0.2); } 50% { box-shadow: 0 0 0 8px rgba(24,95,165,0); } }
-  @keyframes pulse-ring { 0% { transform: scale(1); opacity: 0.55; } 100% { transform: scale(1.65); opacity: 0; } }
-  @keyframes blink   { 0%,100% { opacity: 0.25; } 50% { opacity: 1; } }
+  @keyframes dp-spin        { to { transform: rotate(360deg); } }
+  @keyframes dp-fadeUp      { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes dp-popIn       { 0%{transform:scale(.94);opacity:0} 65%{transform:scale(1.02)} 100%{transform:scale(1);opacity:1} }
+  @keyframes dp-breathe     { 0%,100%{box-shadow:0 0 0 0 rgba(24,95,165,.2)} 50%{box-shadow:0 0 0 8px rgba(24,95,165,0)} }
+  @keyframes dp-pulse-ring  { 0%{transform:scale(1);opacity:.55} 100%{transform:scale(1.65);opacity:0} }
+  @keyframes dp-blink       { 0%,100%{opacity:.25} 50%{opacity:1} }
+  @keyframes dp-auth-slide  { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
 
-  .dp * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+  .dp * { box-sizing:border-box; font-family:'Plus Jakarta Sans',system-ui,sans-serif; }
   .dp input[type=number]::-webkit-inner-spin-button,
-  .dp input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
-  .dp input[type=number] { -moz-appearance: textfield; }
+  .dp input[type=number]::-webkit-outer-spin-button { -webkit-appearance:none; }
+  .dp input[type=number] { -moz-appearance:textfield; }
 
   .dp .page {
-    min-height: 100vh;
-    background: #f0f6ff;
-    display: flex; align-items: center; justify-content: center;
-    padding: 1.5rem 1rem;
+    min-height: calc(100vh - 4rem);
+    background: var(--bg-page, #f0f6ff);
+    display:flex; align-items:center; justify-content:center;
+    padding:1.5rem 1rem;
   }
 
   .dp .card {
-    background: #fff;
-    border-radius: 20px;
-    box-shadow: 0 4px 32px rgba(24,95,165,0.10), 0 1px 4px rgba(24,95,165,0.06);
-    padding: 1.75rem 1.5rem;
-    width: 100%; max-width: 440px;
-    animation: fadeUp 0.28s ease both;
+    background: var(--card-bg, #fff);
+    border-radius:20px;
+    box-shadow:0 4px 32px rgba(24,95,165,.10),0 1px 4px rgba(24,95,165,.06);
+    padding:1.75rem 1.5rem;
+    width:100%; max-width:440px;
+    animation:dp-fadeUp .28s ease both;
   }
 
-  .dp .card-header {
-    display: flex; align-items: center; gap: 10px; margin-bottom: 1.25rem;
+  /* ── Auth gate card ──────────────────────────────────────────────────────── */
+  .dp .auth-gate {
+    border-radius:20px;
+    background: var(--card-bg, #fff);
+    box-shadow:0 4px 32px rgba(24,95,165,.10),0 1px 4px rgba(24,95,165,.06);
+    padding:2.5rem 2rem;
+    width:100%; max-width:400px;
+    display:flex; flex-direction:column; align-items:center; gap:1.25rem;
+    animation:dp-auth-slide .3s ease both;
+    text-align:center;
   }
+  .dp .auth-gate-icon {
+    width:64px; height:64px; border-radius:50%;
+    background:linear-gradient(135deg,#e6f1fb 0%,#dbeafe 100%);
+    border:2px solid #b5d4f4;
+    display:flex; align-items:center; justify-content:center; font-size:28px;
+  }
+  .dp .auth-gate-title {
+    font-size:18px; font-weight:800; letter-spacing:-.02em;
+    color: var(--text-main, #0c447c); margin:0;
+  }
+  .dp .auth-gate-sub {
+    font-size:13px; color: var(--text-muted, #378ADD);
+    line-height:1.6; margin:0;
+  }
+  .dp .auth-gate-actions { display:flex; flex-direction:column; gap:10px; width:100%; }
+  .dp .btn-login {
+    width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:13px 18px; border-radius:12px; border:none;
+    background:#185FA5; color:#fff;
+    font-size:14px; font-weight:700; cursor:pointer; transition:all .15s;
+    box-shadow:0 4px 12px rgba(24,95,165,.3);
+    text-decoration:none;
+  }
+  .dp .btn-login:hover { background:#0c447c; transform:translateY(-1px); }
+  .dp .btn-register {
+    width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:12px 18px; border-radius:12px;
+    border:1.5px solid #b5d4f4; background:#e6f1fb;
+    color:#185FA5; font-size:14px; font-weight:700; cursor:pointer; transition:all .15s;
+    text-decoration:none;
+  }
+  .dp .btn-register:hover { border-color:#185FA5; background:#d0e8f9; }
+
+  /* ── Card header ─────────────────────────────────────────────────────────── */
+  .dp .card-header { display:flex; align-items:center; gap:10px; margin-bottom:1.25rem; }
   .dp .header-icon {
-    width: 38px; height: 38px; border-radius: 11px;
-    background: #185FA5;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
+    width:38px; height:38px; border-radius:11px; background:#185FA5;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
   }
-  .dp .header-title {
-    font-size: 16px; font-weight: 800; color: #0c447c;
-    margin: 0; letter-spacing: -0.02em;
-  }
-  .dp .header-sub { font-size: 10px; font-weight: 600; color: #378ADD; margin: 1px 0 0; }
+  .dp .header-title { font-size:16px; font-weight:800; color:#0c447c; margin:0; letter-spacing:-.02em; }
+  .dp .header-sub   { font-size:10px; font-weight:600; color:#378ADD; margin:1px 0 0; }
 
-  .dp .balance-pill {
-    margin-left: auto;
-    display: flex; align-items: center; gap: 5px;
-    padding: 4px 10px; border-radius: 100px;
-    background: #e6f1fb; border: 1px solid #b5d4f4;
-    font-size: 10px; font-weight: 700; color: #185FA5;
+  /* User pill — shows logged-in name */
+  .dp .user-pill {
+    margin-left:auto; display:flex; align-items:center; gap:6px;
+    padding:4px 10px; border-radius:100px;
+    background:#e6f1fb; border:1px solid #b5d4f4;
+    font-size:10px; font-weight:700; color:#185FA5; white-space:nowrap;
   }
-  .dp .balance-dot { width: 5px; height: 5px; border-radius: 50%; background: #22c55e; }
+  .dp .user-dot { width:6px; height:6px; border-radius:50%; background:#22c55e; flex-shrink:0; }
 
-  .dp .progress-track {
-    height: 3px; border-radius: 2px; background: #e6f1fb;
-    margin-bottom: 1.25rem; overflow: hidden;
-  }
-  .dp .progress-fill {
-    height: 100%; border-radius: 2px;
-    background: linear-gradient(90deg, #185FA5, #378ADD);
-    transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
-  }
+  .dp .progress-track { height:3px; border-radius:2px; background:#e6f1fb; margin-bottom:1.25rem; overflow:hidden; }
+  .dp .progress-fill  { height:100%; border-radius:2px; background:linear-gradient(90deg,#185FA5,#378ADD); transition:width .4s cubic-bezier(.4,0,.2,1); }
 
-  .dp .step-row    { display: flex; align-items: center; gap: 0; margin-bottom: 3px; }
-  .dp .step-dot    {
-    width: 22px; height: 22px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 9px; font-weight: 800; flex-shrink: 0; transition: all 0.25s;
-  }
-  .dp .step-dot.done   { background: #185FA5; color: #fff; }
-  .dp .step-dot.active { background: #0c447c; color: #fff; }
-  .dp .step-dot.idle   { background: #e6f1fb; color: #378ADD; }
-  .dp .step-line       { flex: 1; height: 2px; background: #e6f1fb; transition: background 0.25s; }
-  .dp .step-line.done  { background: #185FA5; }
-  .dp .step-labels     { display: flex; justify-content: space-between; margin-top: 3px; margin-bottom: 1.25rem; }
-  .dp .step-lbl        { font-size: 8px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; flex: 1; text-align: center; }
+  .dp .step-row   { display:flex; align-items:center; gap:0; margin-bottom:3px; }
+  .dp .step-dot   { width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:800; flex-shrink:0; transition:all .25s; }
+  .dp .step-dot.done   { background:#185FA5; color:#fff; }
+  .dp .step-dot.active { background:#0c447c; color:#fff; }
+  .dp .step-dot.idle   { background:#e6f1fb; color:#378ADD; }
+  .dp .step-line       { flex:1; height:2px; background:#e6f1fb; transition:background .25s; }
+  .dp .step-line.done  { background:#185FA5; }
+  .dp .step-labels     { display:flex; justify-content:space-between; margin-top:3px; margin-bottom:1.25rem; }
+  .dp .step-lbl        { font-size:8px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; flex:1; text-align:center; }
 
-  .dp .sec-label {
-    display: block; font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
-    text-transform: uppercase; color: #378ADD; margin-bottom: 6px;
-  }
+  .dp .sec-label { display:block; font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:#378ADD; margin-bottom:6px; }
+  .dp .divider   { border:none; border-top:1px solid #e6f1fb; margin:0 0 1.25rem; }
 
-  .dp .divider { border: none; border-top: 1px solid #e6f1fb; margin: 0 0 1.25rem; }
+  .dp .field-card { border:1.5px solid #b5d4f4; border-radius:13px; padding:12px; background:#f7fbff; margin-bottom:10px; }
 
-  .dp .field-card {
-    border: 1.5px solid #b5d4f4; border-radius: 13px;
-    padding: 12px; background: #f7fbff; margin-bottom: 10px;
-  }
+  .dp .amount-row { display:flex; align-items:center; border:1.5px solid #b5d4f4; border-radius:10px; background:#fff; overflow:hidden; transition:border-color .15s; }
+  .dp .amount-row:focus-within { border-color:#185FA5; box-shadow:0 0 0 3px rgba(24,95,165,.1); }
+  .dp .amount-row.err { border-color:#f87171; }
+  .dp .amount-prefix { padding:0 12px; height:50px; display:flex; align-items:center; border-right:1.5px solid #e6f1fb; font-size:9px; font-weight:800; letter-spacing:.08em; color:#185FA5; background:#e6f1fb; flex-shrink:0; }
+  .dp .amount-input  { flex:1; height:50px; padding:0 14px; background:transparent; border:none; outline:none; font-size:24px; font-weight:800; color:#0c447c; font-family:'JetBrains Mono',monospace; letter-spacing:-.02em; }
+  .dp .amount-input::placeholder { color:#b5d4f4; }
+  .dp .amount-hint { font-size:10px; font-weight:600; margin-top:5px; }
 
-  .dp .amount-row {
-    display: flex; align-items: center;
-    border: 1.5px solid #b5d4f4; border-radius: 10px;
-    background: #fff; overflow: hidden; transition: border-color 0.15s;
-  }
-  .dp .amount-row:focus-within { border-color: #185FA5; box-shadow: 0 0 0 3px rgba(24,95,165,0.1); }
-  .dp .amount-row.err { border-color: #f87171; }
-  .dp .amount-prefix {
-    padding: 0 12px; height: 50px;
-    display: flex; align-items: center;
-    border-right: 1.5px solid #e6f1fb;
-    font-size: 9px; font-weight: 800; letter-spacing: 0.08em;
-    color: #185FA5; background: #e6f1fb; flex-shrink: 0;
-  }
-  .dp .amount-input {
-    flex: 1; height: 50px; padding: 0 14px;
-    background: transparent; border: none; outline: none;
-    font-size: 24px; font-weight: 800; color: #0c447c;
-    font-family: 'JetBrains Mono', monospace; letter-spacing: -0.02em;
-  }
-  .dp .amount-input::placeholder { color: #b5d4f4; }
-  .dp .amount-hint { font-size: 10px; font-weight: 600; margin-top: 5px; }
+  .dp .quick-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:5px; margin-top:10px; }
+  .dp .quick-chip { padding:6px 3px; border-radius:7px; text-align:center; border:1.5px solid #b5d4f4; background:#fff; font-size:10px; font-weight:700; color:#378ADD; cursor:pointer; transition:all .12s; }
+  .dp .quick-chip:hover { border-color:#185FA5; color:#0c447c; background:#e6f1fb; }
+  .dp .quick-chip.on { border-color:#185FA5; background:#185FA5; color:#fff; }
 
-  .dp .quick-grid { display: grid; grid-template-columns: repeat(6,1fr); gap: 5px; margin-top: 10px; }
-  .dp .quick-chip {
-    padding: 6px 3px; border-radius: 7px; text-align: center;
-    border: 1.5px solid #b5d4f4; background: #fff;
-    font-size: 10px; font-weight: 700; color: #378ADD;
-    cursor: pointer; transition: all 0.12s;
-  }
-  .dp .quick-chip:hover { border-color: #185FA5; color: #0c447c; background: #e6f1fb; }
-  .dp .quick-chip.on { border-color: #185FA5; background: #185FA5; color: #fff; }
+  .dp .phone-row { display:flex; align-items:center; border:1.5px solid #b5d4f4; border-radius:10px; background:#fff; overflow:hidden; transition:border-color .15s; }
+  .dp .phone-row:focus-within { border-color:#185FA5; box-shadow:0 0 0 3px rgba(24,95,165,.1); }
+  .dp .phone-row.err { border-color:#f87171; }
+  .dp .phone-prefix { padding:0 12px; height:44px; display:flex; align-items:center; border-right:1.5px solid #e6f1fb; font-size:12px; font-weight:700; color:#185FA5; background:#e6f1fb; flex-shrink:0; font-family:'JetBrains Mono',monospace; }
+  .dp .phone-input  { flex:1; height:44px; padding:0 12px; background:transparent; border:none; outline:none; font-size:15px; font-weight:700; color:#0c447c; font-family:'JetBrains Mono',monospace; letter-spacing:.05em; }
+  .dp .phone-input::placeholder { color:#b5d4f4; }
 
-  /* Phone field */
-  .dp .phone-row {
-    display: flex; align-items: center;
-    border: 1.5px solid #b5d4f4; border-radius: 10px;
-    background: #fff; overflow: hidden; transition: border-color 0.15s;
-  }
-  .dp .phone-row:focus-within { border-color: #185FA5; box-shadow: 0 0 0 3px rgba(24,95,165,0.1); }
-  .dp .phone-row.err { border-color: #f87171; }
-  .dp .phone-prefix {
-    padding: 0 12px; height: 44px;
-    display: flex; align-items: center;
-    border-right: 1.5px solid #e6f1fb;
-    font-size: 12px; font-weight: 700;
-    color: #185FA5; background: #e6f1fb; flex-shrink: 0;
-    font-family: 'JetBrains Mono', monospace;
-  }
-  .dp .phone-input {
-    flex: 1; height: 44px; padding: 0 12px;
-    background: transparent; border: none; outline: none;
-    font-size: 15px; font-weight: 700; color: #0c447c;
-    font-family: 'JetBrains Mono', monospace; letter-spacing: 0.05em;
-  }
-  .dp .phone-input::placeholder { color: #b5d4f4; }
-  .dp .phone-hint { font-size: 10px; font-weight: 600; margin-top: 5px; color: #378ADD; }
+  .dp .net-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-top:10px; }
+  .dp .net-card { display:flex; flex-direction:column; align-items:center; gap:5px; padding:11px 6px; border-radius:12px; border:1.5px solid #b5d4f4; background:#fff; cursor:pointer; transition:all .15s; position:relative; }
+  .dp .net-card:hover { border-color:#185FA5; background:#f0f6ff; }
+  .dp .net-name { font-size:9px; font-weight:800; letter-spacing:.02em; text-align:center; line-height:1.3; color:#378ADD; }
+  .dp .net-check { position:absolute; top:5px; right:5px; width:14px; height:14px; border-radius:50%; background:#185FA5; display:flex; align-items:center; justify-content:center; font-size:8px; color:#fff; font-weight:800; }
 
-  /* Network cards */
-  .dp .net-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 7px; margin-top: 10px; }
-  .dp .net-card {
-    display: flex; flex-direction: column; align-items: center; gap: 5px;
-    padding: 11px 6px; border-radius: 12px;
-    border: 1.5px solid #b5d4f4; background: #fff;
-    cursor: pointer; transition: all 0.15s; position: relative;
-  }
-  .dp .net-card:hover { border-color: #185FA5; background: #f0f6ff; }
-  .dp .net-name {
-    font-size: 9px; font-weight: 800; letter-spacing: 0.02em;
-    text-align: center; line-height: 1.3; color: #378ADD;
-  }
-  .dp .net-check {
-    position: absolute; top: 5px; right: 5px;
-    width: 14px; height: 14px; border-radius: 50%;
-    background: #185FA5; display: flex; align-items: center;
-    justify-content: center; font-size: 8px; color: #fff; font-weight: 800;
-  }
+  .dp .tip      { display:flex; gap:8px; align-items:flex-start; padding:9px 11px; border-radius:10px; background:#e6f1fb; border:1px solid #b5d4f4; font-size:11px; color:#378ADD; line-height:1.6; margin-bottom:10px; }
+  .dp .box-err  { padding:9px 12px; border-radius:10px; background:#fff0f0; border:1.5px solid #f4a0a8; font-size:11px; color:#9b1c1c; line-height:1.55; font-weight:500; margin-bottom:8px; }
+  .dp .box-info { padding:9px 12px; border-radius:10px; background:#e6f1fb; border:1.5px solid #b5d4f4; font-size:11px; color:#0c447c; line-height:1.55; font-weight:500; margin-bottom:8px; }
+  .dp .box-ok   { padding:9px 12px; border-radius:10px; background:#ecfdf5; border:1.5px solid #6ee7b7; font-size:11px; color:#065f46; line-height:1.55; font-weight:500; margin-bottom:8px; }
 
-  .dp .tip {
-    display: flex; gap: 8px; align-items: flex-start;
-    padding: 9px 11px; border-radius: 10px;
-    background: #e6f1fb; border: 1px solid #b5d4f4;
-    font-size: 11px; color: #378ADD; line-height: 1.6; margin-bottom: 10px;
-  }
+  .dp .btn-primary { width:100%; display:flex; align-items:center; justify-content:center; gap:7px; padding:12px 18px; border-radius:10px; border:none; background:#185FA5; color:#fff; font-size:13px; font-weight:700; letter-spacing:.01em; cursor:pointer; transition:all .15s; box-shadow:0 4px 12px rgba(24,95,165,.25); font-family:'Plus Jakarta Sans',sans-serif; }
+  .dp .btn-primary:hover:not(:disabled) { background:#0c447c; transform:translateY(-1px); box-shadow:0 6px 16px rgba(24,95,165,.3); }
+  .dp .btn-primary:active:not(:disabled) { transform:translateY(0); }
+  .dp .btn-primary:disabled { background:#b5d4f4; cursor:not-allowed; box-shadow:none; }
 
-  .dp .box-err  { padding: 9px 12px; border-radius: 10px; background: #fff0f0; border: 1.5px solid #f4a0a8; font-size: 11px; color: #9b1c1c; line-height: 1.55; font-weight: 500; margin-bottom: 8px; }
-  .dp .box-info { padding: 9px 12px; border-radius: 10px; background: #e6f1fb; border: 1.5px solid #b5d4f4; font-size: 11px; color: #0c447c; line-height: 1.55; font-weight: 500; margin-bottom: 8px; }
-  .dp .box-ok   { padding: 9px 12px; border-radius: 10px; background: #ecfdf5; border: 1.5px solid #6ee7b7; font-size: 11px; color: #065f46; line-height: 1.55; font-weight: 500; margin-bottom: 8px; }
+  .dp .btn-ghost { width:100%; display:flex; align-items:center; justify-content:center; gap:5px; padding:10px 18px; border-radius:10px; border:1.5px solid #b5d4f4; background:#e6f1fb; color:#185FA5; font-size:12px; font-weight:700; cursor:pointer; transition:all .15s; margin-top:7px; font-family:'Plus Jakarta Sans',sans-serif; }
+  .dp .btn-ghost:hover { border-color:#185FA5; background:#d0e8f9; }
 
-  .dp .btn-primary {
-    width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px;
-    padding: 12px 18px; border-radius: 10px; border: none;
-    background: #185FA5; color: #fff;
-    font-size: 13px; font-weight: 700; letter-spacing: 0.01em;
-    cursor: pointer; transition: all 0.15s;
-    box-shadow: 0 4px 12px rgba(24,95,165,0.25);
-    font-family: 'Plus Jakarta Sans', sans-serif;
-  }
-  .dp .btn-primary:hover:not(:disabled) { background: #0c447c; transform: translateY(-1px); box-shadow: 0 6px 16px rgba(24,95,165,0.3); }
-  .dp .btn-primary:active:not(:disabled) { transform: translateY(0); }
-  .dp .btn-primary:disabled { background: #b5d4f4; cursor: not-allowed; box-shadow: none; }
+  .dp .spinner { width:15px; height:15px; border-radius:50%; border:2.5px solid rgba(255,255,255,.3); border-top-color:#fff; animation:dp-spin .65s linear infinite; flex-shrink:0; }
 
-  .dp .btn-ghost {
-    width: 100%; display: flex; align-items: center; justify-content: center; gap: 5px;
-    padding: 10px 18px; border-radius: 10px;
-    border: 1.5px solid #b5d4f4; background: #e6f1fb;
-    color: #185FA5; font-size: 12px; font-weight: 700;
-    cursor: pointer; transition: all 0.15s; margin-top: 7px;
-    font-family: 'Plus Jakarta Sans', sans-serif;
-  }
-  .dp .btn-ghost:hover { border-color: #185FA5; background: #d0e8f9; }
+  .dp .await-card { border-radius:16px; padding:22px 16px; background:#f7fbff; border:1.5px solid #b5d4f4; display:flex; flex-direction:column; align-items:center; gap:16px; animation:dp-popIn .3s ease both; }
+  .dp .pulse-wrap  { position:relative; width:68px; height:68px; }
+  .dp .pulse-ring  { position:absolute; inset:0; border-radius:50%; border:2px solid rgba(24,95,165,.3); animation:dp-pulse-ring 1.8s ease-out infinite; }
+  .dp .pulse-ring2 { position:absolute; inset:0; border-radius:50%; border:2px solid rgba(24,95,165,.18); animation:dp-pulse-ring 1.8s ease-out .6s infinite; }
+  .dp .await-icon  { position:relative; z-index:1; width:68px; height:68px; border-radius:50%; background:#e6f1fb; border:2px solid #b5d4f4; display:flex; align-items:center; justify-content:center; font-size:26px; animation:dp-breathe 2.4s ease-in-out infinite; }
 
-  .dp .spinner {
-    width: 15px; height: 15px; border-radius: 50%;
-    border: 2.5px solid rgba(255,255,255,0.3); border-top-color: #fff;
-    animation: spin 0.65s linear infinite; flex-shrink: 0;
-  }
+  .dp .poll-dots { display:flex; gap:4px; align-items:center; }
+  .dp .poll-dot  { width:4px; height:4px; border-radius:50%; background:#378ADD; animation:dp-blink 1.4s ease-in-out infinite; }
+  .dp .poll-dot:nth-child(2) { animation-delay:.2s; }
+  .dp .poll-dot:nth-child(3) { animation-delay:.4s; }
 
-  .dp .await-card {
-    border-radius: 16px; padding: 22px 16px;
-    background: #f7fbff; border: 1.5px solid #b5d4f4;
-    display: flex; flex-direction: column; align-items: center; gap: 16px;
-    animation: popIn 0.3s ease both;
-  }
-  .dp .pulse-wrap { position: relative; width: 68px; height: 68px; }
-  .dp .pulse-ring {
-    position: absolute; inset: 0; border-radius: 50%;
-    border: 2px solid rgba(24,95,165,0.3);
-    animation: pulse-ring 1.8s ease-out infinite;
-  }
-  .dp .pulse-ring2 {
-    position: absolute; inset: 0; border-radius: 50%;
-    border: 2px solid rgba(24,95,165,0.18);
-    animation: pulse-ring 1.8s ease-out 0.6s infinite;
-  }
-  .dp .await-icon {
-    position: relative; z-index: 1;
-    width: 68px; height: 68px; border-radius: 50%;
-    background: #e6f1fb; border: 2px solid #b5d4f4;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 26px;
-    animation: breathe 2.4s ease-in-out infinite;
-  }
+  .dp .result-card { border-radius:16px; padding:22px 16px; display:flex; flex-direction:column; align-items:center; gap:14px; animation:dp-popIn .3s ease both; }
+  .dp .result-icon { width:58px; height:58px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:26px; }
 
-  .dp .poll-dots { display: flex; gap: 4px; align-items: center; }
-  .dp .poll-dot  {
-    width: 4px; height: 4px; border-radius: 50%; background: #378ADD;
-    animation: blink 1.4s ease-in-out infinite;
-  }
-  .dp .poll-dot:nth-child(2) { animation-delay: 0.2s; }
-  .dp .poll-dot:nth-child(3) { animation-delay: 0.4s; }
+  .dp .ref-box   { background:#e6f1fb; border-radius:8px; padding:8px 12px; width:100%; font-size:10px; font-family:'JetBrains Mono',monospace; color:#0c447c; word-break:break-all; line-height:1.6; }
+  .dp .ref-label { font-size:8px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#378ADD; display:block; margin-bottom:2px; }
 
-  .dp .result-card {
-    border-radius: 16px; padding: 22px 16px;
-    display: flex; flex-direction: column; align-items: center; gap: 14px;
-    animation: popIn 0.3s ease both;
-  }
-  .dp .result-icon {
-    width: 58px; height: 58px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-size: 26px;
-  }
-
-  .dp .ref-box {
-    background: #e6f1fb; border-radius: 8px;
-    padding: 8px 12px; width: 100%;
-    font-size: 10px; font-family: 'JetBrains Mono', monospace;
-    color: #0c447c; word-break: break-all; line-height: 1.6;
-  }
-  .dp .ref-label { font-size: 8px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: #378ADD; display: block; margin-bottom: 2px; }
-
-  .dp .security-note { text-align: center; font-size: 10px; color: #b5d4f4; font-weight: 500; margin-top: 4px; }
-
-  /* Not-authenticated banner */
-  .dp .auth-banner {
-    display: flex; align-items: center; gap: 10px;
-    padding: 11px 14px; border-radius: 12px; margin-bottom: 14px;
-    background: #fff8dc; border: 1.5px solid #ffe066;
-    font-size: 12px; font-weight: 600; color: #7a5a00;
-  }
+  .dp .security-note { text-align:center; font-size:10px; color:#b5d4f4; font-weight:500; margin-top:4px; }
 `;
 
 // ── Step Indicator ─────────────────────────────────────────────────────────────
@@ -429,23 +298,57 @@ function StepIndicator({ step }) {
       </div>
       <div className="step-labels">
         {labels.map((l, i) => (
-          <div key={l} className="step-lbl" style={{
-            color: i === idx ? "#0c447c" : i < idx ? "#185FA5" : "#b5d4f4",
-          }}>{l}</div>
+          <div key={l} className="step-lbl" style={{ color: i === idx ? "#0c447c" : i < idx ? "#185FA5" : "#b5d4f4" }}>
+            {l}
+          </div>
         ))}
       </div>
     </>
   );
 }
 
+// ── Auth Gate — shown when user is not logged in ────────────────────────────────
+function AuthGate() {
+  return (
+    <div className="dp">
+      <style>{GLOBAL_CSS}</style>
+      <div className="page">
+        <div className="auth-gate">
+          <div className="auth-gate-icon">💳</div>
+          <p className="auth-gate-title">Log in to Deposit</p>
+          <p className="auth-gate-sub">
+            You need to be logged in to make a deposit.<br />
+            Join thousands of users on ZynoBet.
+          </p>
+          <div className="auth-gate-actions">
+            <Link to="/login" className="btn-login">
+              🔑 Log In
+            </Link>
+            <Link to="/register" className="btn-register">
+              ✨ Create Account
+            </Link>
+          </div>
+          <p style={{ fontSize: 10, color: "#b5d4f4", margin: 0 }}>
+            🔒 Secured by Moolre · USSD Direct Charge
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Shell ──────────────────────────────────────────────────────────────────────
-function Shell({ children, step, walletBalance }) {
+function Shell({ children, step, user }) {
   const progress = { amount: 33, awaiting: 66, success: 100, error: 100 }[step];
+  // Show first name from the store user object, same pattern as Header
+  const firstName = user?.fullName?.split(" ")[0] ?? user?.email ?? "";
+
   return (
     <div className="dp">
       <style>{GLOBAL_CSS}</style>
       <div className="page">
         <div className="card">
+          {/* Header */}
           <div className="card-header">
             <div className="header-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -458,14 +361,16 @@ function Shell({ children, step, walletBalance }) {
               <p className="header-title">Deposit Funds</p>
               <p className="header-sub">Mobile Money · GHS</p>
             </div>
-            {walletBalance !== null && (
-              <div className="balance-pill">
-                <div className="balance-dot" />
-                {fmtGHS(walletBalance)}
+            {/* User pill — mirrors the avatar pattern in Header */}
+            {firstName && (
+              <div className="user-pill">
+                <div className="user-dot" />
+                {firstName}
               </div>
             )}
           </div>
 
+          {/* Progress */}
           <div className="progress-track">
             <div className="progress-fill" style={{ width: `${progress}%` }} />
           </div>
@@ -492,35 +397,16 @@ function GhostBtn({ children, onClick }) {
   return <button className="btn-ghost" onClick={onClick}>{children}</button>;
 }
 
-// ── Not-authenticated banner ───────────────────────────────────────────────────
-function AuthBanner() {
-  return (
-    <div className="auth-banner">
-      <span style={{ fontSize: 16 }}>⚠️</span>
-      <span>
-        You are not logged in. Please{" "}
-        <a href="/login" style={{ color: "#185FA5", fontWeight: 700, textDecoration: "underline" }}>
-          log in
-        </a>{" "}
-        to make a deposit.
-      </span>
-    </div>
-  );
-}
-
 // ── Step 1: Amount + Phone + Network ──────────────────────────────────────────
-function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, onPay, loading, error, isAuthed }) {
+function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, onPay, loading, error }) {
   const parsed      = parseFloat(amount);
   const amountValid = !isNaN(parsed) && parsed >= MIN_GHS;
   const phoneClean  = phone.replace(/\D/g, "");
-  // Accept 9–12 digits (covers 0XXXXXXXXX format and raw 9-digit without leading 0)
   const phoneValid  = phoneClean.length >= 9 && phoneClean.length <= 12;
-  const canPay      = amountValid && phoneValid && network !== "" && isAuthed;
+  const canPay      = amountValid && phoneValid && network !== "";
 
   return (
     <div>
-      {!isAuthed && <AuthBanner />}
-
       {/* Amount */}
       <div className="field-card">
         <span className="sec-label">Amount</span>
@@ -566,7 +452,7 @@ function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, o
             inputMode="numeric"
           />
         </div>
-        <div className="phone-hint" style={{ color: phone && !phoneValid ? "#e53e3e" : "#378ADD" }}>
+        <div style={{ fontSize: 10, fontWeight: 600, marginTop: 5, color: phone && !phoneValid ? "#e53e3e" : "#378ADD" }}>
           {phone && !phoneValid
             ? "Enter a valid MoMo number (e.g. 0244123456)"
             : "Enter your full number starting with 0 (e.g. 0244123456)"}
@@ -594,7 +480,6 @@ function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, o
         </div>
       </div>
 
-      {/* Tip */}
       <div className="tip">
         <span style={{ fontSize: 13, flexShrink: 0 }}>📲</span>
         <span>
@@ -606,13 +491,7 @@ function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, o
       {error && <div className="box-err">⚠️ {error}</div>}
 
       <PrimaryBtn onClick={onPay} disabled={!canPay} loading={loading}>
-        {!loading && (
-          isAuthed
-            ? canPay
-              ? `Send USSD Prompt · ${fmtGHS(parsed)}`
-              : "Fill in amount, phone & network"
-            : "Log in to deposit"
-        )}
+        {!loading && (canPay ? `Send USSD Prompt · ${fmtGHS(parsed)}` : "Fill in amount, phone & network")}
       </PrimaryBtn>
       <p className="security-note" style={{ marginTop: 8 }}>🔒 Secured by Moolre · USSD Direct Charge</p>
     </div>
@@ -621,32 +500,25 @@ function AmountStep({ amount, setAmount, phone, setPhone, network, setNetwork, o
 
 // ── Step 2: Awaiting ───────────────────────────────────────────────────────────
 function AwaitingStep({ amount, phone, network, externalRef, verifyMsg, verifyLoading, pollCount, onVerify, onCancel }) {
-  const net  = NETWORKS.find((n) => n.id === network);
-  const Logo = net?.Logo;
-  // Show normalised phone in the UI (starts with 0)
+  const net         = NETWORKS.find((n) => n.id === network);
+  const Logo        = net?.Logo;
   const displayPhone = normalisePhone(phone || "");
 
   return (
     <div className="await-card">
       <div className="pulse-wrap">
-        <div className="pulse-ring" />
-        <div className="pulse-ring2" />
+        <div className="pulse-ring" /><div className="pulse-ring2" />
         <div className="await-icon">📲</div>
       </div>
 
       <div style={{ textAlign: "center", width: "100%" }}>
-        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "#378ADD", marginBottom: 5 }}>
+        <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "#378ADD", marginBottom: 5 }}>
           Awaiting Approval
         </div>
-        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.03em", fontFamily: "JetBrains Mono, monospace", color: "#0c447c" }}>
+        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-.03em", fontFamily: "JetBrains Mono, monospace", color: "#0c447c" }}>
           {fmtGHS(amount)}
         </div>
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 7, marginTop: 8,
-          padding: "5px 14px", borderRadius: 100,
-          background: "#e6f1fb", border: "1.5px solid #b5d4f4",
-          fontSize: 12, fontWeight: 700, fontFamily: "JetBrains Mono, monospace", color: "#0c447c",
-        }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 8, padding: "5px 14px", borderRadius: 100, background: "#e6f1fb", border: "1.5px solid #b5d4f4", fontSize: 12, fontWeight: 700, fontFamily: "JetBrains Mono, monospace", color: "#0c447c" }}>
           {Logo && <Logo />}
           {displayPhone}
         </div>
@@ -671,11 +543,7 @@ function AwaitingStep({ amount, phone, network, externalRef, verifyMsg, verifyLo
 
       {verifyMsg && (
         <div
-          className={
-            verifyMsg.toLowerCase().includes("fail") || verifyMsg.toLowerCase().includes("cancel")
-              ? "box-err"
-              : "box-info"
-          }
+          className={verifyMsg.toLowerCase().includes("fail") || verifyMsg.toLowerCase().includes("cancel") ? "box-err" : "box-info"}
           style={{ width: "100%", margin: 0 }}
         >
           {verifyMsg}
@@ -699,7 +567,7 @@ function SuccessStep({ amount, externalRef, onWallet, onAgain }) {
       <div className="result-icon" style={{ background: "#d1fae5" }}>✅</div>
       <div style={{ textAlign: "center" }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: "#065f46", marginBottom: 5 }}>Payment Confirmed</div>
-        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.03em", fontFamily: "JetBrains Mono, monospace", color: "#0c447c" }}>
+        <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-.03em", fontFamily: "JetBrains Mono, monospace", color: "#0c447c" }}>
           {fmtGHS(amount)}
         </div>
         <div style={{ fontSize: 11, color: "#059669", marginTop: 5, fontWeight: 600 }}>Your wallet has been credited.</div>
@@ -737,6 +605,10 @@ function ErrorStep({ msg, onRetry }) {
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 export default function DepositPage() {
+  // ── Auth: use the store exactly like Header does ─────────────────────────────
+  const { user } = useAppStore();
+  const navigate = useNavigate();
+
   const [step,          setStep]          = useState("amount");
   const [amount,        setAmount]        = useState("");
   const [phone,         setPhone]         = useState("");
@@ -747,22 +619,13 @@ export default function DepositPage() {
   const [initError,     setInitError]     = useState("");
   const [verifyMsg,     setVerifyMsg]     = useState("");
   const [verifyLoading, setVerifyLoading] = useState(false);
-  const [walletBalance, setWalletBalance] = useState(null);
   const [pollCount,     setPollCount]     = useState(0);
-  const [isAuthed,      setIsAuthed]      = useState(false);
 
   const pollTimer = useRef(null);
 
-  // ── Check auth on mount ──────────────────────────────────────────────────────
+  // Resume in-progress payment on page reload (only if still logged in)
   useEffect(() => {
-    const token =
-      localStorage.getItem("accessToken") ||
-      sessionStorage.getItem("accessToken");
-    setIsAuthed(!!token);
-  }, []);
-
-  // ── Resume in-progress payment on page reload ─────────────────────────────
-  useEffect(() => {
+    if (!user) return;
     const savedRef     = localStorage.getItem("moolre_externalref");
     const savedAmount  = localStorage.getItem("moolre_amount");
     const savedPhone   = localStorage.getItem("moolre_phone");
@@ -774,9 +637,9 @@ export default function DepositPage() {
       if (savedNetwork) setNetwork(savedNetwork);
       setStep("awaiting");
     }
-  }, []);
+  }, [user]);
 
-  // ── Auto-poll while on awaiting screen ───────────────────────────────────
+  // Auto-poll while on awaiting screen
   useEffect(() => {
     if (step !== "awaiting" || !externalRef) return;
     const poll = async () => {
@@ -786,20 +649,16 @@ export default function DepositPage() {
         if (credited || txstatus === TX_SUCCESS) { clearSavedRef(); setStep("success"); }
         else if (txstatus === TX_FAILED)          { clearSavedRef(); setErrorMsg("Payment failed or was cancelled."); setStep("error"); }
         else                                      { pollTimer.current = setTimeout(poll, POLL_INTERVAL); }
-      } catch {
-        pollTimer.current = setTimeout(poll, POLL_INTERVAL);
-      }
+      } catch { pollTimer.current = setTimeout(poll, POLL_INTERVAL); }
     };
     pollTimer.current = setTimeout(poll, POLL_INTERVAL);
     return () => { if (pollTimer.current) clearTimeout(pollTimer.current); };
   }, [step, externalRef]);
 
-  const clearSavedRef = () => {
+  const clearSavedRef = () =>
     ["moolre_externalref", "moolre_amount", "moolre_phone", "moolre_network"]
       .forEach((k) => localStorage.removeItem(k));
-  };
 
-  // ── Initiate payment ──────────────────────────────────────────────────────
   const handlePay = async () => {
     const parsed = parseFloat(amount);
     if (isNaN(parsed) || parsed < MIN_GHS || !phone || !network) return;
@@ -815,17 +674,12 @@ export default function DepositPage() {
       setVerifyMsg(message);
       setStep("awaiting");
     } catch (e) {
-      setInitError(
-        e instanceof Error
-          ? e.message
-          : "Could not start payment. Please try again."
-      );
+      setInitError(e instanceof Error ? e.message : "Could not start payment. Please try again.");
     } finally {
       setInitLoading(false);
     }
   };
 
-  // ── Manual verify ─────────────────────────────────────────────────────────
   const handleVerify = async () => {
     if (!externalRef) return;
     if (pollTimer.current) clearTimeout(pollTimer.current);
@@ -834,12 +688,9 @@ export default function DepositPage() {
     try {
       const { credited, txstatus, message } = await moolreVerify(externalRef);
       if (credited || txstatus === TX_SUCCESS) {
-        clearSavedRef();
-        setStep("success");
+        clearSavedRef(); setStep("success");
       } else if (txstatus === TX_FAILED) {
-        clearSavedRef();
-        setErrorMsg("Payment failed or was cancelled.");
-        setStep("error");
+        clearSavedRef(); setErrorMsg("Payment failed or was cancelled."); setStep("error");
       } else {
         setVerifyMsg(message || "Payment still pending. Please approve the USSD prompt on your phone.");
         pollTimer.current = setTimeout(handleAutoPoll, POLL_INTERVAL);
@@ -860,33 +711,32 @@ export default function DepositPage() {
       if (credited || txstatus === TX_SUCCESS) { clearSavedRef(); setStep("success"); }
       else if (txstatus === TX_FAILED)          { clearSavedRef(); setErrorMsg("Payment failed or was cancelled."); setStep("error"); }
       else                                      { pollTimer.current = setTimeout(handleAutoPoll, POLL_INTERVAL); }
-    } catch {
-      pollTimer.current = setTimeout(handleAutoPoll, POLL_INTERVAL);
-    }
+    } catch { pollTimer.current = setTimeout(handleAutoPoll, POLL_INTERVAL); }
   };
 
   const resetAll = () => {
     if (pollTimer.current) clearTimeout(pollTimer.current);
     clearSavedRef();
-    setStep("amount");
-    setAmount(""); setPhone(""); setNetwork("");
+    setStep("amount"); setAmount(""); setPhone(""); setNetwork("");
     setExternalRef(""); setErrorMsg(""); setVerifyMsg(""); setInitError("");
     setPollCount(0);
   };
+
+  // ── Not logged in → show auth gate (same check as Header) ─────────────────
+  if (!user) return <AuthGate />;
 
   const parsedAmount =
     parseFloat(amount) ||
     parseFloat(localStorage.getItem("moolre_amount") || "0");
 
   return (
-    <Shell step={step} walletBalance={walletBalance}>
+    <Shell step={step} user={user}>
       {step === "amount" && (
         <AmountStep
           amount={amount}   setAmount={setAmount}
           phone={phone}     setPhone={setPhone}
           network={network} setNetwork={setNetwork}
-          onPay={handlePay} loading={initLoading}
-          error={initError} isAuthed={isAuthed}
+          onPay={handlePay} loading={initLoading} error={initError}
         />
       )}
       {step === "awaiting" && (
@@ -903,8 +753,7 @@ export default function DepositPage() {
       {step === "success" && (
         <SuccessStep
           amount={parsedAmount} externalRef={externalRef}
-          onWallet={() => (window.location.href = "/wallet")}
-          onAgain={resetAll}
+          onWallet={() => navigate("/wallet")} onAgain={resetAll}
         />
       )}
       {step === "error" && (
