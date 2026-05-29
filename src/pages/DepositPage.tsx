@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 const API_BASE    = "https://futballbackend-production-aefb.up.railway.app";
-const MIN_DEPOSIT = 300;
+const MIN_DEPOSIT = 300; // Updated minimum deposit
 
 const QUICK_AMOUNTS = [
   300,
@@ -703,7 +703,7 @@ export default function DepositPage() {
               style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#0d1e30", fontSize: 18, fontWeight: 800, padding: "13px 14px" }}
             />
           </div>
-          <div style={{ fontSize: 11, color: "#9baec8", marginBottom: 10 }}>Minimum: GH₵1.00</div>
+          <div style={{ fontSize: 11, color: "#9baec8", marginBottom: 10 }}>Minimum: GH₵{MIN_DEPOSIT}.00</div> {/* Updated minimum deposit display */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 7 }}>
             {QUICK_AMOUNTS.map(q => (
               <button key={q} onClick={() => setAmount(String(q))} style={{
