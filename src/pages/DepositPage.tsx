@@ -426,7 +426,8 @@ export default function DepositPage() {
             <div style={{ fontSize: 12, color: "#6b7c93", marginTop: 2 }}>USDT (TRC20) · BTC · ETH · BNB</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: "#fef3c7", color: "#92400e" }}>1–24 hrs</span>
+            {/* ✅ UPDATED: Changed from "1–24 hrs" to "1–5 mins" */}
+            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: "#fef3c7", color: "#92400e" }}>1–5 mins</span>
             <svg width="16" height="16" fill="none" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke="#9baec8" strokeWidth="2" strokeLinecap="round"/></svg>
           </div>
         </button>
@@ -519,8 +520,9 @@ export default function DepositPage() {
         <button onClick={() => setBStep(BSTEP.FORM)} style={s.btnPri}>
           I've Sent the Payment — Submit Proof →
         </button>
+        {/* ✅ UPDATED: Changed from "1–24 hrs" to "1–5 mins" */}
         <div style={{ textAlign: "center", fontSize: 11, color: "#9baec8" }}>
-          🔍 Credited after admin verification (1–24 hrs)
+          🔍 Credited after admin verification (1–5 mins)
         </div>
       </div>
     </>
@@ -624,8 +626,9 @@ export default function DepositPage() {
           <button onClick={handleBinanceSubmit} disabled={loading} style={loading ? s.btnPriDis : s.btnPri}>
             {loading ? "Submitting…" : "Submit Deposit Proof"}
           </button>
+          {/* ✅ UPDATED: Changed from "1–24 hours" to "1–5 minutes" */}
           <div style={{ textAlign: "center", fontSize: 11, color: "#9baec8" }}>
-            🔍 Manually reviewed & credited within 1–24 hours
+            🔍 Manually reviewed & credited within 1–5 minutes
           </div>
         </div>
       </>
@@ -646,9 +649,10 @@ export default function DepositPage() {
           fontSize: 28, margin: "0 auto 16px",
         }}>⏳</div>
         <div style={{ fontWeight: 800, fontSize: 20, color: "#0d1e30", marginBottom: 8 }}>Pending Review</div>
+        {/* ✅ UPDATED: Changed from "1–24 hours" to "1–5 minutes" */}
         <div style={{ fontSize: 13, color: "#6b7c93", lineHeight: 1.7, marginBottom: 24 }}>
           Your crypto deposit is under review.<br />
-          An admin will verify and credit your wallet within <strong style={{ color: "#0d1e30" }}>1–24 hours</strong>.
+          An admin will verify and credit your wallet within <strong style={{ color: "#0d1e30" }}>1–5 minutes</strong>.
         </div>
         <button onClick={resetAll} style={s.btnPri}>Back to Deposit</button>
         <button onClick={() => window.location.href = "/"} style={s.btnSec}>Go to Home</button>
@@ -741,7 +745,6 @@ export default function DepositPage() {
                 border: `1.5px solid ${network === n.id ? "#1a73e8" : "#e2eaf6"}`,
                 borderRadius: 10, padding: "11px 14px", cursor: "pointer",
               }}>
-                {/* Network logo — replace src with actual URL */}
                 <img
                   src={n.logo}
                   alt={n.label}
