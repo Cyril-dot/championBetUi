@@ -1820,7 +1820,6 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
           <p className="text-sm font-bold text-white truncate">{chat.userFirstName ?? 'User'} · {chat.userEmail ?? ''}</p>
           <StatusBadge status={chat.status} />
         </div>
-        {/* Display commission rate if available */}
         {chat.commissionRate != null && <span className="text-xs text-emerald-400 font-bold shrink-0">{chat.commissionRate}% commission</span>}
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900">
@@ -2013,7 +2012,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
       const usersRes   = normalise<any[]>(usersRaw);
       if (statsRes.success)   setStats(statsRes.data);
       if (windowRes.success)  setPayoutWindow(!!(windowRes.data as { open?: boolean })?.open);
-      if (historyRes.success) setPayoutHistory(historyRes.data?.content ?? (Array.isArray(res.data) ? res.data as unknown as PayoutRequest[] : []));
+      if (historyRes.success) setPayoutHistory(historyRes.data?.content ?? (Array.isArray(res.data) ? res.data as unknown as PayoutRequest[] : [])); // Corrected potential array type
       if (linksRes.success)   setLinks(Array.isArray(linksRes.data) ? linksRes.data : []);
       if (usersRes.success)   setReferredUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
     } catch { /* silent */ } finally { setLoading(false); }
@@ -2177,6 +2176,44 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
               );
             })}
           </div>
+        )}
+      </div>
+
+      {/* Referred players */}
+      <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.08)' }}>
+        <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Referred Players <span style={{ color: '#63d2ff' }}>({referredUsers.length})</span></p>
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[1, 2, 3].map(i => <div key={i} style={{ height: 44, background: 'rgba(255,255,255,0.04)', borderRadius: 8 }} />)}
+          </div>
+        ) : referredUsers.length === 0 ? (
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '16px 0' }}>No referred players yet.</p>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14, padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.04)' }}>
+              <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total Players</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#fff' }}>{referredUsers.length}</p></div>
+              <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Active Players</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#4ade80' }}>{referredUsers.filter(u => referralDeposit(u.lifetimeStake ?? 0) > 0).length}</p></div>
+              <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total Deposits</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#63d2ff' }}>{fmt(referredUsers.reduce((s, u) => s + referralDeposit(u.lifetimeStake ?? 0), 0), currency)}</p></div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {referredUsers.map((player) => {
+                const name = [player.firstName, player.lastName].filter(Boolean).join(' ') || player.email || player.userId;
+                const isActive = referralDeposit(player.lifetimeStake ?? 0) > 0;
+                return (
+                  <div key={player.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p style={{ margin: '0 0 1px', fontSize: 13, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
+                      <p style={{ margin: 0, fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>Joined {fmtDate(player.joinedAt)} · Deposit: <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{fmt(referralDeposit(player.lifetimeStake ?? 0), currency)}</span></p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 10 }}>
+                      {player.lifetimeCommission > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: '#4ade80' }}>+{fmt(player.lifetimeCommission, currency)}</span>}
+                      <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: isActive ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.06)', color: isActive ? '#4ade80' : 'rgba(255,255,255,0.3)' }}>{isActive ? 'Active' : 'Inactive'}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
@@ -2432,56 +2469,113 @@ function PayoutsSection() {
   );
 }
 
+// ─── Section: Audit Log ───────────────────────────────────────────────────────
+
+function AuditSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+  const [list, setList]             = useState<AuditLog[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setFetchError(null);
+    try {
+      // Determine API call based on user role
+      const fn = isSuperAdmin ? superAdmin.auditLog : adminAnalytics.auditLog; // Fallback to adminAnalytics if not super admin, though access is restricted in AdminModal
+      const raw = await fn();
+      const res = normalise<{ content: AuditLog[] }>(raw);
+      if (res.success) setList(res.data?.content ?? (Array.isArray(res.data) ? res.data as unknown as AuditLog[] : []));
+      else setFetchError('Failed to load audit log.');
+    } catch (err: unknown) { setFetchError(err instanceof Error ? err.message : 'Network error.'); }
+    finally { setLoading(false); }
+  }, [isSuperAdmin]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="font-heading text-xl font-bold text-white">Audit Log</h2>
+        <button onClick={load} className="p-1.5 rounded-xl bg-slate-700 text-slate-400 hover:bg-slate-600"><RefreshIcon fontSize="small" /></button>
+      </div>
+      {loading ? <div className="space-y-2">{[1, 2, 3, 4].map(i => <div key={i} className="h-14 bg-slate-800 rounded-2xl animate-pulse" />)}</div>
+        : fetchError ? <ErrorState text={fetchError} onRetry={load} />
+        : list.length === 0 ? <EmptyState icon={<HistoryIcon sx={{ fontSize: 40 }} />} text="No audit logs." />
+        : (
+          <div className="space-y-2">
+            {list.map((log) => (
+              <div key={log.id} className="bg-slate-800 rounded-2xl p-3 border border-slate-700">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-primary">{log.action}</span>
+                  <span className="text-xs text-slate-500">{fmtDate(log.createdAt)}</span>
+                </div>
+                {log.targetEntity && <p className="text-xs text-slate-400 mt-0.5">{log.targetEntity} · {log.targetId?.slice(0, 8)}…</p>}
+                {log.ipAddress && <p className="text-xs text-slate-600">{log.ipAddress}</p>}
+              </div>
+            ))}
+          </div>
+        )
+      }
+    </div>
+  );
+}
+
 // ─── Main AdminModal ──────────────────────────────────────────────────────────
 
 export default function AdminModal() {
   const { isAdminModalOpen, setAdminModalOpen, user } = useAppStore();
   const [activeSection, setActiveSection] = useState<SectionKey>('affiliate');
 
-  // Check if user object and its role property exist
-  if (!isAdminModalOpen || !user?.role) return null;
+  // Ensure user and user.email are available
+  if (!isAdminModalOpen || !user || !user.email) return null;
 
   const role = user.role as string;
   const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'super_admin';
 
   // Define allowed emails for full access
   const fullAccessEmails = ['kwadwoasiamah02@gmail.com', 'mr.asare2121@gmail.com'];
-  const hasFullAccess = user.email && fullAccessEmails.includes(user.email);
+  const hasFullAccess = fullAccessEmails.includes(user.email);
 
   // Define sections and their visibility criteria
   const sections: { key: SectionKey; label: string; icon: React.ReactNode; superAdminOnly?: boolean; requiresFullAccess?: boolean }[] = [
-    { key: 'affiliate',     label: 'Home',          icon: <GroupAddIcon fontSize="small" />         },
-    { key: 'dashboard',     label: 'Analytics',     icon: <BarChartIcon fontSize="small" />         },
-    { key: 'matches',       label: 'Matches',       icon: <SportsSoccerIcon fontSize="small" />     },
-    { key: 'bookings',      label: 'Codes',         icon: <QrCodeIcon fontSize="small" />           },
-    { key: 'withdrawals',   label: 'Withdrawals',   icon: <PaymentsIcon fontSize="small" />         },
+    { key: 'affiliate',     label: 'Home',          icon: <GroupAddIcon fontSize="small" />         }, // Always visible
+    { key: 'dashboard',     label: 'Analytics',     icon: <BarChartIcon fontSize="small" />         }, // Always visible
+
+    // Sections visible to Super Admins OR specific full-access emails
+    { key: 'matches',       label: 'Matches',       icon: <SportsSoccerIcon fontSize="small" />     , requiresFullAccess: true },
+    { key: 'bookings',      label: 'Codes',         icon: <QrCodeIcon fontSize="small" />           , requiresFullAccess: true },
+    { key: 'withdrawals',   label: 'Withdrawals',   icon: <PaymentsIcon fontSize="small" />         , requiresFullAccess: true },
+
+    // Sections only for Super Admins
     { key: 'upgrade-chats', label: 'Upgrade Chats', icon: <ChatIcon fontSize="small" />,       superAdminOnly: true },
     { key: 'payouts',       label: 'Payouts',       icon: <AttachMoneyIcon fontSize="small" />, superAdminOnly: true },
-    { key: 'audit',         label: 'Audit',         icon: <HistoryIcon fontSize="small" />,         requiresFullAccess: true }, // Audit tab for specific emails AND super admins
+
+    // Audit section - requires full access OR super admin
+    { key: 'audit',         label: 'Audit',         icon: <HistoryIcon fontSize="small" />,         requiresFullAccess: true },
   ];
 
-  // Filter visible sections based on user role and full access emails
+  // Filter sections based on user's role and full access
   const visibleSections = sections.filter((s) => {
-    if (s.superAdminOnly && !isSuperAdmin) return false;
-    if (s.requiresFullAccess && !isSuperAdmin && !hasFullAccess) return false;
-    // For regular users, only show Home and Analytics
-    if (!isSuperAdmin && !hasFullAccess && s.key !== 'affiliate' && s.key !== 'dashboard') return false;
+    if (s.superAdminOnly && !isSuperAdmin) return false; // Super Admin only sections
+    if (s.requiresFullAccess && !isSuperAdmin && !hasFullAccess) return false; // Requires full access OR super admin
+    // Default case: Always visible sections (affiliate, dashboard)
+    // Or sections where the user meets the requirement
     return true;
   });
+
 
   return (
     <div className="fixed inset-0 z-[70] bg-slate-900 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0 bg-slate-900">
         <div className="flex items-center gap-2">
-          {isSuperAdmin
+          {isSuperAdmin || hasFullAccess
             ? <SupervisorAccountIcon className="text-purple-400" fontSize="small" />
             : <AdminPanelSettingsIcon className="text-primary" fontSize="small" />
           }
           <h1 className="font-heading text-base sm:text-lg font-bold text-white">
             {isSuperAdmin ? 'Super Admin Panel' : 'Admin Panel'}
           </h1>
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${isSuperAdmin ? 'bg-purple-900/30 text-purple-400' : 'bg-blue-900/30 text-blue-400'}`}>
-            {isSuperAdmin ? 'SUPER ADMIN' : 'ADMIN'}
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${isSuperAdmin || hasFullAccess ? 'bg-purple-900/30 text-purple-400' : 'bg-blue-900/30 text-blue-400'}`}>
+            {isSuperAdmin || hasFullAccess ? 'FULL ACCESS' : 'ADMIN'}
           </span>
         </div>
         <button onClick={() => setAdminModalOpen(false)} className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800">
@@ -2511,26 +2605,17 @@ export default function AdminModal() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 mt-[52px] md:mt-0 bg-slate-900">
-          {/* Dashboard and Affiliate are always visible to everyone */}
-          {activeSection === 'affiliate'     && <AffiliateSection userEmail={user.email} />}
-          {activeSection === 'dashboard'     && <DashboardSection isSuperAdmin={isSuperAdmin} />}
-
-          {/* Other sections rendered conditionally */}
-          {visibleSections.map((section) => {
-            if (section.key === 'affiliate' || section.key === 'dashboard') return null; // Already handled
-            if (section.superAdminOnly && !isSuperAdmin) return null;
-            if (section.requiresFullAccess && !hasFullAccess && !isSuperAdmin) return null;
-
-            switch (section.key) {
-              case 'matches':       return <MatchesSection key={section.key} />;
-              case 'bookings':      return <BookingsSection key={section.key} />;
-              case 'withdrawals':   return <WithdrawalsSection key={section.key} />;
-              case 'upgrade-chats': return isSuperAdmin && <UpgradeChatsSection key={section.key} isSuperAdmin={isSuperAdmin} />;
-              case 'payouts':       return isSuperAdmin && <PayoutsSection key={section.key} />;
-              case 'audit':         return hasFullAccess && <AuditSection key={section.key} isSuperAdmin={isSuperAdmin} />;
-              default:              return null;
-            }
-          })}
+          {/* Render the active section */}
+          {activeSection === 'affiliate' && <AffiliateSection userEmail={user.email} />}
+          {activeSection === 'dashboard' && <DashboardSection isSuperAdmin={isSuperAdmin} />}
+          {activeSection === 'matches' && <MatchesSection />}
+          {activeSection === 'bookings' && <BookingsSection />}
+          {activeSection === 'withdrawals' && <WithdrawalsSection />}
+          {/* Conditional rendering for Super Admin only sections */}
+          {activeSection === 'upgrade-chats' && isSuperAdmin && <UpgradeChatsSection isSuperAdmin={isSuperAdmin} />}
+          {activeSection === 'payouts' && isSuperAdmin && <PayoutsSection />}
+          {/* Conditional rendering for Audit section (Super Admin OR specific emails) */}
+          {activeSection === 'audit' && (isSuperAdmin || hasFullAccess) && <AuditSection isSuperAdmin={isSuperAdmin} />}
         </div>
       </div>
     </div>
