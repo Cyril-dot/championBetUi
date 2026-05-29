@@ -2,12 +2,22 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 const API_BASE    = "https://futballbackend-production-aefb.up.railway.app";
-const MIN_DEPOSIT = 1;
-const QUICK_AMOUNTS = [1, 2, 5, 10, 20, 50, 100, 200];
+const MIN_DEPOSIT = 300;
+
+const QUICK_AMOUNTS = [
+  300,
+  500,
+  1000,
+  2000,
+  5000,
+  10000,
+  20000,
+  50000,
+];
 const NETWORKS = [
-  { id: "MTN",        label: "MTN MoMo",         logo: "YOUR_MTN_LOGO_URL_HERE"        },
-  { id: "VODAFONE",   label: "Telecel Cash",      logo: "YOUR_TELECEL_LOGO_URL_HERE"    },
-  { id: "AIRTELTIGO", label: "AirtelTigo Money",  logo: "YOUR_AIRTELTIGO_LOGO_URL_HERE" },
+  { id: "MTN",        label: "MTN MoMo",         logo: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSh1DZpMsH7WfqiU7sB6Pky_rHEQAumb9Tg-A&s"        },
+  { id: "VODAFONE",   label: "Telecel Cash",      logo: "https://www.telecel.com.gh/img/Telecel-Icon-Red.png"    },
+  { id: "AIRTELTIGO", label: "AirtelTigo Money",  logo: "https://amaghanaonline.com/wp-content/uploads/2022/07/WhatsApp-Image-2022-07-27-at-5.16.26-PM.jpeg" },
 ];
 
 const BINANCE_ADDRESS = "THHf1TpvjtpZ8QoLnCXXeUgs116pgHwgVq";
