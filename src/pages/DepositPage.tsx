@@ -91,14 +91,11 @@ export default function DepositPage() {
     if (!/^0\d{9}$/.test(phone.trim()))
       return setError("Enter a valid 10-digit number starting with 0.");
 
-    // Normalise to 233XXXXXXXXX — Moolre requires country-code format
-    const normalisedPhone = "233" + phone.trim().slice(1);
-
     setLoading(true);
     try {
       const data = await post("/api/wallet/deposit/moolre/init", {
         amount:  amt,
-        phone:   normalisedPhone,
+        phone:   phone.trim(),
         network,
       });
 
@@ -279,19 +276,19 @@ export default function DepositPage() {
                 </div>
               </div>
 
-              {/* Phone */}
+              {/* Phone — no +233 prefix; Moolre expects 0XXXXXXXXX */}
               <div style={{ marginBottom: "18px" }}>
                 <label style={S.label}>MoMo Phone Number</label>
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", padding: "13px 12px", color: "#667788", fontSize: "13px", fontWeight: 600 }}>+233</div>
-                  <input
-                    type="tel"
-                    placeholder="0244123456"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
-                    maxLength={10}
-                    style={S.input}
-                  />
+                <input
+                  type="tel"
+                  placeholder="0244123456"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  maxLength={10}
+                  style={{ ...S.input, width: "100%", boxSizing: "border-box" }}
+                />
+                <div style={{ color: "#334455", fontSize: "11px", marginTop: "5px" }}>
+                  Start with 0 — e.g. 0244123456
                 </div>
               </div>
 
