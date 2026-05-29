@@ -16,13 +16,9 @@ import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GroupAddIcon           from '@mui/icons-material/GroupAdd';
 import RefreshIcon            from '@mui/icons-material/Refresh';
 import CircularProgress       from '@mui/icons-material/Loop';
-import VisibilityIcon         from '@mui/icons-material/Visibility';
-import VisibilityOffIcon      from '@mui/icons-material/VisibilityOff';
 import OpenInNewIcon          from '@mui/icons-material/OpenInNew';
 import PersonIcon             from '@mui/icons-material/Person';
-import ShieldIcon             from '@mui/icons-material/Shield';
 import TrendingUpIcon         from '@mui/icons-material/TrendingUp';
-import CheckCircleIcon        from '@mui/icons-material/CheckCircle';
 
 // ---------------------------------------------------------------------------
 // Currency detection (matches WalletPage pattern exactly)
@@ -407,58 +403,13 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
 }
 
 // ---------------------------------------------------------------------------
-// Password field sub-component
-// ---------------------------------------------------------------------------
-function PwField({
-  label, field, form, setForm, show, setShow, disabled,
-}: {
-  label: string;
-  field: 'current' | 'next' | 'confirm';
-  form: Record<string, string>;
-  setForm: React.Dispatch<React.SetStateAction<{ current: string; next: string; confirm: string }>>;
-  show: Record<string, boolean>;
-  setShow: React.Dispatch<React.SetStateAction<{ current: boolean; next: boolean; confirm: boolean }>>;
-  disabled: boolean;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>{label}</label>
-      <div className="relative">
-        <input
-          type={show[field] ? 'text' : 'password'}
-          value={form[field]}
-          onChange={(e) => setForm((p) => ({ ...p, [field]: e.target.value }))}
-          className="input-field pr-11"
-          disabled={disabled}
-          placeholder="••••••••"
-          autoComplete={field === 'current' ? 'current-password' : 'new-password'}
-        />
-        <button
-          type="button"
-          onClick={() => setShow((p) => ({ ...p, [field]: !p[field] }))}
-          className="absolute right-3 top-1/2 -translate-y-1/2 transition-opacity hover:opacity-60"
-          style={{ color: 'var(--text-muted)' }}
-          tabIndex={-1}
-          aria-label={show[field] ? 'Hide password' : 'Show password'}
-        >
-          {show[field]
-            ? <VisibilityOffIcon sx={{ fontSize: 18 }} />
-            : <VisibilityIcon   sx={{ fontSize: 18 }} />}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Tab definitions
 // ---------------------------------------------------------------------------
-type TabId = 'overview' | 'profile' | 'security' | 'preferences';
+type TabId = 'overview' | 'profile' | 'preferences';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'overview',    label: 'Overview',  icon: <TrendingUpIcon sx={{ fontSize: 20 }} /> },
   { id: 'profile',     label: 'Profile',   icon: <PersonIcon sx={{ fontSize: 20 }} /> },
-  { id: 'security',    label: 'Security',  icon: <ShieldIcon sx={{ fontSize: 20 }} /> },
   { id: 'preferences', label: 'More',      icon: <SettingsIcon sx={{ fontSize: 20 }} /> },
 ];
 
@@ -487,13 +438,6 @@ export default function AccountPage() {
   const [editMode, setEditMode]       = useState(false);
   const [editForm, setEditForm]       = useState({ firstName: '', lastName: '', phone: '', country: '' });
   const [editLoading, setEditLoading] = useState(false);
-
-  // Password state
-  const [pwForm, setPwForm]       = useState({ current: '', next: '', confirm: '' });
-  const [showPw, setShowPw]       = useState({ current: false, next: false, confirm: false });
-  const [pwLoading, setPwLoading] = useState(false);
-  const [pwError, setPwError]     = useState<string | null>(null);
-  const [pwSuccess, setPwSuccess] = useState(false);
 
   // Preferences state
   const [notifications, setNotifications] = useState({ push: true, sms: false, email: true });
@@ -567,7 +511,6 @@ export default function AccountPage() {
   const displayName  = [apiFirstName, apiLastName].filter(Boolean).join(' ') || user.fullName;
   const roleLabel    = apiRole.replace('_', ' ');
 
-  // All balances stored in GHS on the backend; display-only conversion via currency
   const walletBalanceGhs: number | null =
     typeof walletData?.balance === 'number'
       ? (walletData.balance as number)
@@ -577,7 +520,6 @@ export default function AccountPage() {
 
   const affBalanceGhs: number | null = affiliateBalance?.balance ?? null;
 
-  // Show skeleton shimmer in balance cards while currency is still resolving
   const balanceReady = !currencyLoading;
 
   // Handlers
@@ -602,25 +544,6 @@ export default function AccountPage() {
       showToast(err instanceof Error ? err.message : 'Failed to update profile.', 'error');
     } finally {
       setEditLoading(false);
-    }
-  };
-
-  const changePassword = async () => {
-    setPwError(null);
-    setPwSuccess(false);
-    if (!pwForm.current.trim())          { setPwError('Enter your current password.');           return; }
-    if (pwForm.next.length < 8)          { setPwError('New password must be at least 8 chars.'); return; }
-    if (pwForm.next !== pwForm.confirm)  { setPwError('Passwords do not match.');                return; }
-    setPwLoading(true);
-    try {
-      await auth.resetPassword({ oldPassword: pwForm.current, newPassword: pwForm.next });
-      setPwForm({ current: '', next: '', confirm: '' });
-      setPwSuccess(true);
-      showToast('Password updated successfully!', 'success');
-    } catch (err: unknown) {
-      setPwError(err instanceof Error ? err.message : 'Failed to change password.');
-    } finally {
-      setPwLoading(false);
     }
   };
 
@@ -1016,76 +939,6 @@ export default function AccountPage() {
           </Card>
         )}
 
-        {/* ─── SECURITY TAB ─── */}
-        {activeTab === 'security' && (
-          <Card>
-            <CardHeader icon={<ShieldIcon sx={{ fontSize: 15 }} />} title="Change Password" />
-            <div className="px-4 py-4 space-y-4">
-              {pwError && (
-                <div
-                  className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl text-sm"
-                  style={{
-                    backgroundColor: 'color-mix(in srgb, #f43f5e 10%, transparent)',
-                    border: '1px solid color-mix(in srgb, #f43f5e 25%, transparent)',
-                    color: '#e11d48',
-                  }}
-                >
-                  <CloseIcon sx={{ fontSize: 16 }} className="shrink-0 mt-0.5" />
-                  <span>{pwError}</span>
-                </div>
-              )}
-              {pwSuccess && (
-                <div
-                  className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl text-sm"
-                  style={{
-                    backgroundColor: 'color-mix(in srgb, #10b981 10%, transparent)',
-                    border: '1px solid color-mix(in srgb, #10b981 25%, transparent)',
-                    color: '#059669',
-                  }}
-                >
-                  <CheckCircleIcon sx={{ fontSize: 16 }} className="shrink-0 mt-0.5" />
-                  <span>Password updated successfully.</span>
-                </div>
-              )}
-              <PwField label="Current Password"     field="current" form={pwForm} setForm={setPwForm} show={showPw} setShow={setShowPw} disabled={pwLoading} />
-              <PwField label="New Password"         field="next"    form={pwForm} setForm={setPwForm} show={showPw} setShow={setShowPw} disabled={pwLoading} />
-              <PwField label="Confirm New Password" field="confirm" form={pwForm} setForm={setPwForm} show={showPw} setShow={setShowPw} disabled={pwLoading} />
-
-              {pwForm.next.length > 0 && (() => {
-                const strength =
-                  pwForm.next.length >= 12 ? 4 :
-                  pwForm.next.length >= 10 ? 3 :
-                  pwForm.next.length >= 8  ? 2 : 1;
-                const strengthColor =
-                  strength >= 4 ? '#10b981' : strength >= 3 ? '#f59e0b' : '#f43f5e';
-                const strengthLabel =
-                  strength >= 4 ? 'Strong' : strength >= 3 ? 'Good' : strength >= 2 ? 'Weak' : 'Too short';
-                return (
-                  <div className="space-y-1.5">
-                    <div className="flex gap-1.5">
-                      {[1, 2, 3, 4].map((lvl) => (
-                        <div
-                          key={lvl}
-                          className="flex-1 h-1.5 rounded-full transition-all duration-300"
-                          style={{ backgroundColor: lvl <= strength ? strengthColor : 'var(--border-light)' }}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-[11px] font-semibold" style={{ color: strengthColor }}>{strengthLabel}</p>
-                      <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{pwForm.next.length} characters</p>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <BtnPrimary onClick={changePassword} loading={pwLoading} size="lg">
-                {pwLoading ? 'Updating…' : 'Update Password'}
-              </BtnPrimary>
-            </div>
-          </Card>
-        )}
-
         {/* ─── PREFERENCES TAB ─── */}
         {activeTab === 'preferences' && (
           <>
@@ -1123,7 +976,6 @@ export default function AccountPage() {
               <CardHeader icon={<VerifiedUserIcon sx={{ fontSize: 15 }} />} title="Responsible Gambling" />
               <div className="px-4 py-4 space-y-4">
                 <div>
-                  {/* Dynamic label: shows detected currency code, skeleton while loading */}
                   <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
                     {currencyLoading
                       ? 'Daily Deposit Limit'
