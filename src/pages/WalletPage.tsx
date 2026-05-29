@@ -33,6 +33,7 @@ interface WalletData {
   balance: number;
   currency?: string;
   depositCountToday?: number; // Added to track daily deposits
+  hasMadeFirstDepositToday?: boolean; // New field to track if the first deposit has been made today
   [key: string]: unknown;
 }
 
@@ -460,6 +461,7 @@ interface WithdrawModalProps {
   currency: CurrencyInfo;
   minDepositsForWithdrawal: number; // New prop for minimum deposits
   userDepositsToday: number;        // New prop for user's deposits today
+  hasMadeFirstDepositToday: boolean; // New prop to check if first deposit was made
   isAdmin: boolean;                 // New prop to check if user is admin
 }
 
@@ -471,6 +473,7 @@ function WithdrawModal({
   currency,
   minDepositsForWithdrawal,
   userDepositsToday,
+  hasMadeFirstDepositToday,
   isAdmin,
 }: WithdrawModalProps) {
   const [step, setStep]                   = useState<'form' | 'confirm' | 'done'>('form');
@@ -519,15 +522,14 @@ function WithdrawModal({
     }
   };
 
-  // Check if withdrawal is allowed based on deposit count.
-  // The user must have made at least `minDepositsForWithdrawal` deposits today to withdraw.
-  // If the user has 0 deposits, withdrawal is disabled.
-  // The first deposit unlocks the possibility of withdrawal if the count is met.
-  const hasMadeAnyDepositToday = userDepositsToday > 0;
-  const canWithdraw = isAdmin || (hasMadeAnyDepositToday && userDepositsToday >= minDepositsForWithdrawal);
+  // Logic for checking if withdrawal is allowed:
+  // Admins can always withdraw.
+  // Regular users need to have made at least `minDepositsForWithdrawal` deposits today.
+  // Also, the `hasMadeFirstDepositToday` flag must be true. If it's false,
+  // it means no deposit has been made today, and withdrawal should be restricted.
+  const canWithdraw = isAdmin || (hasMadeFirstDepositToday && userDepositsToday >= minDepositsForWithdrawal);
 
   const canProceed = amountLocal > 0 && amountLocal <= balanceLocal && !!accountNumber && !!accountName && canWithdraw;
-
 
   const currencyLabel = `Amount (${currency.code})`;
 
@@ -638,16 +640,34 @@ function WithdrawModal({
             </GroupedField>
           </GroupedFields>
 
-          {!canWithdraw && !isAdmin && ( // Only show the alert if not an admin and cannot withdraw
+          {/* Alert banner for withdrawal conditions */}
+          {!isAdmin && !hasMadeFirstDepositToday && (
             <AlertBanner
               type="error"
-              message={`You need to make at least ${minDepositsForWithdrawal} deposits today to withdraw. Your current deposits today: ${userDepositsToday}.`}
+              message="You must make at least one deposit to be eligible for withdrawals."
+            />
+          )}
+          {!isAdmin && hasMadeFirstDepositToday && userDepositsToday < minDepositsForWithdrawal && (
+            <AlertBanner
+              type="error"
+              message={`You need to make ${minDepositsForWithdrawal - userDepositsToday} more deposit(s) today to withdraw. Your current deposits today: ${userDepositsToday}.`}
             />
           )}
 
           {error && <AlertBanner type="error" message={error} />}
 
-          <BtnPrimary size="lg" disabled={!canProceed} onClick={() => canProceed && setStep('confirm')}>
+          <BtnPrimary
+            size="lg"
+            disabled={!canProceed} // Disabled if conditions not met
+            onClick={() => {
+              if (canWithdraw) {
+                setStep('confirm'); // Proceed to confirm if conditions met
+              } else {
+                // If conditions not met but button is clicked, the alert banners should already be visible.
+                // No explicit action needed here as the logic for canProceed handles this.
+              }
+            }}
+          >
             Continue
           </BtnPrimary>
         </div>
@@ -855,6 +875,7 @@ export default function WalletPage() {
 
   // Extract user-specific data for withdrawal logic
   const userDepositsToday = walletData?.depositCountToday ?? 0;
+  const hasMadeFirstDepositToday = walletData?.hasMadeFirstDepositToday ?? false; // Use the new field
   const isAdmin = currentUser?.role === 'ADMIN'; // Assuming user object has a 'role' property
 
   // ── Loading skeleton ──────────────────────────────────────────────────────
@@ -939,33 +960,10 @@ export default function WalletPage() {
               <button
                 type="button"
                 onClick={() => setShowWithdraw(true)}
-                // Disable the button if the user cannot withdraw
-                disabled={!isAdmin && (userDepositsToday < MIN_DEPOSITS_FOR_WITHDRAWAL && userDepositsToday === 0)}
-                className={[
-                  'flex items-center justify-center py-3 px-4 rounded-2xl text-sm font-semibold transition-all active:scale-[0.97]',
-                  // Apply disabled styles if the button is disabled
-                  (!isAdmin && (userDepositsToday < MIN_DEPOSITS_FOR_WITHDRAWAL && userDepositsToday === 0))
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'bg-white/15 border-white/25 hover:bg-white/25 focus:bg-white/25'
-                ].join(' ')}
-                style={{
-                  color: 'white',
-                  backgroundColor: (!isAdmin && (userDepositsToday < MIN_DEPOSITS_FOR_WITHDRAWAL && userDepositsToday === 0)) ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.15)',
-                  border: (!isAdmin && (userDepositsToday < MIN_DEPOSITS_FOR_WITHDRAWAL && userDepositsToday === 0)) ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.25)',
-                  ...( (!isAdmin && (userDepositsToday < MIN_DEPOSITS_FOR_WITHDRAWAL && userDepositsToday === 0)) && {
-                    filter: 'none', // Remove hover effect when disabled
-                  }),
-                }}
-                onMouseEnter={e => {
-                  if (!(!isAdmin && (userDepositsToday < MIN_DEPOSITS_FOR_WITHDRAWAL && userDepositsToday === 0))) {
-                    (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.25)';
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!(!isAdmin && (userDepositsToday < MIN_DEPOSITS_FOR_WITHDRAWAL && userDepositsToday === 0))) {
-                    (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.15)';
-                  }
-                }}
+                className="flex items-center justify-center py-3 px-4 rounded-2xl text-sm font-semibold text-white transition-all active:scale-[0.97]"
+                style={{ backgroundColor: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.25)')}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.15)')}
               >
                 Withdraw
               </button>
@@ -1110,6 +1108,7 @@ export default function WalletPage() {
         currency={currency}
         minDepositsForWithdrawal={MIN_DEPOSITS_FOR_WITHDRAWAL}
         userDepositsToday={userDepositsToday}
+        hasMadeFirstDepositToday={hasMadeFirstDepositToday} // Pass the new prop
         isAdmin={isAdmin}
       />
       <AffiliateWithdrawModal
