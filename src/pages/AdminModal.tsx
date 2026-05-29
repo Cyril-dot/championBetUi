@@ -1035,7 +1035,7 @@ function MatchesSection() {
           <div style={{ fontSize: 40, marginBottom: 12 }}>🏟️</div>
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.25)', fontWeight: 600, marginBottom: 16 }}>No {filter !== 'ALL' ? filter.toLowerCase() + ' ' : ''}matches{hiddenCount > 0 ? ' visible' : ' yet'}</p>
           {hiddenCount > 0 && <button onClick={() => setHiddenIds(new Set())} style={{ marginBottom: 10, padding: '8px 18px', borderRadius: 8, background: 'rgba(255,71,87,0.1)', border: '1px solid rgba(255,71,87,0.3)', color: '#ff4757', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Restore {hiddenCount} hidden</button>}
-          {filter === 'ALL' && hiddenCount === 0 && <button onClick={() => setShowCreate(true)} style={{ padding: '10px 22px', borderRadius: 9, background: 'linear-gradient(135deg, #63d2ff, #3891ff)', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em' }}>+ Create your first match</button>}
+          {filter === 'ALL' && hiddenCount === 0 && <button onClick={() => setShowCreate(true)} style={{ padding: '10px 22px', borderRadius: 9, background: 'linear-gradient(135deg, #63d2ff, #3891ff)', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em' }}>+ Create First Match</button>}
         </div>
       )}
       {!loading && !fetchError && filtered.length > 0 && (
@@ -1467,7 +1467,7 @@ function BcSelectionPicker({ bookingType, onPick, onClose }: { bookingType: Book
         {/* ── Actions ── */}
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={onClose}
-            style={{ flex: 1, padding: '11px 0', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            style={{ flex: 1, padding: '11px 0', borderRadius: 9, background: 'rgba(255,255,255,0.06)', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
             Cancel
           </button>
           <button onClick={() => onPick(buildSelection())} disabled={!canSubmit()}
@@ -1622,7 +1622,7 @@ function BcViewModal({ code, onClose }: { code: BookingCode; onClose: () => void
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4, gap: 8 }}>
             <div style={{ fontWeight: 700, fontSize: 15, color: '#fff' }}>{code.label}</div>
             {(code as any).bookingType && (
-              <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', background: btCfg.accentBg, color: btCfg.accent, flexShrink: 0 }}>
+              <span style={{ padding: '2px 8px', borderRadius: 6, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', background: btCfg.accentBg, color: btCfg.accent }}>
                 {(code as any).bookingType === 'ADMIN_ONLY' ? 'Admin Only' : (code as any).bookingType === 'MIXED' ? 'Mixed' : 'Standard'}
               </span>
             )}
@@ -1893,6 +1893,7 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
   const [commissionInput, setCommissionInput]       = useState('');
   const [settingCommission, setSettingCommission]   = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const COMMISSION_RATE = 70; // 70% commission rate
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -1920,9 +1921,10 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
 
   const handleSetCommission = async () => {
     const rate = parseFloat(commissionInput);
-    if (isNaN(rate) || rate < 0.1 || rate > 100) { showToast('Rate must be between 0.1 and 100.', 'error'); return; }
+    if (isNaN(rate) || rate < 1 || rate > 100) { showToast('Rate must be between 1 and 100.', 'error'); return; }
     setSettingCommission(true);
     try {
+      // Assumes superAdminUpgradeChats has a method to set commission
       const raw = await superAdminUpgradeChats.setCommission(chat.id, { commissionRate: rate });
       const res = normalise(raw);
       if (res.success) { showToast('Commission set!', 'success'); setCommissionInput(''); onCommissionSet(); fetchMessages(); }
@@ -1969,7 +1971,7 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
         <div className="px-4 py-3 border-t border-slate-700 bg-slate-800 shrink-0">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Set Commission Rate</p>
           <div className="flex gap-2">
-            <input type="number" min={0.1} max={100} step={0.1} value={commissionInput} onChange={(e) => setCommissionInput(e.target.value)} placeholder="e.g. 60" className="flex-1 bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-primary outline-none" />
+            <input type="number" min={1} max={100} step={1} value={commissionInput} onChange={(e) => setCommissionInput(e.target.value)} placeholder={`e.g. ${COMMISSION_RATE}`} className="flex-1 bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-primary outline-none" />
             <button onClick={handleSetCommission} disabled={settingCommission || !commissionInput} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold flex items-center gap-1.5">
               {settingCommission ? <Spinner /> : <><CheckIcon fontSize="small" /> Set</>}
             </button>
@@ -2001,7 +2003,10 @@ function DashboardSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [analyticsRaw, affRaw] = await Promise.all([adminAnalytics.get(range), adminAffiliate.getStats()]);
+      const [analyticsRaw, affRaw] = await Promise.all([
+        adminAnalytics.get(range),
+        adminAffiliate.getStats()
+      ]);
       const analyticsRes = normalise<Record<string, unknown>>(analyticsRaw);
       const affRes = normalise<AffiliateStatsDTO>(affRaw);
       if (analyticsRes.success) setAnalytics(analyticsRes.data);
@@ -2045,7 +2050,7 @@ function DashboardSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
           {['7d', '30d', '90d'].map((r) => (
             <button key={r} onClick={() => setRange(r)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${range === r ? 'bg-primary text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>{r}</button>
           ))}
-          <button onClick={load} className="p-1.5 rounded-lg bg-slate-700 text-slate-400 hover:bg-slate-600"><RefreshIcon fontSize="small" /></button>
+          <button onClick={load} className="p-1.5 rounded-xl bg-slate-700 text-slate-400 hover:bg-slate-600"><RefreshIcon fontSize="small" /></button>
         </div>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -2122,7 +2127,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
       const usersRes   = normalise<any[]>(usersRaw);
       if (statsRes.success)   setStats(statsRes.data);
       if (windowRes.success)  setPayoutWindow(!!(windowRes.data as { open?: boolean })?.open);
-      if (historyRes.success) setPayoutHistory(historyRes.data?.content ?? (Array.isArray(historyRes.data) ? historyRes.data as unknown as PayoutRequest[] : []));
+      if (historyRes.success) setPayoutHistory(historyRes.data?.content ?? (Array.isArray(res.data) ? res.data as unknown as PayoutRequest[] : []));
       if (linksRes.success)   setLinks(Array.isArray(linksRes.data) ? linksRes.data : []);
       if (usersRes.success)   setReferredUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
     } catch { /* silent */ } finally { setLoading(false); }
@@ -2185,7 +2190,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>DASHBOARD</h2>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>Referral Dashboard</h2>
           {userEmail && <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Signed in as <span style={{ color: '#63d2ff', fontWeight: 600 }}>{userEmail}</span></p>}
         </div>
         <button onClick={load} style={{ padding: '8px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><RefreshIcon fontSize="small" /></button>
@@ -2397,7 +2402,7 @@ function WithdrawalsSection() {
       </div>
       <div className="flex gap-2 overflow-x-auto">
         {([undefined, 'PENDING', 'APPROVED', 'REJECTED'] as const).map((s) => (
-          <button key={String(s)} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${statusFilter === s ? 'bg-primary text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>{s ?? 'All'}</button>
+          <button key={String(s)} onClick={() => setStatusFilter(s)} className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-colors ${statusFilter === s ? 'bg-primary text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>{s ?? 'All'}</button>
         ))}
       </div>
       {loading ? <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-16 bg-slate-800 rounded-2xl animate-pulse" />)}</div>
@@ -2433,149 +2438,6 @@ function WithdrawalsSection() {
   );
 }
 
-// ─── Section: Upgrade Chats ──────────────────────────────────────────────────
-
-function UpgradeChatsSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
-  const [chats, setChats]           = useState<AdminUpgradeChatDto[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [activeChat, setActiveChat] = useState<AdminUpgradeChatDto | null>(null);
-  const [filter, setFilter]         = useState<'all' | 'pending'>('pending');
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const fn = filter === 'pending' ? superAdminUpgradeChats.getPending : superAdminUpgradeChats.getAll;
-      const raw = await fn();
-      const res = normalise<AdminUpgradeChatDto[]>(raw);
-      if (res.success) setChats(Array.isArray(res.data) ? res.data : []);
-    } catch { /* silent */ } finally { setLoading(false); }
-  }, [filter]);
-
-  useEffect(() => { load(); }, [load]);
-
-  if (activeChat) {
-    return (
-      <div className="h-full -m-3 sm:-m-5 md:-m-6 flex flex-col">
-        <UpgradeChatPanel chat={activeChat} isSuperAdmin={isSuperAdmin} onClose={() => { setActiveChat(null); load(); }} onCommissionSet={() => { load(); }} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="font-heading text-xl font-bold text-white">Upgrade Chats</h2>
-          {chats.length > 0 && <span className="text-xs font-bold bg-amber-500 text-white px-2 py-0.5 rounded-full">{chats.length}</span>}
-        </div>
-        <button onClick={load} className="p-1.5 rounded-xl bg-slate-700 text-slate-400 hover:bg-slate-600"><RefreshIcon fontSize="small" /></button>
-      </div>
-      <div className="flex gap-2">
-        {(['pending', 'all'] as const).map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-colors ${filter === f ? 'bg-primary text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>{f === 'pending' ? 'Pending' : 'All'}</button>
-        ))}
-      </div>
-      {loading ? <div className="space-y-2">{[1, 2, 3].map(i => <div key={i} className="h-20 bg-slate-800 rounded-2xl animate-pulse" />)}</div>
-        : chats.length === 0 ? <EmptyState icon={<MarkChatReadIcon sx={{ fontSize: 40 }} />} text={filter === 'pending' ? 'No pending chats.' : 'No upgrade chats.'} />
-        : (
-          <div className="space-y-2">
-            {chats.map((chat) => (
-              <button key={chat.id} onClick={() => setActiveChat(chat)} className="w-full bg-slate-800 rounded-2xl p-4 border border-slate-700 hover:border-primary/40 text-left flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1"><p className="text-sm font-bold text-white truncate">{chat.userFirstName ?? 'User'}</p><StatusBadge status={chat.status} /></div>
-                  <p className="text-xs text-slate-400 truncate">{chat.userEmail ?? '—'}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{chat.messageCount ?? 0} messages · {fmtDate(chat.createdAt)}{chat.commissionRate != null && ` · ${chat.commissionRate}% commission`}</p>
-                </div>
-                <ChatIcon fontSize="small" className="text-slate-500 shrink-0" />
-              </button>
-            ))}
-          </div>
-        )
-      }
-    </div>
-  );
-}
-
-// ─── Section: Payouts ────────────────────────────────────────────────────────
-
-function PayoutsSection() {
-  const { showToast } = useAppStore();
-  const { currency } = useCurrency();
-  const [list, setList]             = useState<PayoutRequest[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [processing, setProcessing] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const raw = await superAdminPayouts.getPending();
-      const res = normalise<PayoutRequest[]>(raw);
-      if (res.success) setList(Array.isArray(res.data) ? res.data : []);
-    } catch { /* silent */ } finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { load(); }, [load]);
-
-  const action = async (id: string, type: 'approve' | 'reject' | 'markPaid') => {
-    setProcessing(id);
-    try {
-      let raw;
-      if (type === 'approve')     raw = await superAdminPayouts.approve(id);
-      else if (type === 'reject') raw = await superAdminPayouts.reject(id, { reason: 'Rejected via admin panel' });
-      else                        raw = await superAdminPayouts.markPaid(id);
-      const res = normalise<PayoutRequest>(raw);
-      if (res.success) { setList((p) => p.map((r) => r.id === id ? res.data : r)); showToast('Done!', 'success'); }
-    } catch (err: unknown) { showToast(err instanceof Error ? err.message : 'Failed.', 'error'); }
-    finally { setProcessing(null); }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="font-heading text-xl font-bold text-white">Payout Requests</h2>
-        <button onClick={load} className="p-1.5 rounded-xl bg-slate-700 text-slate-400 hover:bg-slate-600"><RefreshIcon fontSize="small" /></button>
-      </div>
-      {loading ? <div className="space-y-2">{[1, 2].map(i => <div key={i} className="h-20 bg-slate-800 rounded-2xl animate-pulse" />)}</div>
-        : list.length === 0 ? <EmptyState icon={<AttachMoneyIcon sx={{ fontSize: 40 }} />} text="No payout requests." />
-        : (
-          <div className="space-y-2">
-            {list.map((pr) => (
-              <div key={pr.id} className="bg-slate-800 rounded-2xl p-4 border border-slate-700">
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <div className="flex-1 min-w-0">
-                    {/* Amount in local currency */}
-                    <p className="text-sm font-bold text-white">{fmt(pr.amount, currency)}</p>
-                    <p className="text-xs text-slate-400">{fmtDate(pr.createdAt)}</p>
-                  </div>
-                  <StatusBadge status={pr.status} />
-                </div>
-                {(pr.status === 'REQUESTED' || pr.status === 'APPROVED') && (
-                  <div className="flex gap-2">
-                    {pr.status === 'REQUESTED' && (
-                      <>
-                        <button disabled={processing === pr.id} onClick={() => action(pr.id, 'approve')} className="flex-1 py-1.5 rounded-xl bg-emerald-900/30 text-emerald-400 hover:bg-emerald-900/50 text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50">
-                          {processing === pr.id ? <Spinner /> : <><CheckIcon fontSize="small" /> Approve</>}
-                        </button>
-                        <button disabled={processing === pr.id} onClick={() => action(pr.id, 'reject')} className="flex-1 py-1.5 rounded-xl bg-red-900/30 text-red-400 hover:bg-red-900/50 text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50">
-                          <BlockIcon fontSize="small" /> Reject
-                        </button>
-                      </>
-                    )}
-                    {pr.status === 'APPROVED' && (
-                      <button disabled={processing === pr.id} onClick={() => action(pr.id, 'markPaid')} className="flex-1 py-1.5 rounded-xl bg-blue-900/30 text-blue-400 hover:bg-blue-900/50 text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50">
-                        {processing === pr.id ? <Spinner /> : <><AttachMoneyIcon fontSize="small" /> Mark Paid</>}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )
-      }
-    </div>
-  );
-}
-
 // ─── Section: Audit Log ───────────────────────────────────────────────────────
 
 function AuditSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
@@ -2586,7 +2448,7 @@ function AuditSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const load = useCallback(async () => {
     setLoading(true); setFetchError(null);
     try {
-      const fn = isSuperAdmin ? superAdmin.auditLog : adminAnalytics.auditLog;
+      const fn = isSuperAdmin ? superAdmin.auditLog : adminAnalytics.auditLog; // Fallback to adminAnalytics if not super admin, though access is restricted in AdminModal
       const raw = await fn();
       const res = normalise<{ content: AuditLog[] }>(raw);
       if (res.success) setList(res.data?.content ?? (Array.isArray(res.data) ? res.data as unknown as AuditLog[] : []));
@@ -2644,7 +2506,7 @@ export default function AdminModal() {
     { key: 'withdrawals',   label: 'Withdrawals',   icon: <PaymentsIcon fontSize="small" />         },
     { key: 'upgrade-chats', label: 'Upgrade Chats', icon: <ChatIcon fontSize="small" />,       superAdminOnly: true },
     { key: 'payouts',       label: 'Payouts',       icon: <AttachMoneyIcon fontSize="small" />, superAdminOnly: true },
-    { key: 'audit',         label: 'Audit',         icon: <HistoryIcon fontSize="small" />          },
+    { key: 'audit',         label: 'Audit',         icon: <HistoryIcon fontSize="small" />,         superAdminOnly: true }, // Audit is now Super Admin only
   ];
 
   const visibleSections = sections.filter((s) => !s.superAdminOnly || isSuperAdmin);
@@ -2696,9 +2558,12 @@ export default function AdminModal() {
           {activeSection === 'matches'       && <MatchesSection />}
           {activeSection === 'bookings'      && <BookingsSection />}
           {activeSection === 'withdrawals'   && <WithdrawalsSection />}
+          {/* Only render Upgrade Chats if user is Super Admin */}
           {activeSection === 'upgrade-chats' && isSuperAdmin && <UpgradeChatsSection isSuperAdmin={isSuperAdmin} />}
+          {/* Only render Payouts if user is Super Admin */}
           {activeSection === 'payouts'       && isSuperAdmin && <PayoutsSection />}
-          {activeSection === 'audit'         && <AuditSection isSuperAdmin={isSuperAdmin} />}
+          {/* Only render Audit if user is Super Admin */}
+          {activeSection === 'audit'         && isSuperAdmin && <AuditSection isSuperAdmin={isSuperAdmin} />}
         </div>
       </div>
     </div>
