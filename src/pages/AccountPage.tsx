@@ -15,13 +15,22 @@ import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import GroupAddIcon           from '@mui/icons-material/GroupAdd';
 import RefreshIcon            from '@mui/icons-material/Refresh';
-import CircularProgress       from '@mui/icons-material/Loop';
+import LoopIcon               from '@mui/icons-material/Loop';
 import OpenInNewIcon          from '@mui/icons-material/OpenInNew';
 import PersonIcon             from '@mui/icons-material/Person';
 import TrendingUpIcon         from '@mui/icons-material/TrendingUp';
+import SyncIcon               from '@mui/icons-material/Sync';
+import ChevronRightIcon       from '@mui/icons-material/ChevronRight';
+import PeopleAltIcon          from '@mui/icons-material/PeopleAlt';
+import PaidIcon               from '@mui/icons-material/Paid';
+import NorthEastIcon          from '@mui/icons-material/NorthEast';
+import SouthWestIcon          from '@mui/icons-material/SouthWest';
+import MoneyOffIcon           from '@mui/icons-material/MoneyOff';
+import VisibilityIcon         from '@mui/icons-material/Visibility';
+import VisibilityOffIcon      from '@mui/icons-material/VisibilityOff';
 
 // ---------------------------------------------------------------------------
-// Currency detection (matches WalletPage pattern exactly)
+// Currency detection
 // ---------------------------------------------------------------------------
 
 interface CurrencyInfo {
@@ -62,128 +71,64 @@ const DEFAULT_CURRENCY: CurrencyInfo = {
   countryCode: 'GH', rateFromGhs: 1,
 };
 
-// Module-level cache so detection only runs once per session
 let _currencyCache: CurrencyInfo | null = null;
 
 async function detectCurrencyInfo(): Promise<CurrencyInfo> {
   if (_currencyCache) return _currencyCache;
-
   let countryCode = '';
-
-  // 1. ipapi.co — free, HTTPS, browser-friendly, 1k req/day
   try {
-    const res = await fetch('https://ipapi.co/json/', {
-      signal: AbortSignal.timeout(4000),
-    });
-    if (res.ok) {
-      const d = await res.json();
-      countryCode = d.country_code ?? '';
-    }
+    const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+    if (res.ok) { const d = await res.json(); countryCode = d.country_code ?? ''; }
   } catch { /* fall through */ }
-
-  // 2. freeipapi.com — free, HTTPS, no key needed
   if (!countryCode) {
     try {
-      const res = await fetch('https://freeipapi.com/api/json', {
-        signal: AbortSignal.timeout(4000),
-      });
-      if (res.ok) {
-        const d = await res.json();
-        countryCode = d.countryCode ?? '';
-      }
+      const res = await fetch('https://freeipapi.com/api/json', { signal: AbortSignal.timeout(4000) });
+      if (res.ok) { const d = await res.json(); countryCode = d.countryCode ?? ''; }
     } catch { /* fall through */ }
   }
-
-  // 3. ip.guide — free, HTTPS, no key needed
   if (!countryCode) {
     try {
-      const res = await fetch('https://ip.guide/', {
-        signal: AbortSignal.timeout(4000),
-        headers: { Accept: 'application/json' },
-      });
-      if (res.ok) {
-        const d = await res.json();
-        countryCode = d.location?.country_code ?? '';
-      }
+      const res = await fetch('https://ip.guide/', { signal: AbortSignal.timeout(4000), headers: { Accept: 'application/json' } });
+      if (res.ok) { const d = await res.json(); countryCode = d.location?.country_code ?? ''; }
     } catch { /* fall through */ }
   }
-
   const localCurrency = countryCode ? COUNTRY_CURRENCY[countryCode] : undefined;
-  if (!localCurrency) {
-    _currencyCache = DEFAULT_CURRENCY;
-    return DEFAULT_CURRENCY;
-  }
-
-  // 4. Fetch GHS → localCurrency rate
+  if (!localCurrency) { _currencyCache = DEFAULT_CURRENCY; return DEFAULT_CURRENCY; }
   let rateFromGhs = 1;
-
   if (localCurrency.code !== 'GHS') {
     try {
-      const res = await fetch('https://open.er-api.com/v6/latest/GHS', {
-        signal: AbortSignal.timeout(5000),
-      });
-      if (res.ok) {
-        const d = await res.json();
-        rateFromGhs = d.rates?.[localCurrency.code] ?? 1;
-      }
+      const res = await fetch('https://open.er-api.com/v6/latest/GHS', { signal: AbortSignal.timeout(5000) });
+      if (res.ok) { const d = await res.json(); rateFromGhs = d.rates?.[localCurrency.code] ?? 1; }
     } catch { /* fall through */ }
-
-    // Fallback rate API
     if (rateFromGhs === 1) {
       try {
-        const res = await fetch(
-          `https://api.exchangerate.host/convert?from=GHS&to=${localCurrency.code}&amount=1`,
-          { signal: AbortSignal.timeout(5000) },
-        );
-        if (res.ok) {
-          const d = await res.json();
-          if (d.success && d.result) rateFromGhs = d.result;
-        }
+        const res = await fetch(`https://api.exchangerate.host/convert?from=GHS&to=${localCurrency.code}&amount=1`, { signal: AbortSignal.timeout(5000) });
+        if (res.ok) { const d = await res.json(); if (d.success && d.result) rateFromGhs = d.result; }
       } catch { /* fall through */ }
     }
   }
-
-  _currencyCache = {
-    code: localCurrency.code,
-    symbol: localCurrency.symbol,
-    name: localCurrency.name,
-    countryCode,
-    rateFromGhs,
-  };
+  _currencyCache = { code: localCurrency.code, symbol: localCurrency.symbol, name: localCurrency.name, countryCode, rateFromGhs };
   return _currencyCache;
 }
-
-// ---------------------------------------------------------------------------
-// Currency formatting helpers
-// ---------------------------------------------------------------------------
 
 function formatCurrency(amountInGhs: number, currency: CurrencyInfo): string {
   const converted = amountInGhs * currency.rateFromGhs;
   try {
     return new Intl.NumberFormat('en', {
-      style: 'currency',
-      currency: currency.code,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      style: 'currency', currency: currency.code,
+      minimumFractionDigits: 2, maximumFractionDigits: 2,
     }).format(converted);
   } catch {
-    return `${currency.symbol} ${converted.toLocaleString('en', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+    return `${currency.symbol} ${converted.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 }
 
 // ---------------------------------------------------------------------------
-// Other helpers
+// Helpers
 // ---------------------------------------------------------------------------
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-GH', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  return new Date(iso).toLocaleDateString('en-GH', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function getUserInitials(fullName: string): string {
@@ -194,190 +139,40 @@ function getUserInitials(fullName: string): string {
 }
 
 const CREDIT_KINDS = new Set([
-  'DEPOSIT',
-  'BET_WIN',
-  'REFERRAL_COMMISSION',
-  'VIP_CASHBACK',
-  'WELCOME_BONUS',
-  'WITHDRAWAL_REFUND',
+  'DEPOSIT', 'BET_WIN', 'REFERRAL_COMMISSION', 'VIP_CASHBACK',
+  'WELCOME_BONUS', 'WITHDRAWAL_REFUND',
 ]);
 
-function isCredit(kind: string) {
-  return CREDIT_KINDS.has(kind);
+function isCredit(kind: string) { return CREDIT_KINDS.has(kind); }
+
+function txLabel(kind: string): string {
+  const map: Record<string, string> = {
+    DEPOSIT: 'Deposit', WITHDRAW: 'Withdrawal', WITHDRAW_HOLD: 'Withdrawal Hold',
+    WITHDRAW_RELEASE: 'Withdrawal Released', BET_STAKE: 'Bet Placed', BET_WIN: 'Bet Won',
+    REFERRAL_COMMISSION: 'Affiliate Commission', PAYOUT: 'Payout', ADJUSTMENT: 'Adjustment',
+    VIP_CASHBACK: 'VIP Cashback', VIP_MEMBERSHIP: 'VIP Membership',
+    WELCOME_BONUS: 'Welcome Bonus', WITHDRAWAL_REFUND: 'Withdrawal Refund',
+    ADMIN_UPGRADE_FEE: 'Admin Upgrade Fee',
+  };
+  return map[kind] ?? kind.replace(/_/g, ' ');
 }
 
 // ---------------------------------------------------------------------------
-// Button primitives
+// Spinner
 // ---------------------------------------------------------------------------
-interface BtnProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  loading?: boolean;
-  icon?: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg';
-}
-
-function BtnPrimary({ children, loading, icon, size = 'md', className = '', disabled, ...rest }: BtnProps) {
-  const sz =
-    size === 'sm' ? 'px-3 py-1.5 text-xs rounded-lg' :
-    size === 'lg' ? 'w-full py-3 text-sm rounded-xl' :
-                    'px-4 py-2.5 text-sm rounded-xl';
-  return (
-    <button
-      {...rest}
-      disabled={disabled || loading}
-      className={[
-        'inline-flex items-center justify-center gap-2 font-semibold btn-primary',
-        'active:scale-[0.97] transition-all duration-150',
-        'disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none',
-        sz, className,
-      ].join(' ')}
-    >
-      {loading
-        ? <CircularProgress fontSize="small" className="animate-spin shrink-0" />
-        : icon && <span className="shrink-0">{icon}</span>}
-      {children}
-    </button>
-  );
-}
-
-function BtnGhost({ children, loading, icon, size = 'md', className = '', disabled, style, ...rest }: BtnProps) {
-  const sz =
-    size === 'sm' ? 'px-3 py-1.5 text-xs rounded-lg' :
-    size === 'lg' ? 'w-full py-3 text-sm rounded-xl' :
-                    'px-4 py-2.5 text-sm rounded-xl';
-  return (
-    <button
-      {...rest}
-      disabled={disabled || loading}
-      style={style}
-      className={[
-        'inline-flex items-center justify-center gap-2 font-semibold',
-        'transition-all duration-150 active:scale-[0.97]',
-        'disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none',
-        sz, className,
-      ].join(' ')}
-    >
-      {loading
-        ? <CircularProgress fontSize="small" className="animate-spin shrink-0" />
-        : icon && <span className="shrink-0">{icon}</span>}
-      {children}
-    </button>
-  );
-}
-
-function BtnDanger({ children, icon, size = 'md', className = '', ...rest }: BtnProps) {
-  const sz =
-    size === 'sm' ? 'px-3 py-1.5 text-xs rounded-lg' :
-    size === 'lg' ? 'w-full py-3.5 text-sm rounded-2xl' :
-                    'px-4 py-2.5 text-sm rounded-xl';
-  return (
-    <button
-      {...rest}
-      style={{
-        color: '#e11d48',
-        backgroundColor: 'var(--card-bg)',
-        border: '1px solid color-mix(in srgb, #f43f5e 25%, transparent)',
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.backgroundColor = 'color-mix(in srgb, #f43f5e 8%, transparent)';
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-bg)';
-      }}
-      className={[
-        'inline-flex items-center justify-center gap-2 font-bold',
-        'transition-all duration-150 active:scale-[0.98]',
-        sz, className,
-      ].join(' ')}
-    >
-      {icon && <span className="shrink-0">{icon}</span>}
-      {children}
-    </button>
-  );
-}
-
-function BtnIcon({ children, className = '', ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      {...rest}
-      style={{ color: 'var(--text-muted)' }}
-      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)')}
-      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = '')}
-      className={[
-        'w-7 h-7 rounded-lg flex items-center justify-center transition-colors',
-        'disabled:opacity-40 disabled:cursor-not-allowed',
-        className,
-      ].join(' ')}
-    >
-      {children}
-    </button>
-  );
+function Spinner() {
+  return <LoopIcon fontSize="small" className="animate-spin shrink-0" />;
 }
 
 // ---------------------------------------------------------------------------
-// Shared UI Atoms
+// Skeleton
 // ---------------------------------------------------------------------------
-function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+function Skeleton({ w = 'w-full', h = 'h-4' }: { w?: string; h?: string }) {
   return (
     <div
-      className={`rounded-2xl overflow-hidden shadow-sm ${className}`}
-      style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border-light)' }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function CardHeader({ icon, title, action }: { icon: React.ReactNode; title: string; action?: React.ReactNode }) {
-  return (
-    <div
-      className="flex items-center justify-between px-4 py-3"
-      style={{ borderBottom: '1px solid var(--border-light)', backgroundColor: 'var(--card-alt)' }}
-    >
-      <div className="flex items-center gap-2">
-        <span style={{ color: 'var(--text-muted)' }} className="flex items-center">{icon}</span>
-        <span className="text-[11px] font-bold tracking-widest uppercase" style={{ color: 'var(--text-muted)' }}>
-          {title}
-        </span>
-      </div>
-      {action && <div>{action}</div>}
-    </div>
-  );
-}
-
-function SkeletonLine({ w = 'w-full', h = 'h-4' }: { w?: string; h?: string }) {
-  return (
-    <div className={`${h} ${w} rounded-lg animate-pulse`} style={{ backgroundColor: 'var(--border-light)' }} />
-  );
-}
-
-function TxKindBadge({ kind }: { kind: string }) {
-  const credit = isCredit(kind);
-  return (
-    <span
-      className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md tracking-wide"
-      style={
-        credit
-          ? { backgroundColor: 'color-mix(in srgb, #10b981 15%, transparent)', color: '#059669' }
-          : { backgroundColor: 'color-mix(in srgb, #f43f5e 15%, transparent)', color: '#e11d48' }
-      }
-    >
-      {kind.replace(/_/g, ' ')}
-    </span>
-  );
-}
-
-function InfoRow({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div
-      className="flex items-center justify-between px-4 py-3.5"
-      style={{ borderBottom: '1px solid var(--border-light)' }}
-    >
-      <span className="text-sm shrink-0" style={{ color: 'var(--text-muted)' }}>{label}</span>
-      <div className="text-right ml-4 min-w-0">
-        <span className="text-sm font-semibold truncate block" style={{ color: 'var(--text-main)' }}>{value}</span>
-        {sub && <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{sub}</span>}
-      </div>
-    </div>
+      className={`${h} ${w} rounded-lg animate-pulse`}
+      style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}
+    />
   );
 }
 
@@ -392,7 +187,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
       aria-checked={checked}
       onClick={onChange}
       className="relative inline-flex items-center rounded-full transition-colors duration-200 focus:outline-none"
-      style={{ width: 44, height: 24, backgroundColor: checked ? 'var(--primary)' : 'var(--border-light)' }}
+      style={{ width: 44, height: 24, backgroundColor: checked ? '#dc2626' : 'rgba(255,255,255,0.1)' }}
     >
       <span
         className="inline-block w-[18px] h-[18px] rounded-full bg-white shadow-md transform transition-transform duration-200"
@@ -408,9 +203,9 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
 type TabId = 'overview' | 'profile' | 'preferences';
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: 'overview',    label: 'Overview',  icon: <TrendingUpIcon sx={{ fontSize: 20 }} /> },
-  { id: 'profile',     label: 'Profile',   icon: <PersonIcon sx={{ fontSize: 20 }} /> },
-  { id: 'preferences', label: 'More',      icon: <SettingsIcon sx={{ fontSize: 20 }} /> },
+  { id: 'overview',    label: 'Overview',  icon: <TrendingUpIcon sx={{ fontSize: 18 }} /> },
+  { id: 'profile',     label: 'Profile',   icon: <PersonIcon sx={{ fontSize: 18 }} /> },
+  { id: 'preferences', label: 'More',      icon: <SettingsIcon sx={{ fontSize: 18 }} /> },
 ];
 
 // ---------------------------------------------------------------------------
@@ -422,38 +217,35 @@ export default function AccountPage() {
 
   const [activeTab, setActiveTab] = useState<TabId>('overview');
 
-  // Currency state
+  // Currency
   const [currency, setCurrency]               = useState<CurrencyInfo>(DEFAULT_CURRENCY);
   const [currencyLoading, setCurrencyLoading] = useState(true);
 
-  // Data state
+  // Data
   const [profileData, setProfileData]           = useState<Record<string, unknown> | null>(null);
   const [profileLoading, setProfileLoading]     = useState(true);
   const [walletData, setWalletData]             = useState<Record<string, unknown> | null>(null);
   const [walletLoading, setWalletLoading]       = useState(true);
   const [transactions, setTransactions]         = useState<Transaction[]>([]);
-  const [affiliateBalance, setAffiliateBalance] = useState<{ balance: number } | null>(null);
+  const [affiliateBalance, setAffiliateBalance] = useState<{ balance: number; totalReferrals?: number; lifetimeCommission?: number } | null>(null);
+  const [showBalance, setShowBalance]           = useState(true);
+  const [showAffBalance, setShowAffBalance]     = useState(true);
 
-  // Profile edit state
+  // Profile edit
   const [editMode, setEditMode]       = useState(false);
   const [editForm, setEditForm]       = useState({ firstName: '', lastName: '', phone: '', country: '' });
   const [editLoading, setEditLoading] = useState(false);
 
-  // Preferences state
+  // Preferences
   const [notifications, setNotifications] = useState({ push: true, sms: false, email: true });
   const [depositLimit, setDepositLimit]   = useState('');
   const [sessionLimit, setSessionLimit]   = useState('');
 
-  useEffect(() => {
-    if (!user) navigate('/login');
-  }, [user, navigate]);
+  useEffect(() => { if (!user) navigate('/login'); }, [user, navigate]);
 
-  // Auto-detect currency on mount (uses module-level cache after first load)
   useEffect(() => {
     setCurrencyLoading(true);
-    detectCurrencyInfo()
-      .then(setCurrency)
-      .finally(() => setCurrencyLoading(false));
+    detectCurrencyInfo().then(setCurrency).finally(() => setCurrencyLoading(false));
   }, []);
 
   const fetchProfile = useCallback(async () => {
@@ -487,7 +279,11 @@ export default function AccountPage() {
       if (affRes.success) {
         const d = affRes.data as Record<string, unknown>;
         if (typeof d.balance === 'number')
-          setAffiliateBalance({ balance: d.balance });
+          setAffiliateBalance({
+            balance: d.balance,
+            totalReferrals: typeof d.totalReferrals === 'number' ? d.totalReferrals : undefined,
+            lifetimeCommission: typeof d.lifetimeCommission === 'number' ? d.lifetimeCommission : undefined,
+          });
       }
     } catch { /* silently fail */ }
     finally { setWalletLoading(false); }
@@ -510,17 +306,20 @@ export default function AccountPage() {
   const apiRole      = (profileData?.role      as string) ?? user.role;
   const displayName  = [apiFirstName, apiLastName].filter(Boolean).join(' ') || user.fullName;
   const roleLabel    = apiRole.replace('_', ' ');
+  const isAdmin      = ['ADMIN', 'SUPER_ADMIN'].includes((apiRole ?? '').toUpperCase());
+  const loyaltyTier  = (user as unknown as Record<string, unknown>)?.loyaltyTier as string | undefined;
 
-  const walletBalanceGhs: number | null =
+  const walletBalanceGhs: number =
     typeof walletData?.balance === 'number'
       ? (walletData.balance as number)
       : typeof walletData?.availableBalance === 'number'
       ? (walletData.availableBalance as number)
-      : null;
+      : 0;
 
-  const affBalanceGhs: number | null = affiliateBalance?.balance ?? null;
-
-  const balanceReady = !currencyLoading;
+  const affBalanceGhs         = affiliateBalance?.balance ?? 0;
+  const affLifetimeGhs        = affiliateBalance?.lifetimeCommission ?? 0;
+  const affTotalReferrals     = affiliateBalance?.totalReferrals ?? 0;
+  const balanceReady          = !currencyLoading;
 
   // Handlers
   const saveProfile = async () => {
@@ -553,76 +352,91 @@ export default function AccountPage() {
     navigate('/');
   };
 
+  // Shared input style matching WalletPage
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '12px 16px', borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+    color: '#fff', fontSize: 15, outline: 'none',
+  };
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div className="min-h-screen pb-28" style={{ backgroundColor: 'var(--card-alt)' }}>
+    <div className="min-h-screen pb-28" style={{ backgroundColor: '#000000' }}>
 
       {/* ═══ HERO HEADER ═══ */}
-      <div style={{ backgroundColor: 'var(--card-bg)', borderBottom: '1px solid var(--border-light)' }}>
+      <div style={{ backgroundColor: '#111111', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div className="max-w-lg mx-auto">
 
           {/* Profile identity row */}
           <div className="flex items-center gap-3.5 px-4 pt-5 pb-4">
+            {/* Avatar */}
             <div className="relative shrink-0">
               <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold select-none shadow-md"
-                style={{ background: 'linear-gradient(135deg, var(--primary), var(--primary-dark))' }}
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold select-none"
+                style={{ background: 'linear-gradient(135deg, #dc2626, #7f1d1d)' }}
               >
                 {getUserInitials(displayName)}
               </div>
               <span
-                className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 bg-emerald-500"
-                style={{ borderColor: 'var(--card-bg)' }}
+                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-black bg-red-600"
               />
             </div>
+
             <div className="flex-1 min-w-0">
               {profileLoading ? (
                 <div className="space-y-2">
-                  <SkeletonLine w="w-32" h="h-5" />
-                  <SkeletonLine w="w-44" h="h-3.5" />
+                  <Skeleton w="w-32" h="h-5" />
+                  <Skeleton w="w-44" h="h-3.5" />
                 </div>
               ) : (
                 <>
-                  <h1 className="font-bold text-base leading-tight truncate" style={{ color: 'var(--text-main)' }}>
-                    {displayName}
-                  </h1>
-                  <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    {apiEmail}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <h1 className="font-bold text-base leading-tight truncate text-white">
+                      {displayName}
+                    </h1>
+                    <ChevronRightIcon sx={{ fontSize: 14 }} className="text-white/30" />
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs truncate text-white/40">{apiEmail}</p>
+                  </div>
                 </>
               )}
             </div>
-            {/* Role badge */}
-            <span
-              className="shrink-0 text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider"
-              style={{
-                backgroundColor:
-                  apiRole === 'SUPER_ADMIN' ? 'color-mix(in srgb, #a855f7 15%, transparent)' :
-                  apiRole === 'ADMIN'        ? 'color-mix(in srgb, #3b82f6 15%, transparent)' :
-                  'var(--card-alt)',
-                color:
-                  apiRole === 'SUPER_ADMIN' ? '#9333ea' :
-                  apiRole === 'ADMIN'        ? '#2563eb' :
-                  'var(--text-muted)',
-                border: '1px solid var(--border-light)',
-              }}
-            >
-              {roleLabel}
-            </span>
+
+            {/* Loyalty + refresh */}
+            <div className="flex items-center gap-2 shrink-0">
+              <span
+                className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider"
+                style={{
+                  backgroundColor: 'rgba(220,38,38,0.15)',
+                  color: '#ef4444',
+                  border: '1px solid rgba(220,38,38,0.3)',
+                }}
+              >
+                {loyaltyTier ?? roleLabel}
+              </span>
+              <button
+                onClick={() => { fetchProfile(); fetchWallet(); }}
+                className="w-9 h-9 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors"
+                style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                <SyncIcon fontSize="small" />
+              </button>
+            </div>
           </div>
 
           {/* Tab bar */}
-          <div className="flex" style={{ borderBottom: '1px solid var(--border-light)' }}>
+          <div className="flex" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
             {TABS.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold transition-all border-b-2"
+                className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition-all border-b-2 uppercase tracking-wider"
                 style={{
-                  borderColor: activeTab === tab.id ? 'var(--primary)' : 'transparent',
-                  color:       activeTab === tab.id ? 'var(--primary)' : 'var(--text-muted)',
+                  borderColor: activeTab === tab.id ? '#dc2626' : 'transparent',
+                  color: activeTab === tab.id ? '#ef4444' : 'rgba(255,255,255,0.3)',
                 }}
               >
                 <span>{tab.icon}</span>
@@ -634,155 +448,223 @@ export default function AccountPage() {
       </div>
 
       {/* ═══ TAB CONTENT ═══ */}
-      <div className="max-w-lg mx-auto px-4 pt-4 space-y-3">
+      <div className="max-w-lg mx-auto px-4 pt-4 space-y-4">
 
         {/* ─── OVERVIEW TAB ─── */}
         {activeTab === 'overview' && (
           <>
-            {/* Balance cards */}
-            <div className="grid grid-cols-2 gap-3">
-              <Link
-                to="/wallet"
-                className="rounded-2xl p-4 shadow-sm active:scale-[0.97] transition-all"
-                style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border-light)' }}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center"
-                    style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}
-                  >
-                    <AccountBalanceWalletIcon sx={{ fontSize: 15 }} style={{ color: 'var(--primary)' }} />
+            {/* Main Balance Card */}
+            <div
+              className="rounded-3xl p-5 overflow-hidden relative"
+              style={{
+                background: 'linear-gradient(135deg, #1a0000 0%, #2d0000 50%, #440000 100%)',
+                border: '1px solid rgba(220,38,38,0.25)',
+              }}
+            >
+              <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-10" style={{ backgroundColor: '#dc2626' }} />
+              <div className="absolute -bottom-12 -left-4 w-32 h-32 rounded-full opacity-5" style={{ backgroundColor: '#dc2626' }} />
+              <div className="relative">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <AccountBalanceWalletIcon sx={{ fontSize: 16 }} style={{ color: 'rgba(220,38,38,0.8)' }} />
+                    <span className="text-xs font-bold uppercase tracking-wider text-white/50">
+                      Main Wallet · {currency.code}
+                    </span>
                   </div>
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                  </span>
-                </div>
-                {walletLoading || !balanceReady ? (
-                  <SkeletonLine h="h-6" />
-                ) : (
-                  <p className="font-bold text-sm tabular-nums leading-tight" style={{ color: 'var(--text-main)' }}>
-                    {walletBalanceGhs !== null ? formatCurrency(walletBalanceGhs, currency) : '—'}
-                  </p>
-                )}
-                <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>Main Wallet</p>
-              </Link>
-
-              <Link
-                to="/affiliate"
-                className="rounded-2xl p-4 shadow-sm active:scale-[0.97] transition-all group"
-                style={{ backgroundColor: 'var(--card-bg)', border: '1px solid var(--border-light)' }}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div
-                    className="w-8 h-8 rounded-xl flex items-center justify-center"
-                    style={{ backgroundColor: 'color-mix(in srgb, #10b981 12%, transparent)' }}
-                  >
-                    <GroupAddIcon sx={{ fontSize: 15 }} style={{ color: '#10b981' }} />
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setShowBalance(v => !v)} className="text-white/30 hover:text-white transition-colors">
+                      {showBalance ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
+                    </button>
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                    </span>
                   </div>
-                  <OpenInNewIcon
-                    sx={{ fontSize: 13 }}
-                    style={{ color: 'var(--text-muted)' }}
-                    className="group-hover:text-emerald-500 transition-colors"
-                  />
                 </div>
-                {walletLoading || !balanceReady ? (
-                  <SkeletonLine h="h-6" />
-                ) : (
-                  <p className="font-bold text-sm tabular-nums leading-tight text-emerald-500">
-                    {affBalanceGhs !== null ? formatCurrency(affBalanceGhs, currency) : '—'}
-                  </p>
-                )}
-                <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>Affiliate</p>
-              </Link>
+                <p className="text-4xl font-black tracking-tight text-white mt-2 mb-6">
+                  {walletLoading || !balanceReady
+                    ? <span className="inline-block h-10 w-48 rounded-xl animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                    : showBalance
+                    ? formatCurrency(walletBalanceGhs, currency)
+                    : `${currency.code} ••••`}
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <Link
+                    to="/deposit"
+                    className="flex items-center justify-center py-3.5 px-4 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97]"
+                    style={{ backgroundColor: '#dc2626' }}
+                  >
+                    Deposit
+                  </Link>
+                  <Link
+                    to="/wallet"
+                    className="flex items-center justify-center py-3.5 px-4 rounded-2xl text-sm font-bold text-white/80 transition-all active:scale-[0.97]"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)' }}
+                  >
+                    Full Wallet
+                  </Link>
+                </div>
+              </div>
             </div>
 
-            {/* Recent Transactions */}
-            <Card>
-              <CardHeader
-                icon={<AccountBalanceWalletIcon sx={{ fontSize: 15 }} />}
-                title="Recent Transactions"
-                action={
-                  <div className="flex items-center gap-1">
-                    <BtnIcon onClick={fetchWallet} title="Refresh transactions" aria-label="Refresh transactions">
-                      <RefreshIcon sx={{ fontSize: 15 }} />
-                    </BtnIcon>
-                    <Link
-                      to="/wallet"
-                      className="text-[11px] font-bold hover:underline px-1"
-                      style={{ color: 'var(--primary)' }}
-                    >
-                      View all
+            {/* Affiliate / Referral Card — ADMIN ONLY */}
+            {isAdmin && (
+              <div
+                className="rounded-3xl p-5"
+                style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-white/40 mb-0.5">
+                      Referral Earnings
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setShowAffBalance(v => !v)} className="text-white/30 hover:text-white transition-colors">
+                      {showAffBalance ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
+                    </button>
+                    <Link to="/affiliate">
+                      <ChevronRightIcon fontSize="small" className="text-white/30" />
                     </Link>
                   </div>
-                }
-              />
-              <div>
-                {walletLoading || !balanceReady ? (
-                  [1, 2, 3].map((i) => (
+                </div>
+
+                <p className="text-3xl font-black text-white mb-4">
+                  {walletLoading || !balanceReady
+                    ? <span className="inline-block h-9 w-40 rounded-xl animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                    : showAffBalance
+                    ? formatCurrency(affBalanceGhs, currency)
+                    : `${currency.code} ••••`}
+                </p>
+
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {[
+                    { icon: <PaidIcon sx={{ fontSize: 18 }} style={{ color: '#ffffff' }} />, label: 'Total Earned', val: walletLoading || !balanceReady ? '…' : formatCurrency(affLifetimeGhs, currency), color: '#ffffff' },
+                    { icon: <PeopleAltIcon sx={{ fontSize: 18 }} style={{ color: '#ef4444' }} />, label: 'Referrals', val: walletLoading ? '…' : String(affTotalReferrals), color: '#ef4444' },
+                    { icon: <AccountBalanceWalletIcon sx={{ fontSize: 18 }} style={{ color: '#ffffff' }} />, label: 'Available', val: walletLoading || !balanceReady ? '…' : formatCurrency(affBalanceGhs, currency), color: '#ffffff' },
+                  ].map(stat => (
                     <div
-                      key={i}
-                      className="flex justify-between items-center px-4 py-3.5 gap-3"
-                      style={{ borderBottom: '1px solid var(--border-light)' }}
+                      key={stat.label}
+                      className="rounded-2xl p-3 text-center"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
                     >
-                      <div className="space-y-2 flex-1">
-                        <SkeletonLine w="w-24" h="h-4" />
-                        <SkeletonLine w="w-16" h="h-3" />
-                      </div>
-                      <SkeletonLine w="w-20" h="h-5" />
+                      <div className="flex justify-center mb-1">{stat.icon}</div>
+                      <p className="text-[9px] text-white/30 mb-0.5">{stat.label}</p>
+                      <p className="text-[11px] font-bold" style={{ color: stat.color }}>{stat.val}</p>
                     </div>
-                  ))
-                ) : transactions.length === 0 ? (
-                  <div className="px-4 py-10 text-center">
-                    <AccountBalanceWalletIcon
-                      sx={{ fontSize: 30 }}
-                      style={{ color: 'var(--border-light)' }}
-                      className="mb-2"
-                    />
-                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No transactions yet.</p>
-                  </div>
-                ) : (
-                  transactions.map((tx) => {
-                    const credit = isCredit(tx.kind);
-                    return (
-                      <div
-                        key={tx.id}
-                        className="flex items-center justify-between px-4 py-3.5 gap-3"
-                        style={{ borderBottom: '1px solid var(--border-light)' }}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <TxKindBadge kind={tx.kind} />
-                          <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
-                            {formatDate(tx.createdAt)}
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p
-                            className="text-sm font-bold tabular-nums"
-                            style={{ color: credit ? '#10b981' : '#f43f5e' }}
-                          >
-                            {credit ? '+' : '-'}{formatCurrency(tx.amount, currency)}
-                          </p>
-                          <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                            Bal: {formatCurrency(tx.balanceAfter, currency)}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+                  ))}
+                </div>
+
+                <Link
+                  to="/affiliate"
+                  className="w-full py-3 rounded-2xl text-sm font-bold text-white/70 flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  <OpenInNewIcon fontSize="small" />
+                  Manage Referrals
+                </Link>
               </div>
-            </Card>
+            )}
+
+            {/* Recent Transactions */}
+            <div
+              className="rounded-3xl p-5"
+              style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-[10px] font-black uppercase tracking-widest text-white/30">
+                  Recent Transactions
+                </h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={fetchWallet}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl text-white/30 hover:text-white transition-colors"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}
+                  >
+                    <RefreshIcon sx={{ fontSize: 15 }} />
+                  </button>
+                  <Link
+                    to="/wallet"
+                    className="text-[11px] font-bold hover:underline"
+                    style={{ color: '#ef4444' }}
+                  >
+                    View all
+                  </Link>
+                </div>
+              </div>
+
+              {walletLoading || !balanceReady ? (
+                [1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 py-3.5"
+                    style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                  >
+                    <Skeleton w="w-9 h-9 rounded-full shrink-0" h="h-9" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton w="w-28" h="h-4" />
+                      <Skeleton w="w-20" h="h-3" />
+                    </div>
+                    <Skeleton w="w-20" h="h-5" />
+                  </div>
+                ))
+              ) : transactions.length === 0 ? (
+                <div className="text-center py-12">
+                  <MoneyOffIcon sx={{ fontSize: 40 }} className="mx-auto mb-3" style={{ color: 'rgba(255,255,255,0.1)' }} />
+                  <p className="text-sm text-white/30">No transactions yet.</p>
+                </div>
+              ) : (
+                transactions.map((tx, idx) => {
+                  const credit = isCredit(tx.kind);
+                  const isLast = idx === transactions.length - 1;
+                  return (
+                    <div
+                      key={tx.id}
+                      className="flex items-center gap-3 py-3.5"
+                      style={!isLast ? { borderBottom: '1px solid rgba(255,255,255,0.04)' } : {}}
+                    >
+                      <div
+                        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: credit ? 'rgba(255,255,255,0.08)' : 'rgba(220,38,38,0.15)' }}
+                      >
+                        {credit
+                          ? <SouthWestIcon sx={{ fontSize: 16 }} style={{ color: '#ffffff' }} />
+                          : <NorthEastIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{txLabel(tx.kind)}</p>
+                        <p className="text-xs text-white/30 mt-0.5">{formatDate(tx.createdAt)}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p
+                          className="text-sm font-bold tabular-nums"
+                          style={{ color: credit ? '#ffffff' : '#ef4444' }}
+                        >
+                          {credit ? '+' : '-'}{formatCurrency(tx.amount, currency)}
+                        </p>
+                        <p className="text-[11px] text-white/25 mt-0.5">
+                          Bal: {formatCurrency(tx.balanceAfter, currency)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
 
             {/* KYC */}
-            <Card>
-              <CardHeader icon={<VerifiedUserIcon sx={{ fontSize: 15 }} />} title="KYC Verification" />
-              <div className="px-4 py-4 flex items-center justify-between gap-3">
+            <div
+              className="rounded-3xl p-5"
+              style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <VerifiedUserIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />
+                <h2 className="text-[10px] font-black uppercase tracking-widest text-white/30">KYC Verification</h2>
+              </div>
+              <div className="flex items-center justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold" style={{ color: 'var(--text-main)' }}>
-                    Identity Verification
-                  </p>
-                  <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+                  <p className="text-sm font-bold text-white">Identity Verification</p>
+                  <p className="text-xs mt-0.5 leading-relaxed text-white/40">
                     {user.kycStatus === 'verified'
                       ? 'Your identity has been verified.'
                       : user.kycStatus === 'pending'
@@ -792,67 +674,83 @@ export default function AccountPage() {
                 </div>
                 <div className="flex flex-col items-end gap-2 shrink-0">
                   <span
-                    className="text-[11px] font-bold px-2.5 py-1 rounded-lg"
+                    className="text-[11px] font-bold px-2.5 py-1 rounded-xl"
                     style={
                       user.kycStatus === 'verified'
-                        ? { backgroundColor: 'color-mix(in srgb, #10b981 15%, transparent)', color: '#059669' }
+                        ? { backgroundColor: 'rgba(16,185,129,0.15)', color: '#10b981' }
                         : user.kycStatus === 'pending'
-                        ? { backgroundColor: 'color-mix(in srgb, #f59e0b 15%, transparent)', color: '#d97706' }
-                        : { backgroundColor: 'var(--card-alt)', color: 'var(--text-muted)' }
+                        ? { backgroundColor: 'rgba(245,158,11,0.15)', color: '#f59e0b' }
+                        : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }
                     }
                   >
                     {user.kycStatus.charAt(0).toUpperCase() + user.kycStatus.slice(1)}
                   </span>
-                  {user.kycStatus === 'unverified' && <BtnPrimary size="sm">Start KYC</BtnPrimary>}
+                  {user.kycStatus === 'unverified' && (
+                    <button
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-all active:scale-[0.97]"
+                      style={{ backgroundColor: '#dc2626' }}
+                    >
+                      Start KYC
+                    </button>
+                  )}
                 </div>
               </div>
-            </Card>
+            </div>
 
-            {/* Admin panel CTA — only shown to admins */}
-            {user.role === 'admin' && (
-              <BtnPrimary
-                size="lg"
-                icon={<AdminPanelSettingsIcon fontSize="small" />}
+            {/* Admin panel CTA */}
+            {isAdmin && (
+              <button
                 onClick={() => setAdminModalOpen(true)}
+                className="w-full py-3.5 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+                style={{ backgroundColor: '#dc2626' }}
               >
+                <AdminPanelSettingsIcon fontSize="small" />
                 Open Admin Panel
-              </BtnPrimary>
+              </button>
             )}
           </>
         )}
 
         {/* ─── PROFILE TAB ─── */}
         {activeTab === 'profile' && (
-          <Card>
-            <CardHeader
-              icon={<PersonIcon sx={{ fontSize: 15 }} />}
-              title="Personal Info"
-              action={
-                !editMode && (
-                  <button
-                    onClick={() => setEditMode(true)}
-                    className="flex items-center gap-1 text-xs font-bold hover:underline"
-                    style={{ color: 'var(--primary)' }}
-                  >
-                    <EditIcon sx={{ fontSize: 13 }} />
-                    Edit
-                  </button>
-                )
-              }
-            />
+          <div
+            className="rounded-3xl overflow-hidden"
+            style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-5 py-4"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+            >
+              <div className="flex items-center gap-2">
+                <PersonIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Personal Info</span>
+              </div>
+              {!editMode && (
+                <button
+                  onClick={() => setEditMode(true)}
+                  className="flex items-center gap-1 text-xs font-bold"
+                  style={{ color: '#ef4444' }}
+                >
+                  <EditIcon sx={{ fontSize: 13 }} />
+                  Edit
+                </button>
+              )}
+            </div>
+
             {editMode ? (
-              <div className="px-4 py-4 space-y-4">
+              <div className="px-5 py-5 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   {(['firstName', 'lastName'] as const).map((field) => (
                     <div key={field}>
-                      <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                      <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-white/40">
                         {field === 'firstName' ? 'First Name' : 'Last Name'}
                       </label>
                       <input
                         type="text"
                         value={editForm[field]}
                         onChange={(e) => setEditForm((p) => ({ ...p, [field]: e.target.value }))}
-                        className="input-field"
+                        style={inputStyle}
                         disabled={editLoading}
                         placeholder={field === 'firstName' ? 'First' : 'Last'}
                       />
@@ -860,139 +758,155 @@ export default function AccountPage() {
                   ))}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                  <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-white/40">
                     Phone Number
                   </label>
                   <input
                     type="tel"
                     value={editForm.phone}
                     onChange={(e) => setEditForm((p) => ({ ...p, phone: e.target.value }))}
-                    className="input-field"
+                    style={inputStyle}
                     disabled={editLoading}
                     placeholder="+233 XX XXX XXXX"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                  <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-white/40">
                     Country
                   </label>
                   <input
                     type="text"
                     value={editForm.country}
                     onChange={(e) => setEditForm((p) => ({ ...p, country: e.target.value }))}
-                    className="input-field"
+                    style={inputStyle}
                     disabled={editLoading}
                     placeholder="e.g. GH"
                     maxLength={2}
                   />
                 </div>
                 <div className="flex gap-3 pt-1">
-                  <BtnGhost
+                  <button
                     onClick={() => setEditMode(false)}
                     disabled={editLoading}
-                    icon={<CloseIcon fontSize="small" />}
-                    className="flex-1"
-                    style={{
-                      border: '1px solid var(--border-light)',
-                      color: 'var(--text-muted)',
-                      backgroundColor: 'transparent',
-                    }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)')}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.backgroundColor = 'transparent')}
+                    className="flex-1 py-3 rounded-2xl font-semibold text-sm text-white/60 flex items-center justify-center gap-2 transition-all"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}
                   >
+                    <CloseIcon fontSize="small" />
                     Cancel
-                  </BtnGhost>
-                  <BtnPrimary
+                  </button>
+                  <button
                     onClick={saveProfile}
-                    loading={editLoading}
-                    icon={<SaveIcon fontSize="small" />}
-                    className="flex-1 py-3 rounded-xl"
+                    disabled={editLoading}
+                    className="flex-1 py-3 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all active:scale-[0.97] disabled:opacity-50"
+                    style={{ backgroundColor: '#dc2626' }}
                   >
-                    {editLoading ? 'Saving…' : 'Save Changes'}
-                  </BtnPrimary>
+                    {editLoading ? <><Spinner /> Saving…</> : <><SaveIcon fontSize="small" />Save Changes</>}
+                  </button>
                 </div>
               </div>
             ) : (
               <div>
-                {profileLoading ? (
-                  [1, 2, 3, 4, 5].map((i) => (
-                    <div
-                      key={i}
-                      className="flex justify-between items-center px-4 py-3.5"
-                      style={{ borderBottom: '1px solid var(--border-light)' }}
-                    >
-                      <SkeletonLine w="w-20" h="h-3.5" />
-                      <SkeletonLine w="w-28" h="h-3.5" />
-                    </div>
-                  ))
-                ) : (
-                  <>
-                    <InfoRow label="Full Name" value={displayName || '—'} />
-                    <InfoRow label="Email"     value={apiEmail    || '—'} />
-                    <InfoRow label="Phone"     value={apiPhone    || '—'} />
-                    <InfoRow label="Country"   value={apiCountry  || '—'} />
-                    <InfoRow label="Role"      value={roleLabel} />
-                  </>
-                )}
+                {profileLoading
+                  ? [1, 2, 3, 4, 5].map((i) => (
+                      <div
+                        key={i}
+                        className="flex justify-between items-center px-5 py-3.5"
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                      >
+                        <Skeleton w="w-20" h="h-3.5" />
+                        <Skeleton w="w-28" h="h-3.5" />
+                      </div>
+                    ))
+                  : (
+                    <>
+                      {[
+                        { label: 'Full Name', value: displayName || '—' },
+                        { label: 'Email',     value: apiEmail    || '—' },
+                        { label: 'Phone',     value: apiPhone    || '—' },
+                        { label: 'Country',   value: apiCountry  || '—' },
+                        { label: 'Role',      value: roleLabel },
+                      ].map(({ label, value }, idx, arr) => (
+                        <div
+                          key={label}
+                          className="flex items-center justify-between px-5 py-3.5"
+                          style={idx < arr.length - 1 ? { borderBottom: '1px solid rgba(255,255,255,0.04)' } : {}}
+                        >
+                          <span className="text-sm text-white/40">{label}</span>
+                          <span className="text-sm font-semibold text-white ml-4 truncate">{value}</span>
+                        </div>
+                      ))}
+                    </>
+                  )}
               </div>
             )}
-          </Card>
+          </div>
         )}
 
         {/* ─── PREFERENCES TAB ─── */}
         {activeTab === 'preferences' && (
           <>
             {/* Notifications */}
-            <Card>
-              <CardHeader icon={<NotificationsIcon sx={{ fontSize: 15 }} />} title="Notifications" />
-              <div>
-                {(
-                  [
-                    { key: 'push',  label: 'Push Notifications',  sub: 'In-app alerts & updates' },
-                    { key: 'sms',   label: 'SMS Alerts',          sub: 'Text messages to your phone' },
-                    { key: 'email', label: 'Email Notifications', sub: 'Updates sent to your inbox' },
-                  ] as const
-                ).map(({ key, label, sub }) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between px-4 py-3.5 gap-3"
-                    style={{ borderBottom: '1px solid var(--border-light)' }}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold" style={{ color: 'var(--text-main)' }}>{label}</p>
-                      <p className="text-xs mt-0.5"        style={{ color: 'var(--text-muted)' }}>{sub}</p>
-                    </div>
-                    <Toggle
-                      checked={notifications[key]}
-                      onChange={() => setNotifications((p) => ({ ...p, [key]: !p[key] }))}
-                    />
-                  </div>
-                ))}
+            <div
+              className="rounded-3xl overflow-hidden"
+              style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+            >
+              <div
+                className="flex items-center gap-2 px-5 py-4"
+                style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+              >
+                <NotificationsIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Notifications</span>
               </div>
-            </Card>
+              {(
+                [
+                  { key: 'push',  label: 'Push Notifications',  sub: 'In-app alerts & updates' },
+                  { key: 'sms',   label: 'SMS Alerts',          sub: 'Text messages to your phone' },
+                  { key: 'email', label: 'Email Notifications', sub: 'Updates sent to your inbox' },
+                ] as const
+              ).map(({ key, label, sub }, idx, arr) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between px-5 py-3.5 gap-3"
+                  style={idx < arr.length - 1 ? { borderBottom: '1px solid rgba(255,255,255,0.04)' } : {}}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white">{label}</p>
+                    <p className="text-xs mt-0.5 text-white/40">{sub}</p>
+                  </div>
+                  <Toggle
+                    checked={notifications[key]}
+                    onChange={() => setNotifications((p) => ({ ...p, [key]: !p[key] }))}
+                  />
+                </div>
+              ))}
+            </div>
 
             {/* Responsible Gambling */}
-            <Card>
-              <CardHeader icon={<VerifiedUserIcon sx={{ fontSize: 15 }} />} title="Responsible Gambling" />
-              <div className="px-4 py-4 space-y-4">
+            <div
+              className="rounded-3xl p-5"
+              style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+            >
+              <div className="flex items-center gap-2 mb-5">
+                <VerifiedUserIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Responsible Gambling</span>
+              </div>
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
-                    {currencyLoading
-                      ? 'Daily Deposit Limit'
-                      : `Daily Deposit Limit (${currency.code})`}
+                  <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-white/40">
+                    {currencyLoading ? 'Daily Deposit Limit' : `Daily Deposit Limit (${currency.code})`}
                   </label>
                   <input
                     type="number"
                     value={depositLimit}
                     onChange={(e) => setDepositLimit(e.target.value)}
                     placeholder="No limit set"
-                    className="input-field"
+                    style={inputStyle}
                     min="0"
                     disabled={currencyLoading}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--text-muted)' }}>
+                  <label className="block text-xs font-bold mb-1.5 uppercase tracking-wider text-white/40">
                     Session Time Limit (minutes)
                   </label>
                   <input
@@ -1000,21 +914,48 @@ export default function AccountPage() {
                     value={sessionLimit}
                     onChange={(e) => setSessionLimit(e.target.value)}
                     placeholder="No limit set"
-                    className="input-field"
+                    style={inputStyle}
                     min="0"
                   />
                 </div>
-                <BtnPrimary size="lg">Save Limits</BtnPrimary>
-                <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '0.75rem' }}>
-                  <BtnDanger size="lg">Self-Exclusion</BtnDanger>
+                <button
+                  className="w-full py-3.5 rounded-2xl font-bold text-sm text-white transition-all active:scale-[0.97]"
+                  style={{ backgroundColor: '#dc2626' }}
+                >
+                  Save Limits
+                </button>
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.75rem' }}>
+                  <button
+                    className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+                    style={{
+                      color: '#ef4444',
+                      backgroundColor: 'rgba(220,38,38,0.08)',
+                      border: '1px solid rgba(220,38,38,0.25)',
+                    }}
+                  >
+                    Self-Exclusion
+                  </button>
                 </div>
               </div>
-            </Card>
+            </div>
 
             {/* Sign Out */}
-            <BtnDanger size="lg" icon={<LogoutIcon fontSize="small" />} onClick={handleLogout}>
+            <button
+              onClick={handleLogout}
+              className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+              style={{
+                color: '#ef4444',
+                backgroundColor: 'rgba(220,38,38,0.08)',
+                border: '1px solid rgba(220,38,38,0.25)',
+              }}
+            >
+              <LogoutIcon fontSize="small" />
               Sign Out
-            </BtnDanger>
+            </button>
+
+            <p className="text-center text-[10px] text-white/20 font-medium pb-2">
+              Bet360 · Bet Responsibly · 18+
+            </p>
           </>
         )}
       </div>

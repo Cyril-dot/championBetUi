@@ -3,7 +3,7 @@
 // Base URL: https://futballbackend.onrender.com
 // =============================================================================
 
-const BASE_URL = "https://futballbackend-production-aefb.up.railway.app";
+const BASE_URL = "https://futballbackend-production-2b7e.up.railway.app";
 // ---------------------------------------------------------------------------
 // Types & Schemas
 // ---------------------------------------------------------------------------

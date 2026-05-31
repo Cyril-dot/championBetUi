@@ -1,3 +1,6 @@
+import { useNavigate } from 'react-router-dom';
+import ConfirmationNumberIcon from '@mui/icons-material/ConfirmationNumber';
+import SportsIcon from '@mui/icons-material/Sports';
 import StarIcon from '@mui/icons-material/Star';
 
 const topLeagues = [
@@ -28,11 +31,81 @@ const topLeagues = [
 ];
 
 export default function LeagueCards() {
+  const navigate = useNavigate();
+
   return (
     <div className="px-3 sm:px-4 mt-4 sm:mt-6">
-      <h2 className="font-heading text-lg font-bold text-slate-900 dark:text-slate-100 mb-3">
-        Top Leagues
-      </h2>
+
+      {/* ── Quick Action Buttons ── */}
+      <div className="flex gap-3 mb-4">
+
+        {/* Load Code */}
+        <button
+          onClick={() => navigate('/betslip')}
+          className="flex-1 flex items-center justify-center gap-2.5 touch-manipulation active:scale-[0.97] transition-transform"
+          style={{
+            padding: '14px 16px',
+            borderRadius: '14px',
+            background: 'transparent',
+            border: '1.5px solid rgba(0,0,0,0.15)',
+          }}
+        >
+          <ConfirmationNumberIcon style={{ fontSize: 24, color: '#f59e0b', flexShrink: 0 }} />
+          <span style={{
+            fontSize: '16px',
+            fontWeight: 900,
+            letterSpacing: '0.02em',
+            color: '#000000',
+            whiteSpace: 'nowrap',
+          }}>
+            Load Code
+          </span>
+        </button>
+
+        {/* Live Matches */}
+        <button
+          onClick={() => navigate('/live')}
+          className="flex-1 flex items-center justify-center gap-2.5 touch-manipulation active:scale-[0.97] transition-transform"
+          style={{
+            padding: '14px 16px',
+            borderRadius: '14px',
+            background: 'transparent',
+            border: '1.5px solid rgba(0,0,0,0.15)',
+          }}
+        >
+          {/* Pulsing dot */}
+          <span className="relative flex items-center justify-center" style={{ width: 10, height: 10, flexShrink: 0 }}>
+            <span
+              className="absolute inline-flex h-full w-full rounded-full animate-ping"
+              style={{ background: '#ef4444', opacity: 0.7 }}
+            />
+            <span
+              className="relative inline-flex rounded-full"
+              style={{ width: 8, height: 8, background: '#ef4444' }}
+            />
+          </span>
+          <SportsIcon style={{ fontSize: 24, color: '#ef4444', flexShrink: 0 }} />
+          <span style={{
+            fontSize: '16px',
+            fontWeight: 900,
+            letterSpacing: '0.02em',
+            color: '#000000',
+            whiteSpace: 'nowrap',
+          }}>
+            Live Matches
+          </span>
+        </button>
+
+      </div>
+
+      {/* ── League Cards ── */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-heading text-lg font-bold text-slate-900 dark:text-slate-100">
+          Top Leagues
+        </h2>
+        <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">See All</span>
+      </div>
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         {topLeagues.map((league) => (
           <button
@@ -40,20 +113,21 @@ export default function LeagueCards() {
             className={`bg-gradient-to-br ${league.gradient} rounded-xl p-3 sm:p-4 text-white text-left hover:scale-[1.02] active:scale-[0.98] transition-transform touch-manipulation`}
           >
             <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-lg p-1.5 flex items-center justify-center shadow-sm">
-                <img
-                  src={league.logo}
-                  alt={`${league.name} logo`}
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    e.currentTarget.parentElement!.innerHTML = `<span class="text-2xl">${league.flag}</span>`;
-                  }}
-                />
-              </div>
+              <img
+                src={league.logo}
+                alt={`${league.name} logo`}
+                className="w-10 h-10 sm:w-12 sm:h-12 object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  const sibling = e.currentTarget.nextElementSibling as HTMLElement | null;
+                  if (sibling) sibling.style.display = 'inline';
+                }}
+              />
+              <span className="text-2xl" style={{ display: 'none' }}>{league.flag}</span>
               <StarIcon className="text-yellow-400" fontSize="small" />
             </div>
             <h3 className="font-heading text-sm font-bold leading-tight">{league.name}</h3>
+            <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>{league.flag} Tap to explore</p>
           </button>
         ))}
       </div>

@@ -1,616 +1,430 @@
+// Bet360 — Header.tsx
+// Auth-responsive: shows wallet balance + avatar when logged in, Join/Login when not
+
 import { useState, useEffect, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../store';
-import { wallet } from '../../utils/api';
+import { wallet as walletApi } from '../../utils/api';
+import type { ApiResponse } from '../../utils/api';
 
-// ---------------------------------------------------------------------------
-// Icons
-// ---------------------------------------------------------------------------
-import DarkModeIcon from '@mui/icons-material/DarkMode';
-import LightModeIcon from '@mui/icons-material/LightMode';
-import LoginIcon from '@mui/icons-material/Login';
-import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import HomeIcon from '@mui/icons-material/Home';
-import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
-import MenuIcon from '@mui/icons-material/Menu';
-import CloseIcon from '@mui/icons-material/Close';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlined';
-
-// ---------------------------------------------------------------------------
-// Currency detection
-// ---------------------------------------------------------------------------
-
-interface CurrencyInfo {
-  code: string;
-  symbol: string;
-  rateFromGhs: number; // 1 GHS = X this currency
-}
-
-const COUNTRY_CURRENCY: Record<string, { code: string; symbol: string }> = {
-  GH: { code: 'GHS', symbol: 'GH₵' },
-  NG: { code: 'NGN', symbol: '₦'   },
-  KE: { code: 'KES', symbol: 'KSh' },
-  TZ: { code: 'TZS', symbol: 'TSh' },
-  UG: { code: 'UGX', symbol: 'USh' },
-  ZA: { code: 'ZAR', symbol: 'R'   },
-  EG: { code: 'EGP', symbol: 'E£'  },
-  ET: { code: 'ETB', symbol: 'Br'  },
-  SN: { code: 'XOF', symbol: 'CFA' },
-  CI: { code: 'XOF', symbol: 'CFA' },
-  CM: { code: 'XAF', symbol: 'FCFA'},
-  ZM: { code: 'ZMW', symbol: 'ZK'  },
-  ZW: { code: 'ZWL', symbol: 'Z$'  },
-  RW: { code: 'RWF', symbol: 'FRw' },
-  MW: { code: 'MWK', symbol: 'MK'  },
-  MZ: { code: 'MZN', symbol: 'MT'  },
-  GB: { code: 'GBP', symbol: '£'   },
-  DE: { code: 'EUR', symbol: '€'   },
-  FR: { code: 'EUR', symbol: '€'   },
-  IT: { code: 'EUR', symbol: '€'   },
-  NL: { code: 'EUR', symbol: '€'   },
-  US: { code: 'USD', symbol: '$'   },
-  CA: { code: 'CAD', symbol: 'CA$' },
-  AU: { code: 'AUD', symbol: 'A$'  },
-};
-
-const DEFAULT_CURRENCY: CurrencyInfo = { code: 'GHS', symbol: 'GH₵', rateFromGhs: 1 };
-
-// Cache across re-renders so we don't hit geo APIs on every poll tick
-let _currencyCache: CurrencyInfo | null = null;
-
-async function detectCurrency(): Promise<CurrencyInfo> {
-  if (_currencyCache) return _currencyCache;
-
-  let countryCode = '';
-
-  // 1) ipapi.co — free, HTTPS, browser-friendly, 1k req/day
-  try {
-    const res = await fetch('https://ipapi.co/json/', {
-      signal: AbortSignal.timeout(4000),
-    });
-    if (res.ok) {
-      const d = await res.json();
-      countryCode = d.country_code ?? '';
-    }
-  } catch { /* fall through */ }
-
-  // 2) freeipapi.com — free, HTTPS, no key needed
-  if (!countryCode) {
-    try {
-      const res = await fetch('https://freeipapi.com/api/json', {
-        signal: AbortSignal.timeout(4000),
-      });
-      if (res.ok) {
-        const d = await res.json();
-        countryCode = d.countryCode ?? '';
-      }
-    } catch { /* fall through */ }
-  }
-
-  // 3) ip.guide — free, HTTPS, no key needed
-  if (!countryCode) {
-    try {
-      const res = await fetch('https://ip.guide/', {
-        signal: AbortSignal.timeout(4000),
-        headers: { Accept: 'application/json' },
-      });
-      if (res.ok) {
-        const d = await res.json();
-        countryCode = d.location?.country_code ?? '';
-      }
-    } catch { /* fall through */ }
-  }
-
-  const local = countryCode ? COUNTRY_CURRENCY[countryCode] : undefined;
-  if (!local) {
-    _currencyCache = DEFAULT_CURRENCY;
-    return _currencyCache;
-  }
-
-  let rateFromGhs = 1;
-  if (local.code !== 'GHS') {
-    // Fetch live GHS → local rate
-    try {
-      const res = await fetch('https://open.er-api.com/v6/latest/GHS', {
-        signal: AbortSignal.timeout(5000),
-      });
-      if (res.ok) {
-        const d = await res.json();
-        rateFromGhs = d.rates?.[local.code] ?? 1;
-      }
-    } catch { /* fall through */ }
-  }
-
-  _currencyCache = { code: local.code, symbol: local.symbol, rateFromGhs };
-  return _currencyCache;
-}
-
-function formatBalance(amountGhs: number, currency: CurrencyInfo): string {
-  const converted = amountGhs * currency.rateFromGhs;
-  try {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency.code,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(converted);
-  } catch {
-    return `${currency.symbol} ${converted.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Nav links
-// ---------------------------------------------------------------------------
-const navLinks = [
-  { to: '/',          label: 'Home',      icon: <HomeIcon sx={{ fontSize: 16 }} /> },
-  {
-    to: '/live',
-    label: 'Live',
-    icon: <FiberManualRecordIcon className="text-green-500 animate-pulse-green" sx={{ fontSize: 16 }} />,
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-function getUserInitials(fullName: string): string {
-  const parts = fullName.trim().split(' ').filter(Boolean);
-  if (!parts.length) return '?';
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
-}
-
-// ---------------------------------------------------------------------------
-// ZynoBetLogo
-// ---------------------------------------------------------------------------
-function ZynoBetLogo() {
+// ─── Logo ─────────────────────────────────────────────────────────────────────
+function Bet360Logo({ dark = false }: { dark?: boolean }) {
+  const textColor   = dark ? '#111' : '#ffffff';
+  const accentColor = dark ? '#CC0000' : '#ffffff';
   return (
-    <div className="flex items-center gap-0 select-none" aria-label="ZynoBet">
-      {/* Lightning bolt icon */}
-      <svg
-        width="28"
-        height="28"
-        viewBox="0 0 56 56"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-        style={{ marginRight: 6, flexShrink: 0 }}
-      >
-        <defs>
-          <linearGradient id="zb-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#38bdf8" />
-            <stop offset="100%" stopColor="#6366f1" />
-          </linearGradient>
-        </defs>
-        {/* Lightning bolt */}
-        <polygon
-          points="32,4 18,28 27,28 24,52 38,28 29,28"
-          fill="url(#zb-grad)"
+    <div style={{ display: 'flex', alignItems: 'center', gap: 7, userSelect: 'none' }} aria-label="Bet360">
+      <svg width="26" height="30" viewBox="0 0 28 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path
+          d="M14 1L2 6.5v9c0 8.5 5.2 14.7 12 16.5C20.8 30.2 26 24 26 15.5v-9L14 1z"
+          fill={dark ? '#CC0000' : 'rgba(255,255,255,0.25)'}
         />
+        <path
+          d="M14 5L5.5 9v7.5c0 6.5 3.8 11.2 8.5 12.8C18.7 27.7 22.5 23 22.5 16.5V9L14 5z"
+          fill="none"
+          stroke={dark ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.35)'}
+          strokeWidth="1"
+        />
+        <text
+          x="14" y="20"
+          textAnchor="middle"
+          fontFamily="'Inter', 'Arial Narrow', sans-serif"
+          fontWeight="800"
+          fontSize="9"
+          fill={dark ? '#fff' : '#CC0000'}
+          letterSpacing="-0.3"
+        >360</text>
       </svg>
-
-      {/* Wordmark */}
       <div style={{ display: 'flex', alignItems: 'baseline', lineHeight: 1 }}>
-        <span
-          style={{
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            fontSize: '1.25rem',
-            letterSpacing: '-0.02em',
-            background: 'linear-gradient(135deg, #38bdf8 0%, #6366f1 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-          }}
-        >
-          Zyno
-        </span>
-        <span
-          style={{
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontWeight: 900,
-            fontStyle: 'italic',
-            fontSize: '1.25rem',
-            letterSpacing: '-0.02em',
-            color: 'var(--text-main)',
-          }}
-        >
-          Bet
-        </span>
+        <span style={{
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 800,
+          fontSize: '1.3rem',
+          letterSpacing: '0.02em',
+          color: textColor,
+          textTransform: 'uppercase',
+        }}>BET</span>
+        <span style={{
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 800,
+          fontSize: '1.3rem',
+          letterSpacing: '0.02em',
+          color: accentColor,
+          textTransform: 'uppercase',
+          ...(dark ? {} : { background: 'rgba(255,255,255,0.18)', borderRadius: 3, padding: '0 3px' }),
+        }}>360</span>
       </div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main Header
-// ---------------------------------------------------------------------------
-export default function Header() {
-  const { theme, toggleTheme, user } = useAppStore();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+// ─── Wallet Balance chip ───────────────────────────────────────────────────────
+function WalletChip() {
+  const [balance, setBalance] = useState<number | null>(null);
 
-  // Wallet state — balance stored in GHS (backend native), displayed in local currency
-  const [walletBalanceGhs, setWalletBalanceGhs] = useState<number | null>(null);
-  const [currency,         setCurrency]         = useState<CurrencyInfo>(DEFAULT_CURRENCY);
-  const [balanceLoading,   setBalanceLoading]   = useState(false);
-  const [balanceFlash,     setBalanceFlash]     = useState(false);
-
-  const location    = useLocation();
-  const pollRef     = useRef<ReturnType<typeof setInterval> | null>(null);
-  const prevBalRef  = useRef<number | null>(null);
-
-  const isDark = theme.endsWith('-dark');
-
-  // Close mobile menu on route change
-  useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
-
-  // Detect local currency once on mount
   useEffect(() => {
-    detectCurrency().then(setCurrency);
+    walletApi.getWallet()
+      .then((res: ApiResponse<Record<string, unknown>>) => {
+        const data = res.data as Record<string, unknown>;
+        if (typeof data?.balance === 'number') setBalance(data.balance);
+      })
+      .catch(() => {});
   }, []);
 
-  // Fetch wallet balance, compare to previous, flash on change
-  const fetchBalance = async () => {
-    if (!user) return;
-    try {
-      const res = await wallet.getWallet();
-      if (res.success && res.data) {
-        const d = res.data as Record<string, unknown>;
-        // Backend returns balance in GHS
-        const newBal =
-          typeof d.balance === 'number'         ? d.balance :
-          typeof d.balanceGhs === 'number'       ? d.balanceGhs :
-          typeof d.availableBalance === 'number' ? d.availableBalance :
-          null;
+  return (
+    <Link
+      to="/wallet"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        background: 'rgba(0,0,0,0.22)',
+        border: '1.5px solid rgba(255,255,255,0.22)',
+        borderRadius: 7,
+        padding: '5px 11px 5px 8px',
+        textDecoration: 'none',
+        transition: 'background 0.15s',
+        cursor: 'pointer',
+      }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.38)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.22)')}
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+        stroke="rgba(255,255,255,0.85)" strokeWidth="1.8"
+        strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 8V5a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3"/>
+        <path d="M3 8h16a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V8z"/>
+        <circle cx="16" cy="13" r="1" fill="rgba(255,255,255,0.85)" stroke="none"/>
+      </svg>
+      <span style={{
+        fontFamily: "'Inter', sans-serif",
+        fontWeight: 700,
+        fontSize: '0.82rem',
+        color: '#fff',
+        letterSpacing: '0.01em',
+        minWidth: 60,
+        textAlign: 'right',
+      }}>
+        {balance === null ? '···' : `GH₵ ${balance.toFixed(2)}`}
+      </span>
+    </Link>
+  );
+}
 
-        if (newBal !== null) {
-          if (prevBalRef.current !== null && prevBalRef.current !== newBal) {
-            setBalanceFlash(true);
-            setTimeout(() => setBalanceFlash(false), 600);
-          }
-          prevBalRef.current = newBal;
-          setWalletBalanceGhs(newBal);
-        }
-      }
-    } catch { /* silent */ }
-  };
+// ─── User Avatar + dropdown ───────────────────────────────────────────────────
+function UserMenu() {
+  const [open, setOpen] = useState(false);
+  const ref             = useRef<HTMLDivElement>(null);
+  const { user, logout } = useAppStore();
+  const navigate        = useNavigate();
+
+  const fullName = [
+    (user as unknown as Record<string, unknown>)?.firstName,
+    (user as unknown as Record<string, unknown>)?.lastName,
+  ].filter(Boolean).join(' ') || (user as unknown as Record<string, unknown>)?.email as string || 'U';
+  const initials = fullName.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
 
   useEffect(() => {
-    if (!user) {
-      setWalletBalanceGhs(null);
-      prevBalRef.current = null;
-      setMobileMenuOpen(false);
-      if (pollRef.current) clearInterval(pollRef.current);
-      return;
-    }
-    setBalanceLoading(true);
-    fetchBalance().finally(() => setBalanceLoading(false));
-    pollRef.current = setInterval(fetchBalance, 15_000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [user]);
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
 
-  // Formatted balance string in local currency
-  const balanceDisplay = walletBalanceGhs !== null
-    ? formatBalance(walletBalanceGhs, currency)
-    : null;
+  const handleLogout = () => {
+    logout();
+    setOpen(false);
+    navigate('/');
+  };
 
-  // ---------------------------------------------------------------------------
+  const menuItems = [
+    {
+      label: 'My Account',
+      to: '/account',
+      icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>,
+    },
+    {
+      label: 'Wallet',
+      to: '/wallet',
+      icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8V5a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3"/><path d="M3 8h16a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V8z"/><circle cx="16" cy="13" r="1" fill="currentColor" stroke="none"/></svg>,
+    },
+    {
+      label: 'Deposit',
+      to: '/deposit',
+      icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+    },
+  ];
+
   return (
-    <header
-      className="sticky top-0 z-50 border-b shadow-sm"
-      style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-light)' }}
-    >
-      <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        aria-label="Account menu"
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.18)',
+          border: '2px solid rgba(255,255,255,0.55)',
+          color: '#fff',
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 700,
+          fontSize: '0.88rem',
+          letterSpacing: '0.04em',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'background 0.15s, border-color 0.15s',
+          flexShrink: 0,
+          outline: 'none',
+        }}
+        onMouseEnter={e => {
+          (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.30)';
+          (e.currentTarget as HTMLElement).style.borderColor = '#fff';
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.18)';
+          (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.55)';
+        }}
+      >
+        {initials}
+      </button>
 
-        {/* LOGO */}
-        <Link to="/" className="flex items-center shrink-0">
-          <ZynoBetLogo />
-        </Link>
+      {open && (
+        <div style={{
+          position: 'absolute',
+          top: 'calc(100% + 10px)',
+          right: 0,
+          minWidth: 220,
+          background: '#fff',
+          borderRadius: 10,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
+          overflow: 'hidden',
+          zIndex: 200,
+          animation: 'b360DropIn 0.15s ease-out',
+        }}>
+          <div style={{
+            padding: '14px 16px 12px',
+            background: '#CC0000',
+            borderBottom: '1px solid rgba(0,0,0,0.08)',
+          }}>
+            <p style={{
+              margin: 0,
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 700,
+              fontSize: '0.88rem',
+              color: '#fff',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}>{fullName}</p>
+            <p style={{
+              margin: '2px 0 0',
+              fontFamily: "'Inter', sans-serif",
+              fontSize: '0.74rem',
+              color: 'rgba(255,255,255,0.75)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}>{(user as unknown as Record<string, unknown>)?.email as string ?? ''}</p>
+          </div>
 
-        {/* DESKTOP NAV */}
-        <nav className="hidden lg:flex items-center gap-0.5">
-          {navLinks.map(l => {
-            const active = location.pathname === l.to;
-            return (
-              <Link
-                key={l.to}
-                to={l.to}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg transition-colors"
-                style={{
-                  backgroundColor: active ? 'color-mix(in srgb, #6366f1 12%, transparent)' : undefined,
-                  color: active ? '#6366f1' : 'var(--text-muted)',
-                }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)'; }}
-                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.backgroundColor = ''; }}
-              >
-                {l.icon}
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.01em' }}>
-                  {l.label}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* RIGHT ACTIONS */}
-        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-
-          {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg transition-colors touch-manipulation"
-            style={{ color: 'var(--text-muted)' }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)'}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = ''}
-            aria-label="Toggle theme"
-          >
-            {isDark
-              ? <LightModeIcon fontSize="small" className="text-yellow-400" />
-              : <DarkModeIcon fontSize="small" />}
-          </button>
-
-          {/* ── LOGGED IN ── */}
-          {user ? (
-            <div className="flex items-center gap-2">
-
-              {/* Wallet balance pill — local currency */}
-              <Link
-                to="/wallet"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all touch-manipulation"
-                style={{
-                  borderColor: balanceFlash ? '#4ade80' : 'var(--border-light)',
-                  backgroundColor: balanceFlash
-                    ? 'color-mix(in srgb, #4ade80 15%, transparent)'
-                    : 'var(--card-alt)',
-                }}
-                title={`Wallet balance (${currency.code})`}
-              >
-                {/* Live indicator dot */}
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                </span>
-
-                <AccountBalanceWalletIcon sx={{ fontSize: 14, color: 'var(--text-muted)' }} />
-
-                {balanceLoading && walletBalanceGhs === null ? (
-                  <span className="text-xs w-14 animate-pulse" style={{ color: 'var(--text-muted)' }}>Loading…</span>
-                ) : balanceDisplay !== null ? (
-                  <span
-                    className="text-sm font-bold tabular-nums"
-                    style={{ color: balanceFlash ? '#16a34a' : 'var(--text-main)' }}
-                  >
-                    {balanceDisplay}
-                  </span>
-                ) : (
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>—</span>
-                )}
-              </Link>
-
-              {/* Deposit button */}
-              <Link
-                to="/deposit"
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full touch-manipulation font-bold text-sm whitespace-nowrap"
-                style={{
-                  background: 'linear-gradient(90deg, #16a34a 0%, #22c55e 100%)',
-                  color: '#ffffff',
-                  boxShadow: '0 2px 8px rgba(22, 163, 74, 0.35)',
-                  textDecoration: 'none',
-                }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.opacity = '0.9';
-                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(22, 163, 74, 0.5)';
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLElement).style.opacity = '1';
-                  (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(22, 163, 74, 0.35)';
-                }}
-              >
-                <AddCircleOutlineIcon sx={{ fontSize: 16 }} />
-                Deposit
-              </Link>
-
-              {/* User avatar */}
-              <Link
-                to="/account"
-                className="flex items-center gap-2 px-2 sm:px-3 py-1.5 rounded-lg transition-colors touch-manipulation"
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = ''}
-              >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 select-none"
-                  style={{ background: 'linear-gradient(135deg, #6366f1 0%, #38bdf8 100%)' }}
-                >
-                  {getUserInitials(user.fullName)}
-                </div>
-                <span className="hidden sm:inline text-sm font-medium" style={{ color: 'var(--text-main)' }}>
-                  {user.fullName.split(' ')[0]}
-                </span>
-              </Link>
-            </div>
-          ) : (
-            /* ── NOT LOGGED IN ── */
-            <div className="flex items-center gap-1 sm:gap-2">
-              <Link
-                to="/login"
-                className="flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg transition-colors touch-manipulation whitespace-nowrap"
-                style={{ color: 'var(--text-main)' }}
-                onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)'}
-                onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = ''}
-              >
-                <LoginIcon fontSize="small" />
-                <span>Login</span>
-              </Link>
-
-              <Link
-                to="/register"
-                className="flex items-center gap-1.5 text-sm py-2 px-4 rounded-full touch-manipulation font-bold whitespace-nowrap"
-                style={{
-                  background: 'linear-gradient(90deg, #38bdf8 0%, #6366f1 100%)',
-                  color: '#ffffff',
-                  boxShadow: '0 2px 8px rgba(99, 102, 241, 0.45)',
-                  border: 'none',
-                  textDecoration: 'none',
-                }}
-                onMouseEnter={e => {
-                  (e.currentTarget as HTMLElement).style.opacity = '0.9';
-                  (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.6)';
-                }}
-                onMouseLeave={e => {
-                  (e.currentTarget as HTMLElement).style.opacity = '1';
-                  (e.currentTarget as HTMLElement).style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.45)';
-                }}
-              >
-                <PersonAddIcon fontSize="small" />
-                <span className="hidden xs:inline">Register</span>
-                <span className="xs:hidden">Join</span>
-              </Link>
-            </div>
-          )}
-
-          {/* Hamburger — mobile/tablet, logged-in only */}
-          {user && (
-            <button
-              onClick={() => setMobileMenuOpen(prev => !prev)}
-              className="lg:hidden p-2 rounded-lg transition-colors touch-manipulation"
-              style={{ color: 'var(--text-main)' }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)'}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = ''}
-              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-              aria-expanded={mobileMenuOpen}
+          {menuItems.map(item => (
+            <Link
+              key={item.to}
+              to={item.to}
+              onClick={() => setOpen(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '11px 16px',
+                fontFamily: "'Inter', sans-serif",
+                fontWeight: 600,
+                fontSize: '0.83rem',
+                color: '#222',
+                textDecoration: 'none',
+                borderBottom: '1px solid rgba(0,0,0,0.06)',
+                transition: 'background 0.12s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f5')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >
-              {mobileMenuOpen ? <CloseIcon fontSize="small" /> : <MenuIcon fontSize="small" />}
-            </button>
-          )}
-        </div>
-      </div>
+              <span style={{ color: '#888', display: 'flex' }}>{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
 
-      {/* ── MOBILE MENU ── */}
-      {mobileMenuOpen && (
-        <div
-          className="lg:hidden border-t animate-fade-in"
-          style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-light)' }}
-        >
-          <nav className="flex flex-col p-3 gap-1">
-
-            {navLinks.map(l => {
-              const active = location.pathname === l.to;
-              return (
-                <Link
-                  key={l.to}
-                  to={l.to}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors min-h-[48px] touch-manipulation"
-                  style={{
-                    backgroundColor: active ? 'color-mix(in srgb, #6366f1 12%, transparent)' : undefined,
-                    color: active ? '#6366f1' : 'var(--text-muted)',
-                  }}
-                >
-                  {l.icon}
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.875rem', fontWeight: 600, letterSpacing: '0.01em' }}>
-                    {l.label}
-                  </span>
-                </Link>
-              );
-            })}
-
-            <div className="border-t mt-1 pt-2 flex flex-col gap-2" style={{ borderColor: 'var(--border-light)' }}>
-              {user ? (
-                <>
-                  {/* Wallet balance row — local currency */}
-                  <Link
-                    to="/wallet"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg min-h-[48px] touch-manipulation"
-                    style={{ backgroundColor: 'var(--card-alt)' }}
-                  >
-                    <div className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
-                      <AccountBalanceWalletIcon fontSize="small" />
-                      Wallet Balance
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                      </span>
-                      <span className="text-sm font-bold tabular-nums" style={{ color: 'var(--text-main)' }}>
-                        {balanceDisplay ?? '—'}
-                      </span>
-                    </div>
-                  </Link>
-
-                  {/* Deposit button */}
-                  <Link
-                    to="/deposit"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center justify-center gap-2 text-sm min-h-[48px] rounded-full touch-manipulation font-bold"
-                    style={{
-                      background: 'linear-gradient(90deg, #16a34a 0%, #22c55e 100%)',
-                      color: '#ffffff',
-                      boxShadow: '0 2px 10px rgba(22, 163, 74, 0.35)',
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <AddCircleOutlineIcon fontSize="small" />
-                    Deposit
-                  </Link>
-
-                  {/* Account */}
-                  <Link
-                    to="/account"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium min-h-[48px] touch-manipulation"
-                    style={{ color: 'var(--text-muted)' }}
-                    onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--card-alt)'}
-                    onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = ''}
-                  >
-                    <div
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                      style={{
-                        background: 'linear-gradient(135deg, #6366f1 0%, #38bdf8 100%)',
-                        color: '#ffffff',
-                      }}
-                    >
-                      {getUserInitials(user.fullName)}
-                    </div>
-                    {user.fullName.split(' ')[0]}'s Account
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <Link
-                    to="/login"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-semibold min-h-[48px] touch-manipulation border transition-colors"
-                    style={{ color: 'var(--text-main)', borderColor: 'var(--border-light)', backgroundColor: 'var(--card-alt)' }}
-                  >
-                    <LoginIcon fontSize="small" />
-                    Login
-                  </Link>
-
-                  <Link
-                    to="/register"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center justify-center gap-2 text-sm min-h-[48px] rounded-full touch-manipulation font-bold"
-                    style={{
-                      background: 'linear-gradient(90deg, #38bdf8 0%, #6366f1 100%)',
-                      color: '#ffffff',
-                      boxShadow: '0 2px 10px rgba(99, 102, 241, 0.45)',
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <PersonAddIcon fontSize="small" />
-                    Create Account
-                  </Link>
-                </>
-              )}
-            </div>
-          </nav>
+          <button
+            onClick={handleLogout}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              width: '100%',
+              padding: '11px 16px',
+              fontFamily: "'Inter', sans-serif",
+              fontWeight: 700,
+              fontSize: '0.83rem',
+              color: '#CC0000',
+              background: 'transparent',
+              border: 'none',
+              textAlign: 'left',
+              cursor: 'pointer',
+              transition: 'background 0.12s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = '#fff0f0')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-2"/>
+              <path d="M9 12h12m-3-3 3 3-3 3"/>
+            </svg>
+            Sign Out
+          </button>
         </div>
       )}
-    </header>
+    </div>
+  );
+}
+
+// ─── Deposit shortcut button (+ icon only) ────────────────────────────────────
+function DepositBtn() {
+  return (
+    <Link
+      to="/deposit"
+      aria-label="Deposit"
+      style={{
+        width: 34,
+        height: 34,
+        borderRadius: '50%',
+        background: '#ffffff',
+        border: 'none',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textDecoration: 'none',
+        flexShrink: 0,
+        transition: 'opacity 0.15s',
+      }}
+      onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+      onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+        stroke="#CC0000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </Link>
+  );
+}
+
+// ─── Header ───────────────────────────────────────────────────────────────────
+export default function Header() {
+  const [scrolled, setScrolled] = useState(false);
+  const { user } = useAppStore();
+  const isLoggedIn = !!user;
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        .bet360-header {
+          position: sticky;
+          top: 0;
+          z-index: 100;
+          background: #CC0000;
+          box-shadow: ${scrolled ? '0 4px 24px rgba(0,0,0,0.45)' : '0 2px 10px rgba(0,0,0,0.25)'};
+          transition: box-shadow 0.2s;
+        }
+
+        .bet360-btn-login {
+          font-family: 'Inter', sans-serif;
+          font-weight: 700;
+          font-size: 0.82rem;
+          letter-spacing: 0.03em;
+          color: #CC0000;
+          background: #ffffff;
+          border: none;
+          padding: 7px 18px;
+          border-radius: 5px;
+          text-decoration: none;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: opacity 0.15s;
+          display: inline-flex;
+          align-items: center;
+        }
+        .bet360-btn-login:hover { opacity: 0.88; }
+
+        .bet360-btn-register {
+          font-family: 'Inter', sans-serif;
+          font-weight: 700;
+          font-size: 0.82rem;
+          letter-spacing: 0.03em;
+          color: #fff;
+          background: transparent;
+          border: 2px solid rgba(255,255,255,0.75);
+          padding: 6px 18px;
+          border-radius: 5px;
+          text-decoration: none;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: background 0.15s, border-color 0.15s;
+          display: inline-flex;
+          align-items: center;
+        }
+        .bet360-btn-register:hover { background: rgba(255,255,255,0.12); border-color: #fff; }
+
+        @keyframes b360DropIn {
+          from { opacity: 0; transform: translateY(-8px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      <header className="bet360-header">
+        <div style={{
+          maxWidth: 1440,
+          margin: '0 auto',
+          padding: '0 16px',
+          height: 58,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+
+          {/* Logo → home */}
+          <Link to="/" style={{ textDecoration: 'none', flexShrink: 0 }}>
+            <Bet360Logo />
+          </Link>
+
+          {/* Right side: auth-responsive */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {isLoggedIn ? (
+              <>
+                <WalletChip />
+                <DepositBtn />
+                <UserMenu />
+              </>
+            ) : (
+              <>
+                <Link to="/register" className="bet360-btn-login">Join Now</Link>
+                <Link to="/login"    className="bet360-btn-register">Log In</Link>
+              </>
+            )}
+          </div>
+
+        </div>
+      </header>
+    </>
   );
 }

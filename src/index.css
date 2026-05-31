@@ -27,8 +27,8 @@
   --text-faint:       #9aaabf;
   --border-light:     #dde3f0;
   --primary-glow:     none;
-  --odds-bg:          #f0f4fb;
-  --odds-bg-hover:    rgba(29, 111, 232, 0.07);
+  --odds-bg:          #eef2fb;
+  --odds-bg-hover:    rgba(29, 111, 232, 0.09);
   --finished-overlay: rgba(240, 243, 249, 0.45);
 }
 
@@ -43,15 +43,15 @@
   --bg-page:          #070b14;
   --card-bg:          #0d1422;
   --card-alt:         #121c30;
-  --card-border:      #1a2540;
+  --card-border:      #1e2d4a;
   --nav-bg:           #070b14;
   --text-main:        #e2eaf8;
-  --text-muted:       #5d7090;
+  --text-muted:       #6a80a0;
   --text-faint:       #3d5070;
-  --border-light:     #1a2540;
+  --border-light:     #1e2d4a;
   --primary-glow:     0 0 16px rgba(59, 130, 246, 0.3);
-  --odds-bg:          #0f1928;
-  --odds-bg-hover:    rgba(59, 130, 246, 0.10);
+  --odds-bg:          #111e33;
+  --odds-bg-hover:    rgba(59, 130, 246, 0.12);
   --finished-overlay: rgba(7, 11, 20, 0.45);
 }
 
@@ -66,15 +66,15 @@
   --bg-page:          #040710;
   --card-bg:          #090f1c;
   --card-alt:         #0e1628;
-  --card-border:      #182038;
+  --card-border:      #1d2a40;
   --nav-bg:           #040710;
   --text-main:        #dce8ff;
-  --text-muted:       #4e6480;
+  --text-muted:       #5a7090;
   --text-faint:       #2e4060;
-  --border-light:     #182038;
+  --border-light:     #1d2a40;
   --primary-glow:     0 0 18px rgba(96, 165, 250, 0.35);
   --odds-bg:          #0c1424;
-  --odds-bg-hover:    rgba(96, 165, 250, 0.10);
+  --odds-bg-hover:    rgba(96, 165, 250, 0.12);
   --finished-overlay: rgba(4, 7, 16, 0.45);
 }
 
@@ -87,18 +87,18 @@
     --accent:           #f59e0b;
     --live-green:       #22c55e;
     --live-green-soft:  rgba(34, 197, 94, 0.12);
-    --bg-bg-page:          #070b14;
+    --bg-page:          #070b14;
     --card-bg:          #0d1422;
     --card-alt:         #121c30;
-    --card-border:      #1a2540;
+    --card-border:      #1e2d4a;
     --nav-bg:           #070b14;
     --text-main:        #e2eaf8;
-    --text-muted:       #5d7090;
+    --text-muted:       #6a80a0;
     --text-faint:       #3d5070;
-    --border-light:     #1a2540;
+    --border-light:     #1e2d4a;
     --primary-glow:     0 0 16px rgba(59, 130, 246, 0.3);
-    --odds-bg:          #0f1928;
-    --odds-bg-hover:    rgba(59, 130, 246, 0.10);
+    --odds-bg:          #111e33;
+    --odds-bg-hover:    rgba(59, 130, 246, 0.12);
     --finished-overlay: rgba(7, 11, 20, 0.45);
   }
 }
@@ -175,13 +175,12 @@
 
   /* ═══════════════════════════════════════════════════════════════
      MATCH CARD — unified base
-     Three distinct states: live | upcoming | finished
   ═══════════════════════════════════════════════════════════════ */
 
   .match-card {
     position: relative;
     background: var(--card-bg);
-    border: 1px solid var(--card-border);
+    border: 1.5px solid var(--card-border);
     border-radius: 14px;
     overflow: hidden;
     cursor: pointer;
@@ -190,36 +189,38 @@
   }
   .match-card:last-child { margin-bottom: 0; }
   .match-card:hover {
-    border-color: color-mix(in srgb, var(--primary) 50%, var(--card-border));
-    box-shadow: 0 4px 16px color-mix(in srgb, var(--primary) 8%, transparent);
+    border-color: color-mix(in srgb, var(--primary) 55%, var(--card-border));
+    box-shadow: 0 4px 18px color-mix(in srgb, var(--primary) 10%, transparent);
   }
   .match-card:active { transform: scale(0.995); }
 
   /* ── LIVE card ─────────────────────────────────────────────── */
 
   .match-card.live {
-    border-color: color-mix(in srgb, var(--live-green) 40%, var(--card-border));
-    border-left: 3px solid var(--live-green);
+    border: 1.5px solid color-mix(in srgb, var(--live-green) 50%, var(--card-border));
+    border-left: 4px solid var(--live-green);
   }
   .match-card.live:hover {
     border-color: var(--live-green);
-    box-shadow: 0 4px 20px color-mix(in srgb, var(--live-green) 15%, transparent);
+    border-left-color: var(--live-green);
+    box-shadow: 0 4px 20px color-mix(in srgb, var(--live-green) 18%, transparent);
   }
 
   /* ── FINISHED card ─────────────────────────────────────────── */
 
   .match-card.finished {
-    opacity: 0.80;
+    opacity: 0.82;
+    border: 1.5px solid var(--card-border);
   }
   .match-card.finished:hover {
     opacity: 1;
-    border-color: color-mix(in srgb, var(--primary) 30%, var(--card-border));
+    border-color: color-mix(in srgb, var(--primary) 40%, var(--card-border));
   }
 
   /* ── UPCOMING card ─────────────────────────────────────────── */
 
   .match-card.upcoming {
-    /* default styles — nothing extra needed */
+    border: 1.5px solid var(--card-border);
   }
 
   /* ── Top bar (league + status) ─────────────────────────────── */
@@ -228,7 +229,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 12px 0;
+    padding: 9px 13px 0;
   }
 
   .match-card-league-logo {
@@ -239,7 +240,7 @@
   }
 
   .match-card-league {
-    font-size: 0.65rem;
+    font-size: 0.72rem;
     font-weight: 700;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -257,11 +258,11 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 0.625rem;
+    font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 0.05em;
     border-radius: 6px;
-    padding: 3px 7px;
+    padding: 3px 8px;
     white-space: nowrap;
     flex-shrink: 0;
     line-height: 1;
@@ -271,7 +272,7 @@
   .match-status-badge.live {
     background: var(--live-green-soft);
     color: var(--live-green);
-    border: 1px solid color-mix(in srgb, var(--live-green) 25%, transparent);
+    border: 1px solid color-mix(in srgb, var(--live-green) 30%, transparent);
   }
 
   /* Finished badge */
@@ -291,42 +292,44 @@
     font-weight: 500;
     gap: 3px;
     letter-spacing: 0;
+    font-size: 0.72rem;
   }
 
   /* ── Body: teams + scores ──────────────────────────────────── */
 
   .match-card-body {
-    padding: 8px 12px 10px;
+    padding: 10px 13px 11px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 7px;
   }
 
   .match-team-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 9px;
   }
 
   .match-team-logo {
-    width: 20px;
-    height: 20px;
+    width: 23px;
+    height: 23px;
     object-fit: contain;
     flex-shrink: 0;
     border-radius: 3px;
   }
   .match-team-logo-placeholder {
-    width: 20px;
-    height: 20px;
+    width: 23px;
+    height: 23px;
     flex-shrink: 0;
     border-radius: 3px;
     background: var(--card-alt);
-    border: 1px solid var(--card-border);
+    border: 1.5px solid var(--card-border);
   }
 
+  /* TEAM NAME — bigger + heavier */
   .match-team-name {
-    font-size: 0.875rem;
-    font-weight: 600;
+    font-size: 1.05rem;
+    font-weight: 700;
     color: var(--text-main);
     white-space: nowrap;
     overflow: hidden;
@@ -334,9 +337,10 @@
     flex: 1;
     min-width: 0;
     line-height: 1.25;
+    letter-spacing: -0.01em;
   }
   .match-team-name.winner {
-    font-weight: 700;
+    font-weight: 800;
     color: var(--text-main);
   }
   .match-team-name.loser {
@@ -344,12 +348,13 @@
     font-weight: 500;
   }
 
+  /* SCORE */
   .match-score {
-    font-size: 1rem;
+    font-size: 1.2rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: var(--text-main);
-    min-width: 18px;
+    min-width: 22px;
     text-align: right;
     flex-shrink: 0;
     line-height: 1;
@@ -361,11 +366,11 @@
 
   /* Score divider for live/finished */
   .match-score-divider {
-    font-size: 0.7rem;
+    font-size: 0.78rem;
     color: var(--text-faint);
     font-weight: 400;
     flex-shrink: 0;
-    padding: 0 1px;
+    padding: 0 2px;
   }
 
   /* Upcoming — kickoff time in score column */
@@ -376,18 +381,18 @@
     justify-content: center;
     flex-shrink: 0;
     gap: 1px;
-    min-width: 40px;
+    min-width: 44px;
   }
   .match-kickoff-time {
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1.1rem;
+    font-size: 1.25rem;
     font-weight: 800;
     color: var(--primary);
     line-height: 1;
     font-variant-numeric: tabular-nums;
   }
   .match-kickoff-label {
-    font-size: 0.55rem;
+    font-size: 0.58rem;
     font-weight: 600;
     letter-spacing: 0.07em;
     text-transform: uppercase;
@@ -401,17 +406,17 @@
     height: 1px;
     background: var(--card-border);
     margin: 0 12px;
-    opacity: 0.6;
+    opacity: 0.8;
   }
 
   /* ═══════════════════════════════════════════════════════════════
-     ODDS ROW — only for live + upcoming cards
+     ODDS ROW
   ═══════════════════════════════════════════════════════════════ */
 
   .match-odds-row {
     display: flex;
-    gap: 5px;
-    padding: 0 10px 10px;
+    gap: 6px;
+    padding: 0 10px 11px;
   }
 
   .match-odds-btn {
@@ -420,30 +425,18 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
-    padding: 7px 4px;
-    border-radius: 9px;
-    border: 1px solid var(--card-border);
+    gap: 3px;
+    padding: 9px 6px;
+    border-radius: 10px;
+    border: 1.5px solid var(--card-border);
     background: var(--odds-bg);
     color: var(--text-main);
     cursor: pointer;
     transition: border-color 0.15s, background-color 0.15s, color 0.15s, transform 0.1s;
-    min-height: 46px;
+    min-height: 54px;
     position: relative;
     overflow: hidden;
   }
-
-  /* Subtle shimmer line on top */
-  .match-odds-btn::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--primary-soft), transparent);
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  .match-odds-btn:hover::before { opacity: 1; }
 
   .match-odds-btn:hover:not(.locked):not(.empty) {
     border-color: var(--primary);
@@ -459,7 +452,6 @@
     color: #fff;
     box-shadow: var(--primary-glow);
   }
-  .match-odds-btn.selected::before { display: none; }
   .match-odds-btn.locked {
     opacity: 0.40;
     cursor: not-allowed;
@@ -470,19 +462,21 @@
     opacity: 0.5;
   }
 
+  /* ODDS LABEL */
   .match-odds-label {
-    font-size: 0.575rem;
+    font-size: 0.65rem;
     font-weight: 700;
-    color: var(--text-faint);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.07em;
     line-height: 1;
   }
-  .match-odds-btn.selected .match-odds-label { color: rgba(255,255,255,0.70); }
+  .match-odds-btn.selected .match-odds-label { color: rgba(255,255,255,0.78); }
   .match-odds-btn:hover:not(.selected):not(.locked) .match-odds-label { color: var(--primary); }
 
+  /* ODDS VALUE — big + bold */
   .match-odds-value {
-    font-size: 0.875rem;
+    font-size: 1.1rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     line-height: 1;
@@ -497,7 +491,7 @@
     justify-content: center;
     gap: 3px;
     padding: 0 10px 9px;
-    font-size: 0.65rem;
+    font-size: 0.68rem;
     font-weight: 600;
     color: var(--text-faint);
     letter-spacing: 0.03em;
@@ -514,12 +508,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 12px 10px;
+    padding: 6px 13px 11px;
     gap: 8px;
   }
 
   .match-result-label {
-    font-size: 0.625rem;
+    font-size: 0.65rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -531,14 +525,14 @@
     align-items: center;
     gap: 6px;
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1.35rem;
+    font-size: 1.5rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     color: var(--text-main);
     letter-spacing: 0.02em;
   }
   .match-result-score-block .sep {
-    font-size: 0.9rem;
+    font-size: 1rem;
     font-weight: 400;
     color: var(--text-faint);
   }
@@ -562,7 +556,7 @@
   ═══════════════════════════════════════════════════════════════ */
 
   .league-group {
-    margin-bottom: 16px;
+    margin-bottom: 18px;
   }
   .league-group:last-child { margin-bottom: 0; }
 
@@ -570,16 +564,16 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 2px 2px 8px;
+    padding: 2px 2px 9px;
   }
   .league-group-header-logo {
-    width: 16px;
-    height: 16px;
+    width: 17px;
+    height: 17px;
     object-fit: contain;
     flex-shrink: 0;
   }
   .league-group-name {
-    font-size: 0.6875rem;
+    font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -591,14 +585,14 @@
     white-space: nowrap;
   }
   .league-group-count {
-    font-size: 0.625rem;
+    font-size: 0.65rem;
     font-weight: 600;
     color: var(--text-faint);
     background: var(--card-alt);
-    border: 1px solid var(--card-border);
+    border: 1.5px solid var(--card-border);
     border-radius: 10px;
-    padding: 1px 7px;
-    min-width: 20px;
+    padding: 2px 8px;
+    min-width: 22px;
     text-align: center;
     flex-shrink: 0;
   }
@@ -611,21 +605,21 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
   }
   .section-title-text {
     display: flex;
     align-items: center;
     gap: 6px;
     font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1rem;
+    font-size: 1.05rem;
     font-weight: 700;
     letter-spacing: 0.04em;
     color: var(--text-main);
   }
   .section-count {
     font-family: 'Inter', sans-serif;
-    font-size: 0.8125rem;
+    font-size: 0.85rem;
     font-weight: 400;
     color: var(--text-muted);
     letter-spacing: 0;
@@ -647,7 +641,7 @@
     background: var(--border-light);
   }
   .league-divider-label {
-    font-size: 0.625rem;
+    font-size: 0.65rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -673,14 +667,14 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 6px 13px;
+    padding: 7px 14px;
     border-radius: 20px;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
     font-weight: 600;
     white-space: nowrap;
     flex-shrink: 0;
     background: var(--card-bg);
-    border: 1px solid var(--card-border);
+    border: 1.5px solid var(--card-border);
     color: var(--text-muted);
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s, background-color 0.15s;
@@ -696,14 +690,14 @@
   .league-tab {
     display: inline-flex;
     align-items: center;
-    padding: 4px 11px;
+    padding: 5px 12px;
     border-radius: 16px;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 600;
     white-space: nowrap;
     flex-shrink: 0;
     background: var(--card-bg);
-    border: 1px solid var(--card-border);
+    border: 1.5px solid var(--card-border);
     color: var(--text-muted);
     cursor: pointer;
     transition: border-color 0.15s, color 0.15s, background-color 0.15s;
