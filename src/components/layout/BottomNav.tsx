@@ -6,16 +6,16 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
 const navItems = [
-  { to: '/',        label: 'Home',     icon: <HomeIcon fontSize="small" /> },
-  { to: '/live',    label: 'Sports',   icon: <SportsSoccerIcon fontSize="small" /> },
-  { to: '/betslip', label: 'Bet Slip', icon: <ReceiptLongIcon fontSize="small" /> },
-  { to: '/account', label: 'Account',  icon: <AccountCircleIcon fontSize="small" /> },
+  { to: '/',        label: 'Home',     icon: <HomeIcon fontSize="medium" /> },
+  { to: '/live',    label: 'Sports',   icon: <SportsSoccerIcon fontSize="medium" /> },
+  { to: '/betslip', label: 'Bet Slip', icon: <ReceiptLongIcon fontSize="medium" /> },
+  { to: '/account', label: 'Account',  icon: <AccountCircleIcon fontSize="medium" /> },
 ];
 
 export default function BottomNav() {
   const location = useLocation();
-  const betSlip  = useAppStore((s) => s.betSlip);
-  const modalOpen = useAppStore((s) => s.modalOpen);   // ✅ no cast needed
+  const betSlip   = useAppStore((s) => s.betSlip);
+  const modalOpen = useAppStore((s) => s.modalOpen);
 
   return (
     <nav
@@ -28,14 +28,14 @@ export default function BottomNav() {
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
-      <div className="flex items-center justify-around h-14">
+      <div className="flex items-center justify-around h-16">
         {navItems.map((item) => {
           const isActive = location.pathname === item.to;
           return (
             <Link
               key={item.to}
               to={item.to}
-              className="relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors"
+              className="relative flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg transition-colors"
               style={{ color: isActive ? '#CC0000' : 'rgba(255,255,255,0.45)' }}
             >
               <div className="relative">
@@ -51,7 +51,7 @@ export default function BottomNav() {
               </div>
               <span
                 className="leading-none"
-                style={{ fontSize: '9px', fontWeight: isActive ? 800 : 500 }}
+                style={{ fontSize: '11px', fontWeight: isActive ? 800 : 500 }}
               >
                 {item.label}
               </span>
