@@ -37,22 +37,22 @@ export default function LeagueCards() {
     <div className="px-3 sm:px-4 mt-4 sm:mt-6">
 
       {/* ── Quick Action Buttons ── */}
-      <div className="flex gap-3 mb-4">
+      <div className="flex gap-2 mb-4">
 
         {/* Load Code */}
         <button
           onClick={() => navigate('/betslip')}
-          className="flex-1 flex items-center justify-center gap-2.5 touch-manipulation active:scale-[0.97] transition-transform"
+          className="flex-1 flex items-center justify-center gap-1.5 touch-manipulation active:scale-[0.97] transition-transform"
           style={{
-            padding: '14px 16px',
-            borderRadius: '14px',
+            padding: '9px 10px',
+            borderRadius: '12px',
             background: 'transparent',
             border: '1.5px solid rgba(0,0,0,0.15)',
           }}
         >
-          <ConfirmationNumberIcon style={{ fontSize: 24, color: '#f59e0b', flexShrink: 0 }} />
+          <ConfirmationNumberIcon style={{ fontSize: 15, color: '#f59e0b', flexShrink: 0 }} />
           <span style={{
-            fontSize: '16px',
+            fontSize: '11px',
             fontWeight: 900,
             letterSpacing: '0.02em',
             color: '#000000',
@@ -65,28 +65,28 @@ export default function LeagueCards() {
         {/* Live Matches */}
         <button
           onClick={() => navigate('/live')}
-          className="flex-1 flex items-center justify-center gap-2.5 touch-manipulation active:scale-[0.97] transition-transform"
+          className="flex-1 flex items-center justify-center gap-1.5 touch-manipulation active:scale-[0.97] transition-transform"
           style={{
-            padding: '14px 16px',
-            borderRadius: '14px',
+            padding: '9px 10px',
+            borderRadius: '12px',
             background: 'transparent',
             border: '1.5px solid rgba(0,0,0,0.15)',
           }}
         >
           {/* Pulsing dot */}
-          <span className="relative flex items-center justify-center" style={{ width: 10, height: 10, flexShrink: 0 }}>
+          <span className="relative flex items-center justify-center" style={{ width: 8, height: 8, flexShrink: 0 }}>
             <span
               className="absolute inline-flex h-full w-full rounded-full animate-ping"
               style={{ background: '#ef4444', opacity: 0.7 }}
             />
             <span
               className="relative inline-flex rounded-full"
-              style={{ width: 8, height: 8, background: '#ef4444' }}
+              style={{ width: 6, height: 6, background: '#ef4444' }}
             />
           </span>
-          <SportsIcon style={{ fontSize: 24, color: '#ef4444', flexShrink: 0 }} />
+          <SportsIcon style={{ fontSize: 15, color: '#ef4444', flexShrink: 0 }} />
           <span style={{
-            fontSize: '16px',
+            fontSize: '11px',
             fontWeight: 900,
             letterSpacing: '0.02em',
             color: '#000000',
