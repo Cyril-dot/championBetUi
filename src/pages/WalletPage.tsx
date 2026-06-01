@@ -224,7 +224,7 @@ function ModalRow({ label, value, last = false }: { label: string; value: string
   );
 }
 
-// ── Network Picker (custom dropdown, fully visible) ───────────────────────────
+// ── Network Picker ────────────────────────────────────────────────────────────
 
 function NetworkPicker({ networks, value, onChange }: {
   networks: string[];
@@ -235,7 +235,6 @@ function NetworkPicker({ networks, value, onChange }: {
 
   return (
     <div className="relative">
-      {/* Trigger button */}
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
@@ -258,14 +257,10 @@ function NetworkPicker({ networks, value, onChange }: {
         />
       </button>
 
-      {/* Dropdown panel */}
       {open && (
         <div
           className="absolute left-0 right-0 z-50 mt-2 rounded-2xl overflow-hidden shadow-2xl"
-          style={{
-            backgroundColor: '#1a1a1a',
-            border: '1px solid rgba(255,255,255,0.15)',
-          }}
+          style={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.15)' }}
         >
           {networks.map((n, i) => (
             <button
@@ -297,7 +292,56 @@ function NetworkPicker({ networks, value, onChange }: {
   );
 }
 
+// ── No Deposit Modal ──────────────────────────────────────────────────────────
+// Shown when the user has never deposited at all (lifetimeDeposits === 0).
+// Simple message: make your first deposit before you can withdraw.
+
+interface NoDepositModalProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+function NoDepositModal({ open, onClose }: NoDepositModalProps) {
+  return (
+    <ModalShell open={open} onClose={onClose}>
+      <div className="text-center py-4 space-y-5">
+        <div className="flex items-center justify-between absolute top-6 right-6">
+          <button onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors">
+            <CancelIcon fontSize="small" />
+          </button>
+        </div>
+        <div className="flex justify-center">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, #1a0000, #440000)', border: '1px solid rgba(220,38,38,0.4)' }}>
+            <AddCardIcon style={{ color: '#ef4444', fontSize: 28 }} />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-xl font-bold text-white">Deposit First</h3>
+          <p className="text-sm text-white/50 leading-relaxed">
+            You need to make a deposit before you can withdraw. Fund your account to get started.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 pt-1">
+          <button onClick={onClose}
+            className="py-3 rounded-2xl text-sm font-semibold text-white/60"
+            style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            Maybe Later
+          </button>
+          <Link to="/deposit" onClick={onClose}
+            className="py-3 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-1.5"
+            style={{ backgroundColor: '#dc2626' }}>
+            <AddCardIcon fontSize="small" /> Deposit Now
+          </Link>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
 // ── Account Activation Prompt Modal ──────────────────────────────────────────
+// Shown only when lifetimeDeposits >= 1 but < 3.
 
 interface ActivationPromptModalProps {
   open: boolean;
@@ -328,7 +372,7 @@ function ActivationPromptModal({ open, onClose, lifetimeDeposits }: ActivationPr
         <div className="text-center space-y-2">
           <h3 className="text-xl font-bold text-white">Complete 3 Deposits</h3>
           <p className="text-sm text-white/50 leading-relaxed">
-            Make {DEPOSITS_REQUIRED_TO_ACTIVATE} deposits to your account to activate withdrawals.
+            Make {DEPOSITS_REQUIRED_TO_ACTIVATE} deposits to activate withdrawals.
             {remaining > 0 && <> You're {remaining} deposit{remaining > 1 ? 's' : ''} away.</>}
           </p>
         </div>
@@ -453,9 +497,6 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
   const canProceed = amountValid &&
     (method === 'momo' ? !!phoneNumber && !!network : !!bankName && !!accountNumber && !!accountName);
 
-  // ── FIX: accountName must never be blank ──────────────────────────────────
-  // For MoMo, use the phone number as the account name so the backend
-  // @NotBlank validation on accountName is always satisfied.
   const submit = async () => {
     setLoading(true); setError('');
     try {
@@ -463,7 +504,7 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
         amount: amountGhs,
         method,
         accountNumber: method === 'momo' ? phoneNumber : accountNumber,
-        accountName:   method === 'momo' ? phoneNumber : accountName,   // ← FIX
+        accountName:   method === 'momo' ? phoneNumber : accountName,
         network:       method === 'momo' ? network : bankName,
       });
       setStep('done');
@@ -481,7 +522,6 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
 
   return (
     <ModalShell open={open} onClose={handleClose}>
-      {/* ── Done ── */}
       {step === 'done' && (
         <div className="text-center py-4 space-y-5">
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
@@ -499,7 +539,6 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
         </div>
       )}
 
-      {/* ── Confirm ── */}
       {step === 'confirm' && (
         <div className="space-y-5">
           <h3 className="text-lg font-bold text-white">Confirm Withdrawal</h3>
@@ -529,7 +568,6 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
         </div>
       )}
 
-      {/* ── Form ── */}
       {step === 'form' && (
         <div className="space-y-5">
           <div className="flex items-center justify-between">
@@ -540,7 +578,6 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
             </button>
           </div>
 
-          {/* Available / Min */}
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
             style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <span className="text-white/40">Available:</span>
@@ -550,7 +587,6 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
             </span>
           </div>
 
-          {/* Method toggle */}
           <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl"
             style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
             {[
@@ -568,7 +604,6 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
             ))}
           </div>
 
-          {/* Amount */}
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase tracking-wider text-white/40">Amount ({currency.code})</label>
             <div className="relative">
@@ -599,10 +634,8 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
             </div>
           </div>
 
-          {/* MoMo fields */}
           {method === 'momo' && (
             <div className="space-y-3">
-              {/* Custom network picker */}
               <div className="space-y-1">
                 <label className="text-xs font-bold uppercase tracking-wider text-white/40">Network</label>
                 <NetworkPicker networks={momoNetworks} value={network} onChange={setNetwork} />
@@ -615,7 +648,6 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
             </div>
           )}
 
-          {/* Bank fields */}
           {method === 'bank' && (
             <div className="space-y-3">
               <div className="space-y-1">
@@ -636,7 +668,6 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
             </div>
           )}
 
-          {/* Rules */}
           <div className="rounded-2xl p-4 space-y-2 text-sm"
             style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
             {[
@@ -795,6 +826,8 @@ export default function WalletPage() {
   // Modal states
   const [showWithdraw,            setShowWithdraw]            = useState(false);
   const [showAffWithdraw,         setShowAffWithdraw]         = useState(false);
+  const [showNoDeposit,           setShowNoDeposit]           = useState(false);   // new: never deposited
+  const [showAffNoDeposit,        setShowAffNoDeposit]        = useState(false);   // new: affiliate, never deposited
   const [showActivationPrompt,    setShowActivationPrompt]    = useState(false);
   const [showAffActivationPrompt, setShowAffActivationPrompt] = useState(false);
   const [showInsufficientBal,     setShowInsufficientBal]     = useState(false);
@@ -860,15 +893,22 @@ export default function WalletPage() {
   const affBalanceSufficient  = isAdmin || affBalanceGhs >= MIN_WITHDRAWAL_AMOUNT;
 
   // ── Withdraw button handlers ──────────────────────────────────────────────
+  // Gate order:
+  //   1. Never deposited (0 deposits) → "deposit first" modal (no activation dots)
+  //   2. Has deposited but < 3        → activation prompt with progress dots
+  //   3. Activated but low balance    → insufficient balance modal
+  //   4. All clear                    → open withdraw modal
   const handleWithdrawClick = () => {
-    if (!accountActivated)      { setShowActivationPrompt(true);  return; }
-    if (!mainBalanceSufficient) { setShowInsufficientBal(true);   return; }
+    if (!isAdmin && lifetimeDeposits === 0)  { setShowNoDeposit(true);         return; }
+    if (!accountActivated)                   { setShowActivationPrompt(true);   return; }
+    if (!mainBalanceSufficient)              { setShowInsufficientBal(true);    return; }
     setShowWithdraw(true);
   };
 
   const handleAffWithdrawClick = () => {
-    if (!accountActivated)     { setShowAffActivationPrompt(true); return; }
-    if (!affBalanceSufficient) { setShowAffInsufficientBal(true);  return; }
+    if (!isAdmin && lifetimeDeposits === 0)  { setShowAffNoDeposit(true);        return; }
+    if (!accountActivated)                   { setShowAffActivationPrompt(true); return; }
+    if (!affBalanceSufficient)               { setShowAffInsufficientBal(true);  return; }
     setShowAffWithdraw(true);
   };
 
@@ -1106,6 +1146,18 @@ export default function WalletPage() {
 
       {/* ── Modals ── */}
 
+      {/* Never deposited: "deposit first" — no activation dots */}
+      <NoDepositModal
+        open={showNoDeposit}
+        onClose={() => setShowNoDeposit(false)}
+      />
+
+      <NoDepositModal
+        open={showAffNoDeposit}
+        onClose={() => setShowAffNoDeposit(false)}
+      />
+
+      {/* 1–2 deposits: activation progress prompt */}
       <ActivationPromptModal
         open={showActivationPrompt}
         onClose={() => setShowActivationPrompt(false)}
@@ -1118,6 +1170,7 @@ export default function WalletPage() {
         lifetimeDeposits={lifetimeDeposits}
       />
 
+      {/* Activated but balance too low */}
       <InsufficientBalanceModal
         open={showInsufficientBal}
         onClose={() => setShowInsufficientBal(false)}
