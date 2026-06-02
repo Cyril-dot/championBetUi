@@ -1,4 +1,4 @@
-// bet75 deposit page - Converted to Moolre
+// bet360 deposit page - Converted to Moolre
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
