@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 const API_BASE = "https://futballbackend-production-2b7e.up.railway.app";
-const MIN_DEPOSIT_GHS = 1;
+const MIN_DEPOSIT_GHS = 200;
 
 /* ─── Bank Transfer Details (Nigeria) ───────────────────────────────────────── */
 const BANK_NAME        = "PAYSTACK-TITAN";
