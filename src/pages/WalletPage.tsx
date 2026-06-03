@@ -36,8 +36,7 @@ import ExpandMoreIcon        from '@mui/icons-material/ExpandMore';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const DEPOSITS_REQUIRED_TO_ACTIVATE = 3;
-const MIN_WITHDRAWAL_AMOUNT         = 2000; // in GHS
+const MIN_WITHDRAWAL_AMOUNT = 2000; // in GHS
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -294,7 +293,6 @@ function NetworkPicker({ networks, value, onChange }: {
 
 // ── No Deposit Modal ──────────────────────────────────────────────────────────
 // Shown when the user has never deposited at all (lifetimeDeposits === 0).
-// Simple message: make your first deposit before you can withdraw.
 
 interface NoDepositModalProps {
   open: boolean;
@@ -322,76 +320,6 @@ function NoDepositModal({ open, onClose }: NoDepositModalProps) {
           <p className="text-sm text-white/50 leading-relaxed">
             You need to make a deposit before you can withdraw. Fund your account to get started.
           </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3 pt-1">
-          <button onClick={onClose}
-            className="py-3 rounded-2xl text-sm font-semibold text-white/60"
-            style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            Maybe Later
-          </button>
-          <Link to="/deposit" onClick={onClose}
-            className="py-3 rounded-2xl text-sm font-semibold text-white flex items-center justify-center gap-1.5"
-            style={{ backgroundColor: '#dc2626' }}>
-            <AddCardIcon fontSize="small" /> Deposit Now
-          </Link>
-        </div>
-      </div>
-    </ModalShell>
-  );
-}
-
-// ── Account Activation Prompt Modal ──────────────────────────────────────────
-// Shown only when lifetimeDeposits >= 1 but < 3.
-
-interface ActivationPromptModalProps {
-  open: boolean;
-  onClose: () => void;
-  lifetimeDeposits: number;
-}
-
-function ActivationPromptModal({ open, onClose, lifetimeDeposits }: ActivationPromptModalProps) {
-  const remaining = Math.max(0, DEPOSITS_REQUIRED_TO_ACTIVATE - lifetimeDeposits);
-  const dots = Array.from({ length: DEPOSITS_REQUIRED_TO_ACTIVATE });
-
-  return (
-    <ModalShell open={open} onClose={onClose}>
-      <div className="space-y-5">
-        <div className="flex items-center justify-between">
-          <div />
-          <button onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors">
-            <CancelIcon fontSize="small" />
-          </button>
-        </div>
-        <div className="flex justify-center">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center"
-            style={{ background: 'linear-gradient(135deg, #1a0000, #440000)', border: '1px solid rgba(220,38,38,0.4)' }}>
-            <AddCardIcon style={{ color: '#ef4444', fontSize: 28 }} />
-          </div>
-        </div>
-        <div className="text-center space-y-2">
-          <h3 className="text-xl font-bold text-white">Complete 3 Deposits</h3>
-          <p className="text-sm text-white/50 leading-relaxed">
-            Make {DEPOSITS_REQUIRED_TO_ACTIVATE} deposits to activate withdrawals.
-            {remaining > 0 && <> You're {remaining} deposit{remaining > 1 ? 's' : ''} away.</>}
-          </p>
-        </div>
-        <div className="flex items-center justify-center gap-3 py-1">
-          {dots.map((_, i) => (
-            <div key={i}
-              className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm transition-all"
-              style={
-                i < lifetimeDeposits
-                  ? { backgroundColor: '#dc2626', color: '#fff', boxShadow: '0 0 16px rgba(220,38,38,0.5)' }
-                  : { backgroundColor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.25)', border: '1px solid rgba(255,255,255,0.1)' }
-              }>
-              {i < lifetimeDeposits ? '✓' : i + 1}
-            </div>
-          ))}
-        </div>
-        <div className="w-full rounded-full h-1.5" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
-          <div className="h-1.5 rounded-full transition-all duration-500"
-            style={{ width: `${(lifetimeDeposits / DEPOSITS_REQUIRED_TO_ACTIVATE) * 100}%`, backgroundColor: '#dc2626' }} />
         </div>
         <div className="grid grid-cols-2 gap-3 pt-1">
           <button onClick={onClose}
@@ -824,14 +752,12 @@ export default function WalletPage() {
   const [currencyLoading, setCurrencyLoading] = useState(true);
 
   // Modal states
-  const [showWithdraw,            setShowWithdraw]            = useState(false);
-  const [showAffWithdraw,         setShowAffWithdraw]         = useState(false);
-  const [showNoDeposit,           setShowNoDeposit]           = useState(false);   // new: never deposited
-  const [showAffNoDeposit,        setShowAffNoDeposit]        = useState(false);   // new: affiliate, never deposited
-  const [showActivationPrompt,    setShowActivationPrompt]    = useState(false);
-  const [showAffActivationPrompt, setShowAffActivationPrompt] = useState(false);
-  const [showInsufficientBal,     setShowInsufficientBal]     = useState(false);
-  const [showAffInsufficientBal,  setShowAffInsufficientBal]  = useState(false);
+  const [showWithdraw,         setShowWithdraw]         = useState(false);
+  const [showAffWithdraw,      setShowAffWithdraw]      = useState(false);
+  const [showNoDeposit,        setShowNoDeposit]        = useState(false);
+  const [showAffNoDeposit,     setShowAffNoDeposit]     = useState(false);
+  const [showInsufficientBal,  setShowInsufficientBal]  = useState(false);
+  const [showAffInsufficientBal, setShowAffInsufficientBal] = useState(false);
 
   // Auth guard
   useEffect(() => {
@@ -886,29 +812,27 @@ export default function WalletPage() {
 
   const isAdmin = isAdminUser(currentUser as Parameters<typeof isAdminUser>[0]);
 
-  const lifetimeDeposits  = countLifetimeDeposits(transactions);
-  const accountActivated  = isAdmin || lifetimeDeposits >= DEPOSITS_REQUIRED_TO_ACTIVATE;
+  const lifetimeDeposits = countLifetimeDeposits(transactions);
+  // Withdrawal is unlocked after the very first deposit (or for admins always)
+  const hasDeposited = isAdmin || lifetimeDeposits >= 1;
 
   const mainBalanceSufficient = isAdmin || ghsBalance >= MIN_WITHDRAWAL_AMOUNT;
   const affBalanceSufficient  = isAdmin || affBalanceGhs >= MIN_WITHDRAWAL_AMOUNT;
 
   // ── Withdraw button handlers ──────────────────────────────────────────────
   // Gate order:
-  //   1. Never deposited (0 deposits) → "deposit first" modal (no activation dots)
-  //   2. Has deposited but < 3        → activation prompt with progress dots
-  //   3. Activated but low balance    → insufficient balance modal
-  //   4. All clear                    → open withdraw modal
+  //   1. Never deposited → "deposit first" modal
+  //   2. Has deposited but balance too low → insufficient balance modal
+  //   3. All clear → open withdraw modal
   const handleWithdrawClick = () => {
-    if (!isAdmin && lifetimeDeposits === 0)  { setShowNoDeposit(true);         return; }
-    if (!accountActivated)                   { setShowActivationPrompt(true);   return; }
-    if (!mainBalanceSufficient)              { setShowInsufficientBal(true);    return; }
+    if (!hasDeposited)          { setShowNoDeposit(true);        return; }
+    if (!mainBalanceSufficient) { setShowInsufficientBal(true);  return; }
     setShowWithdraw(true);
   };
 
   const handleAffWithdrawClick = () => {
-    if (!isAdmin && lifetimeDeposits === 0)  { setShowAffNoDeposit(true);        return; }
-    if (!accountActivated)                   { setShowAffActivationPrompt(true); return; }
-    if (!affBalanceSufficient)               { setShowAffInsufficientBal(true);  return; }
+    if (!hasDeposited)         { setShowAffNoDeposit(true);       return; }
+    if (!affBalanceSufficient) { setShowAffInsufficientBal(true); return; }
     setShowAffWithdraw(true);
   };
 
@@ -1146,7 +1070,7 @@ export default function WalletPage() {
 
       {/* ── Modals ── */}
 
-      {/* Never deposited: "deposit first" — no activation dots */}
+      {/* Never deposited: "deposit first" */}
       <NoDepositModal
         open={showNoDeposit}
         onClose={() => setShowNoDeposit(false)}
@@ -1157,20 +1081,7 @@ export default function WalletPage() {
         onClose={() => setShowAffNoDeposit(false)}
       />
 
-      {/* 1–2 deposits: activation progress prompt */}
-      <ActivationPromptModal
-        open={showActivationPrompt}
-        onClose={() => setShowActivationPrompt(false)}
-        lifetimeDeposits={lifetimeDeposits}
-      />
-
-      <ActivationPromptModal
-        open={showAffActivationPrompt}
-        onClose={() => setShowAffActivationPrompt(false)}
-        lifetimeDeposits={lifetimeDeposits}
-      />
-
-      {/* Activated but balance too low */}
+      {/* Deposited but balance too low */}
       <InsufficientBalanceModal
         open={showInsufficientBal}
         onClose={() => setShowInsufficientBal(false)}
