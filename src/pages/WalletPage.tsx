@@ -38,7 +38,7 @@ import LockIcon              from '@mui/icons-material/Lock';
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const MIN_WITHDRAWAL_AMOUNT   = 2000; // in GHS
-const REQUIRED_DEPOSITS_COUNT = 3;   // deposits needed to unlock withdrawal
+const REQUIRED_DEPOSITS_COUNT = 3;    // deposits needed to unlock withdrawal (kicks in after first deposit)
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -172,6 +172,21 @@ function formatDate(iso: string): string {
   } catch { return iso; }
 }
 
+// ── Gate Logic ────────────────────────────────────────────────────────────────
+//
+//  0 deposits  → no gate at all (button fully active; balance is 0 so they
+//                can't meet the minimum, but that's the only thing stopping them)
+//  1–2 deposits → deposit gate: "make X more deposits to unlock withdrawal"
+//  3+ deposits  → gate cleared; only the balance minimum applies
+//
+function getWithdrawalGateStatus(lifetimeDeposits: number, isAdmin: boolean): 'open' | 'deposit_gate' {
+  if (isAdmin) return 'open';
+  // Gate only kicks in once the user has made at least 1 deposit
+  if (lifetimeDeposits === 0) return 'open';
+  if (lifetimeDeposits >= REQUIRED_DEPOSITS_COUNT) return 'open';
+  return 'deposit_gate';
+}
+
 // ── Primitives ────────────────────────────────────────────────────────────────
 
 function Spinner() {
@@ -294,19 +309,17 @@ function NetworkPicker({ networks, value, onChange }: {
 }
 
 // ── Deposit Gate Modal ────────────────────────────────────────────────────────
-// Shown when user has deposited fewer than REQUIRED_DEPOSITS_COUNT times.
-// Shows a progress bar so they know exactly where they stand.
+// Shown only when user has made 1 or 2 deposits (gate kicks in after first deposit).
 
 interface DepositGateModalProps {
   open: boolean;
   onClose: () => void;
-  lifetimeDeposits: number; // how many they've done so far
+  lifetimeDeposits: number;
 }
 
 function DepositGateModal({ open, onClose, lifetimeDeposits }: DepositGateModalProps) {
-  const remaining  = REQUIRED_DEPOSITS_COUNT - lifetimeDeposits;
-  const pct        = Math.round((lifetimeDeposits / REQUIRED_DEPOSITS_COUNT) * 100);
-  const neverDeposited = lifetimeDeposits === 0;
+  const remaining = REQUIRED_DEPOSITS_COUNT - lifetimeDeposits;
+  const pct       = Math.round((lifetimeDeposits / REQUIRED_DEPOSITS_COUNT) * 100);
 
   return (
     <ModalShell open={open} onClose={onClose}>
@@ -327,13 +340,11 @@ function DepositGateModal({ open, onClose, lifetimeDeposits }: DepositGateModalP
 
         {/* heading */}
         <div className="text-center space-y-2">
-          <h3 className="text-xl font-bold text-white">
-            {neverDeposited ? 'Account Not Activated' : 'Withdrawal Locked'}
-          </h3>
+          <h3 className="text-xl font-bold text-white">Withdrawal Locked</h3>
           <p className="text-sm text-white/50 leading-relaxed">
-            {neverDeposited
-              ? `You need to make ${REQUIRED_DEPOSITS_COUNT} deposits to activate withdrawals on your account.`
-              : `You need ${remaining} more deposit${remaining > 1 ? 's' : ''} to unlock withdrawals.`}
+            You need{' '}
+            <strong className="text-white">{remaining} more deposit{remaining > 1 ? 's' : ''}</strong>
+            {' '}to unlock withdrawals.
           </p>
         </div>
 
@@ -348,10 +359,7 @@ function DepositGateModal({ open, onClose, lifetimeDeposits }: DepositGateModalP
           <div className="h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
             <div
               className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${pct}%`,
-                background: 'linear-gradient(90deg, #dc2626, #ef4444)',
-              }}
+              style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #dc2626, #ef4444)' }}
             />
           </div>
           {/* step dots */}
@@ -815,12 +823,12 @@ export default function WalletPage() {
   const [currencyLoading, setCurrencyLoading] = useState(true);
 
   // Modal states
-  const [showWithdraw,            setShowWithdraw]            = useState(false);
-  const [showAffWithdraw,         setShowAffWithdraw]         = useState(false);
-  const [showDepositGate,         setShowDepositGate]         = useState(false);
-  const [showAffDepositGate,      setShowAffDepositGate]      = useState(false);
-  const [showInsufficientBal,     setShowInsufficientBal]     = useState(false);
-  const [showAffInsufficientBal,  setShowAffInsufficientBal]  = useState(false);
+  const [showWithdraw,           setShowWithdraw]           = useState(false);
+  const [showAffWithdraw,        setShowAffWithdraw]        = useState(false);
+  const [showDepositGate,        setShowDepositGate]        = useState(false);
+  const [showAffDepositGate,     setShowAffDepositGate]     = useState(false);
+  const [showInsufficientBal,    setShowInsufficientBal]    = useState(false);
+  const [showAffInsufficientBal, setShowAffInsufficientBal] = useState(false);
 
   // Auth guard
   useEffect(() => {
@@ -873,27 +881,30 @@ export default function WalletPage() {
   const affLifetimeGhs = affiliateStats?.lifetimeCommission ?? 0;
   const loyaltyTier    = (currentUser as unknown as Record<string, unknown>)?.loyaltyTier as string | undefined;
 
-  const isAdmin = isAdminUser(currentUser as Parameters<typeof isAdminUser>[0]);
-
+  const isAdmin          = isAdminUser(currentUser as Parameters<typeof isAdminUser>[0]);
   const lifetimeDeposits = countLifetimeDeposits(transactions);
 
-  // ── Withdrawal gate logic ─────────────────────────────────────────────────
-  // Gate 1: Must have made at least REQUIRED_DEPOSITS_COUNT deposits (admins bypass)
-  // Gate 2: Balance must meet minimum withdrawal threshold
-  const withdrawalUnlocked    = isAdmin || lifetimeDeposits >= REQUIRED_DEPOSITS_COUNT;
+  // ── Gate logic ────────────────────────────────────────────────────────────
+  //  0 deposits  → button active, no gate (balance is 0 so min-balance modal fires instead)
+  //  1–2 deposits → deposit gate fires ("X more deposits to unlock")
+  //  3+ deposits  → gate cleared, only balance check applies
+  const gateStatus            = getWithdrawalGateStatus(lifetimeDeposits, isAdmin);
   const mainBalanceSufficient = isAdmin || ghsBalance >= MIN_WITHDRAWAL_AMOUNT;
   const affBalanceSufficient  = isAdmin || affBalanceGhs >= MIN_WITHDRAWAL_AMOUNT;
 
+  // The lock icon on the button only shows when deposit gate is active (1–2 deposits)
+  const depositGateActive = gateStatus === 'deposit_gate';
+
   // ── Withdraw button handlers ──────────────────────────────────────────────
   const handleWithdrawClick = () => {
-    if (!withdrawalUnlocked)      { setShowDepositGate(true);       return; }
-    if (!mainBalanceSufficient)   { setShowInsufficientBal(true);   return; }
+    if (depositGateActive)          { setShowDepositGate(true);     return; }
+    if (!mainBalanceSufficient)     { setShowInsufficientBal(true); return; }
     setShowWithdraw(true);
   };
 
   const handleAffWithdrawClick = () => {
-    if (!withdrawalUnlocked)    { setShowAffDepositGate(true);      return; }
-    if (!affBalanceSufficient)  { setShowAffInsufficientBal(true);  return; }
+    if (depositGateActive)         { setShowAffDepositGate(true);      return; }
+    if (!affBalanceSufficient)     { setShowAffInsufficientBal(true);  return; }
     setShowAffWithdraw(true);
   };
 
@@ -969,8 +980,8 @@ export default function WalletPage() {
             </button>
           </div>
 
-          {/* ── Deposit activation banner (shown until unlocked) ── */}
-          {!withdrawalUnlocked && (
+          {/* ── Deposit gate banner — only shown when gate is active (1–2 deposits) ── */}
+          {depositGateActive && (
             <div className="rounded-2xl px-4 py-3.5 flex items-center gap-3"
               style={{ backgroundColor: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)' }}>
               <LockIcon sx={{ fontSize: 18, color: '#ef4444', flexShrink: 0 }} />
@@ -1016,16 +1027,17 @@ export default function WalletPage() {
                   style={{ backgroundColor: '#dc2626' }}>
                   <AddCardIcon fontSize="small" /> Deposit
                 </Link>
+                {/* Withdraw button — always visually active; gate logic fires on click */}
                 <button type="button" onClick={handleWithdrawClick}
                   className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl text-sm font-bold transition-all active:scale-[0.97]"
                   style={{
                     backgroundColor: 'rgba(255,255,255,0.08)',
                     border: '1px solid rgba(255,255,255,0.15)',
-                    color: withdrawalUnlocked ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.35)',
+                    color: depositGateActive ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.8)',
                   }}>
-                  {withdrawalUnlocked
-                    ? <><PaymentsIcon fontSize="small" /> Withdraw</>
-                    : <><LockIcon fontSize="small" /> Withdraw</>}
+                  {depositGateActive
+                    ? <><LockIcon fontSize="small" /> Withdraw</>
+                    : <><PaymentsIcon fontSize="small" /> Withdraw</>}
                 </button>
               </div>
             </div>
@@ -1066,11 +1078,11 @@ export default function WalletPage() {
               style={{
                 backgroundColor: 'rgba(255,255,255,0.06)',
                 border: '1px solid rgba(255,255,255,0.08)',
-                color: withdrawalUnlocked ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.3)',
+                color: depositGateActive ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.7)',
               }}>
-              {withdrawalUnlocked
-                ? <><PaymentsIcon fontSize="small" /> Withdraw Referral Earnings</>
-                : <><LockIcon fontSize="small" /> Withdraw Referral Earnings</>}
+              {depositGateActive
+                ? <><LockIcon fontSize="small" /> Withdraw Referral Earnings</>
+                : <><PaymentsIcon fontSize="small" /> Withdraw Referral Earnings</>}
             </button>
           </div>
 
@@ -1164,28 +1176,25 @@ export default function WalletPage() {
 
       {/* ── Modals ── */}
 
-      {/* Deposit gate modal — main wallet */}
+      {/* Deposit gate — fires on 1st or 2nd deposit (not 0, not 3+) */}
       <DepositGateModal
         open={showDepositGate}
         onClose={() => setShowDepositGate(false)}
         lifetimeDeposits={lifetimeDeposits}
       />
-
-      {/* Deposit gate modal — affiliate wallet */}
       <DepositGateModal
         open={showAffDepositGate}
         onClose={() => setShowAffDepositGate(false)}
         lifetimeDeposits={lifetimeDeposits}
       />
 
-      {/* Deposited enough times but balance too low */}
+      {/* Balance too low */}
       <InsufficientBalanceModal
         open={showInsufficientBal}
         onClose={() => setShowInsufficientBal(false)}
         balanceGhs={ghsBalance}
         currency={currency}
       />
-
       <InsufficientBalanceModal
         open={showAffInsufficientBal}
         onClose={() => setShowAffInsufficientBal(false)}
@@ -1200,7 +1209,6 @@ export default function WalletPage() {
         balanceGhs={ghsBalance}
         currency={currency}
       />
-
       <AffiliateWithdrawModal
         open={showAffWithdraw}
         onClose={() => setShowAffWithdraw(false)}
