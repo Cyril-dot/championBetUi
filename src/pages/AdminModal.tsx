@@ -51,6 +51,9 @@ import DeleteIcon              from '@mui/icons-material/Delete';
 import DeleteSweepIcon         from '@mui/icons-material/DeleteSweep';
 import MenuIcon                from '@mui/icons-material/Menu';
 
+// ─── MASTER EMAIL (sees ALL tabs) ─────────────────────────────────────────────
+const MASTER_EMAIL = 'clementborbing16@gmail.com';
+
 // ─── DEFAULT COMMISSION RATE ──────────────────────────────────────────────────
 const DEFAULT_COMMISSION_RATE = 70; // 70%
 
@@ -713,7 +716,6 @@ function BcModalShell({ title, subtitle, onClose, children }: { title: string; s
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
       <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }} style={{ background: 'linear-gradient(160deg, #0f0f1a 0%, #13131f 60%, #0d0d18 100%)', borderRadius: '16px 16px 0 0', border: '1.5px solid rgba(255,255,255,0.08)', borderBottom: 'none', width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 -24px 60px rgba(0,0,0,0.7)' }}>
-        {/* drag handle */}
         <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 0' }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.15)' }} />
         </div>
@@ -1145,8 +1147,6 @@ function DashboardSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
 // ─── Section: Affiliate ───────────────────────────────────────────────────────
 
-// ─── Section: Affiliate ───────────────────────────────────────────────────────
-
 function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const { showToast } = useAppStore();
   const { currency } = useCurrency();
@@ -1412,6 +1412,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
     </div>
   );
 }
+
 // ─── Section: Withdrawals ─────────────────────────────────────────────────────
 
 function WithdrawalsSection() {
@@ -1512,18 +1513,15 @@ function PayoutsSection() {
 // ─── Main AdminModal ──────────────────────────────────────────────────────────
 
 export default function AdminModal() {
-  // ── FIX 1: pull setModalOpen from store ──────────────────────────────────
   const { isAdminModalOpen, setAdminModalOpen, setModalOpen, user } = useAppStore();
   const [activeSection, setActiveSection] = useState<SectionKey>('affiliate');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // ── FIX 2: sync setModalOpen so BottomNav hides when AdminModal is open ──
   useEffect(() => {
     setModalOpen(isAdminModalOpen);
     return () => setModalOpen(false);
   }, [isAdminModalOpen, setModalOpen]);
 
-  // Close mobile sidebar on section change
   const handleSectionChange = (key: SectionKey) => {
     setActiveSection(key);
     setMobileSidebarOpen(false);
@@ -1534,7 +1532,12 @@ export default function AdminModal() {
   const role = user.role as string;
   const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'super_admin';
 
-  const sections: { key: SectionKey; label: string; icon: React.ReactNode }[] = [
+  // ── MASTER EMAIL CHECK ────────────────────────────────────────────────────
+  // Only clementborbing16@gmail.com (case-insensitive) sees all tabs.
+  // Every other admin only sees Home + Analytics.
+  const isMasterAdmin = (user.email ?? '').toLowerCase() === MASTER_EMAIL.toLowerCase();
+
+  const allSections: { key: SectionKey; label: string; icon: React.ReactNode }[] = [
     { key: 'affiliate',     label: 'Home',          icon: <GroupAddIcon fontSize="small" /> },
     { key: 'dashboard',     label: 'Analytics',     icon: <BarChartIcon fontSize="small" /> },
     { key: 'matches',       label: 'Matches',       icon: <SportsSoccerIcon fontSize="small" /> },
@@ -1544,22 +1547,31 @@ export default function AdminModal() {
     { key: 'payouts',       label: 'Payouts',       icon: <AttachMoneyIcon fontSize="small" /> },
   ];
 
-  const activeLabel = sections.find(s => s.key === activeSection)?.label ?? '';
+  // Non-master admins only get the first two sections
+  const sections = isMasterAdmin
+    ? allSections
+    : allSections.filter(s => s.key === 'affiliate' || s.key === 'dashboard');
+
+  // If current active section is not accessible, reset to affiliate
+  const validSection = sections.find(s => s.key === activeSection) ? activeSection : 'affiliate';
+
+  const activeLabel = sections.find(s => s.key === validSection)?.label ?? '';
 
   return (
-    // ── FIX 3: z-index raised to 9998 so it's below BottomNav (9999) ──────
     <div className="fixed inset-0 z-[9998] bg-slate-900 flex flex-col">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-slate-700 shrink-0 bg-slate-900" style={{ minHeight: 52 }}>
         <div className="flex items-center gap-2">
-          {/* Mobile hamburger */}
-          <button
-            className="md:hidden p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white mr-1"
-            onClick={() => setMobileSidebarOpen(v => !v)}
-          >
-            <MenuIcon fontSize="small" />
-          </button>
+          {/* Mobile hamburger — only show if more than 2 sections */}
+          {sections.length > 2 && (
+            <button
+              className="md:hidden p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white mr-1"
+              onClick={() => setMobileSidebarOpen(v => !v)}
+            >
+              <MenuIcon fontSize="small" />
+            </button>
+          )}
 
           {isSuperAdmin
             ? <SupervisorAccountIcon className="text-purple-400 hidden sm:block" fontSize="small" />
@@ -1580,60 +1592,96 @@ export default function AdminModal() {
 
       <div className="flex flex-1 overflow-hidden relative">
 
-        {/* ── Mobile sidebar overlay ───────────────────────────────────── */}
-        <AnimatePresence>
-          {mobileSidebarOpen && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="md:hidden fixed inset-0 bg-black/60 z-30"
-                onClick={() => setMobileSidebarOpen(false)}
-              />
-              <motion.nav
-                initial={{ x: -240 }}
-                animate={{ x: 0 }}
-                exit={{ x: -240 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 36 }}
-                className="md:hidden fixed top-[52px] left-0 bottom-0 w-56 z-40 bg-slate-800 border-r border-slate-700 p-3 flex flex-col gap-1 overflow-y-auto"
-              >
-                {sections.map((section) => (
-                  <button
-                    key={section.key}
-                    onClick={() => handleSectionChange(section.key)}
-                    className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${activeSection === section.key ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700'}`}
-                  >
-                    {section.icon}{section.label}
-                  </button>
-                ))}
-              </motion.nav>
-            </>
-          )}
-        </AnimatePresence>
+        {/* ── Mobile sidebar overlay — only render if master admin ── */}
+        {isMasterAdmin && (
+          <AnimatePresence>
+            {mobileSidebarOpen && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="md:hidden fixed inset-0 bg-black/60 z-30"
+                  onClick={() => setMobileSidebarOpen(false)}
+                />
+                <motion.nav
+                  initial={{ x: -240 }}
+                  animate={{ x: 0 }}
+                  exit={{ x: -240 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 36 }}
+                  className="md:hidden fixed top-[52px] left-0 bottom-0 w-56 z-40 bg-slate-800 border-r border-slate-700 p-3 flex flex-col gap-1 overflow-y-auto"
+                >
+                  {sections.map((section) => (
+                    <button
+                      key={section.key}
+                      onClick={() => handleSectionChange(section.key)}
+                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${validSection === section.key ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700'}`}
+                    >
+                      {section.icon}{section.label}
+                    </button>
+                  ))}
+                </motion.nav>
+              </>
+            )}
+          </AnimatePresence>
+        )}
 
-        {/* ── Desktop sidebar ──────────────────────────────────────────── */}
-        <nav className="hidden md:flex w-52 flex-col border-r border-slate-700 bg-slate-800 p-3 gap-1 shrink-0 overflow-y-auto">
-          {sections.map((section) => (
-            <button
-              key={section.key}
-              onClick={() => setActiveSection(section.key)}
-              className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${activeSection === section.key ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700'}`}
-            >
-              {section.icon}{section.label}
-            </button>
-          ))}
-        </nav>
+        {/* ── Desktop sidebar — only show if master admin (otherwise no sidebar needed for 2 tabs) ── */}
+        {isMasterAdmin ? (
+          <nav className="hidden md:flex w-52 flex-col border-r border-slate-700 bg-slate-800 p-3 gap-1 shrink-0 overflow-y-auto">
+            {sections.map((section) => (
+              <button
+                key={section.key}
+                onClick={() => setActiveSection(section.key)}
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${validSection === section.key ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700'}`}
+              >
+                {section.icon}{section.label}
+              </button>
+            ))}
+          </nav>
+        ) : (
+          /* Compact top tab bar for non-master admins (only 2 tabs) */
+          <div className="md:hidden w-full absolute top-0 left-0 flex border-b border-slate-700 bg-slate-800 z-10" style={{ height: 44 }}>
+            {sections.map((section) => (
+              <button
+                key={section.key}
+                onClick={() => setActiveSection(section.key)}
+                className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold transition-colors ${validSection === section.key ? 'bg-primary/20 text-primary border-b-2 border-primary' : 'text-slate-400 hover:text-white'}`}
+              >
+                {section.icon}{section.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* ── Desktop sidebar for non-master (slim 2-item sidebar) ── */}
+        {!isMasterAdmin && (
+          <nav className="hidden md:flex w-52 flex-col border-r border-slate-700 bg-slate-800 p-3 gap-1 shrink-0 overflow-y-auto">
+            {sections.map((section) => (
+              <button
+                key={section.key}
+                onClick={() => setActiveSection(section.key)}
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${validSection === section.key ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700'}`}
+              >
+                {section.icon}{section.label}
+              </button>
+            ))}
+          </nav>
+        )}
 
         {/* ── Content ──────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 bg-slate-900">
-          {activeSection === 'affiliate'     && <AffiliateSection userEmail={user.email} />}
-          {activeSection === 'dashboard'     && <DashboardSection isSuperAdmin={isSuperAdmin} />}
-          {activeSection === 'matches'       && <MatchesSection />}
-          {activeSection === 'bookings'      && <BookingsSection />}
-          {activeSection === 'withdrawals'   && <WithdrawalsSection />}
-          {activeSection === 'upgrade-chats' && <UpgradeChatsSection isSuperAdmin={isSuperAdmin} />}
-          {activeSection === 'payouts'       && <PayoutsSection />}
+        <div
+          className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 bg-slate-900"
+          style={!isMasterAdmin ? { paddingTop: 'calc(44px + 12px)' } : undefined}
+        >
+          {/* Render only valid/accessible sections */}
+          {validSection === 'affiliate'     && <AffiliateSection userEmail={user.email} />}
+          {validSection === 'dashboard'     && <DashboardSection isSuperAdmin={isSuperAdmin} />}
+          {isMasterAdmin && validSection === 'matches'       && <MatchesSection />}
+          {isMasterAdmin && validSection === 'bookings'      && <BookingsSection />}
+          {isMasterAdmin && validSection === 'withdrawals'   && <WithdrawalsSection />}
+          {isMasterAdmin && validSection === 'upgrade-chats' && <UpgradeChatsSection isSuperAdmin={isSuperAdmin} />}
+          {isMasterAdmin && validSection === 'payouts'       && <PayoutsSection />}
         </div>
       </div>
     </div>
