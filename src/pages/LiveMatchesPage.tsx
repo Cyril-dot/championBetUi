@@ -13,7 +13,8 @@ import SportsMmaIcon from '@mui/icons-material/SportsMma';
 import SportsTennisIcon from '@mui/icons-material/SportsTennis';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import LockIcon from '@mui/icons-material/Lock';
+import ScheduleIcon from '@mui/icons-material/Schedule';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,18 +31,18 @@ interface BetSlipEntry {
 // Sport tab config
 // ---------------------------------------------------------------------------
 const SPORT_TABS: { key: SportTab; label: string; icon: React.ReactNode }[] = [
-  { key: 'football',   label: 'Football',   icon: <SportsSoccerIcon sx={{ fontSize: 15 }} /> },
-  { key: 'basketball', label: 'Basketball', icon: <SportsBasketballIcon sx={{ fontSize: 15 }} /> },
-  { key: 'tennis',     label: 'Tennis',     icon: <SportsTennisIcon sx={{ fontSize: 15 }} /> },
-  { key: 'baseball',   label: 'Baseball',   icon: <SportsBaseballIcon sx={{ fontSize: 15 }} /> },
-  { key: 'nfl',        label: 'NFL',        icon: <SportsFootballIcon sx={{ fontSize: 15 }} /> },
-  { key: 'mma',        label: 'MMA',        icon: <SportsMmaIcon sx={{ fontSize: 15 }} /> },
+  { key: 'football',   label: 'Football',   icon: <SportsSoccerIcon sx={{ fontSize: 16 }} /> },
+  { key: 'basketball', label: 'Basketball', icon: <SportsBasketballIcon sx={{ fontSize: 16 }} /> },
+  { key: 'tennis',     label: 'Tennis',     icon: <SportsTennisIcon sx={{ fontSize: 16 }} /> },
+  { key: 'baseball',   label: 'Baseball',   icon: <SportsBaseballIcon sx={{ fontSize: 16 }} /> },
+  { key: 'nfl',        label: 'NFL',        icon: <SportsFootballIcon sx={{ fontSize: 16 }} /> },
+  { key: 'mma',        label: 'MMA',        icon: <SportsMmaIcon sx={{ fontSize: 16 }} /> },
 ];
 
 const TWO_WAY_ODDS_SPORTS = new Set<SportTab>(['baseball', 'basketball', 'nfl', 'mma']);
 
 // ---------------------------------------------------------------------------
-// Status sets — copied verbatim from MatchList
+// Status sets
 // ---------------------------------------------------------------------------
 const LIVE_STATUSES = new Set([
   'LIVE','live','IN_PLAY','in_play','inplay',
@@ -69,49 +70,12 @@ const FINISHED_STATUSES = new Set([
   'STATUS_RAIN_DELAY',
 ]);
 
-const HALFTIME_STATUSES  = new Set(['HALFTIME','halftime','HALF_TIME','half_time','HT','ht','STATUS_HALFTIME']);
+const HALFTIME_STATUSES   = new Set(['HALFTIME','halftime','HALF_TIME','half_time','HT','ht','STATUS_HALFTIME']);
 const EXTRA_TIME_STATUSES = new Set(['EXTRA_TIME','extra_time','ET','et','ET1','et1','ET2','et2','STATUS_OVERTIME']);
-const PENALTY_STATUSES   = new Set(['PENALTIES','penalties','PEN','pen','SHOOTOUT','shootout']);
+const PENALTY_STATUSES    = new Set(['PENALTIES','penalties','PEN','pen','SHOOTOUT','shootout']);
 
 // ---------------------------------------------------------------------------
-// Team logo — copied from MatchList
-// ---------------------------------------------------------------------------
-function getTeamInitials(name: string): string {
-  if (!name) return '?';
-  const words = name.trim().split(/\s+/);
-  if (words.length === 1) return words[0].slice(0, 3).toUpperCase();
-  return words.slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-}
-
-function TeamLogo({ name, logo, size = 28 }: { name: string; logo?: string; size?: number }) {
-  const [imgError, setImgError] = useState(false);
-  const initials = getTeamInitials(name);
-  if (logo && !imgError) {
-    return (
-      <img src={logo} alt={name} width={size} height={size}
-        onError={() => setImgError(true)}
-        style={{ width: size, height: size, objectFit: 'contain', flexShrink: 0, borderRadius: 4 }}
-      />
-    );
-  }
-  const colors = [
-    ['#1a3a5c','#4a9eff'],['#3a1a1a','#ff6b6b'],['#1a3a1a','#4caf50'],
-    ['#3a2a1a','#ff9800'],['#2a1a3a','#9c27b0'],['#1a3a3a','#00bcd4'],
-  ];
-  const idx = (name.charCodeAt(0) ?? 0) % colors.length;
-  const [bg, fg] = colors[idx];
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: 4, background: bg,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      flexShrink: 0, fontSize: size * 0.35, fontWeight: 700,
-      color: fg, letterSpacing: '-0.5px', fontFamily: 'monospace',
-    }}>{initials}</div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Helpers — copied from MatchList
+// Helpers (copied from MatchList)
 // ---------------------------------------------------------------------------
 function inferLeagueFromTeams(homeTeam: string, awayTeam: string): string {
   const LEAGUE_TEAMS: Record<string, { leagueNames: string[]; teams: string[] }> = {
@@ -130,13 +94,18 @@ function inferLeagueFromTeams(homeTeam: string, awayTeam: string): string {
   return '';
 }
 
-// ---------------------------------------------------------------------------
-// normalizeMatch — copied verbatim from MatchList
-// ---------------------------------------------------------------------------
 function looksLikeFixtureName(s: string): boolean {
   return / at /i.test(s) || / vs\.? /i.test(s) || / @ /i.test(s);
 }
 
+function formatKickoff(kickoffAt?: string): string {
+  if (!kickoffAt) return '--:--';
+  return new Date(kickoffAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+// ---------------------------------------------------------------------------
+// normalizeMatch (copied from MatchList)
+// ---------------------------------------------------------------------------
 function normalizeMatch(raw: unknown): Match | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
@@ -148,8 +117,7 @@ function normalizeMatch(raw: unknown): Match | null {
   const competitorsArr  = Array.isArray(r.competitors)  ? r.competitors  as Record<string, unknown>[] : null;
   const competitionsArr = Array.isArray(r.competitions) ? r.competitions as Record<string, unknown>[] : null;
   const firstComp = competitionsArr?.[0] as Record<string, unknown> | undefined;
-  const nestedCompetitors = Array.isArray(firstComp?.competitors)
-    ? firstComp!.competitors as Record<string, unknown>[] : null;
+  const nestedCompetitors = Array.isArray(firstComp?.competitors) ? firstComp!.competitors as Record<string, unknown>[] : null;
 
   const resolveCompetitors = (arr: Record<string, unknown>[]) => {
     for (const c of arr) {
@@ -175,17 +143,13 @@ function normalizeMatch(raw: unknown): Match | null {
   let awayTeam = String(r.awayTeam ?? r.away_team ?? r.awayName ?? r.away_name ?? awayObj?.name ?? awayObj?.displayName ?? awayObj?.teamName ?? '').trim();
 
   if ((!homeTeam || !awayTeam) && typeof r.name === 'string') {
-    const name = r.name as string;
-    const atMatch = name.match(/^(.+?)\s+at\s+(.+)$/i);
-    const vsMatch = name.match(/^(.+?)\s+vs\.?\s+(.+)$/i);
+    const atMatch = r.name.match(/^(.+?)\s+at\s+(.+)$/i);
+    const vsMatch = r.name.match(/^(.+?)\s+vs\.?\s+(.+)$/i);
     if (atMatch)      { if (!awayTeam) awayTeam = atMatch[1].trim(); if (!homeTeam) homeTeam = atMatch[2].trim(); }
     else if (vsMatch) { if (!homeTeam) homeTeam = vsMatch[1].trim(); if (!awayTeam) awayTeam = vsMatch[2].trim(); }
   }
 
   if (!homeTeam && !awayTeam) return null;
-
-  const homeLogo = String(homeObj?.logo ?? homeObj?.logoUrl ?? homeObj?.image ?? homeObj?.imageUrl ?? r.homeLogo ?? r.home_logo ?? r.homeImage ?? '');
-  const awayLogo = String(awayObj?.logo ?? awayObj?.logoUrl ?? awayObj?.image ?? awayObj?.imageUrl ?? r.awayLogo ?? r.away_logo ?? r.awayImage ?? '');
 
   let leagueName = '';
   let leagueLogo = '';
@@ -205,8 +169,7 @@ function normalizeMatch(raw: unknown): Match | null {
       leagueName = String(lo.name ?? lo.displayName ?? lo.shortName ?? lo.abbreviation ?? '');
       leagueLogo = String(lo.logo ?? lo.logoUrl ?? '');
       if (Array.isArray(lo.logos) && lo.logos.length > 0) {
-        const first = lo.logos[0] as Record<string, unknown>;
-        leagueLogo = String(first.href ?? first.url ?? leagueLogo);
+        leagueLogo = String((lo.logos[0] as Record<string, unknown>).href ?? (lo.logos[0] as Record<string, unknown>).url ?? leagueLogo);
       }
     } else if (rawLeague) {
       const candidate = String(rawLeague);
@@ -264,15 +227,14 @@ function normalizeMatch(raw: unknown): Match | null {
   return {
     id, source: (r.source as Match['source']) ?? 'ESPN',
     homeTeam, awayTeam, league: leagueName, status, kickoffAt,
-    scoreHome, scoreAway, homeLogo, awayLogo, leagueLogo, minutePlayed,
+    scoreHome, scoreAway, homeLogo: '', awayLogo: '', leagueLogo, minutePlayed,
     sport: String(r.sport ?? 'FOOTBALL'),
     createdAt: String(r.createdAt ?? r.created_at ?? ''),
   } as Match;
 }
 
 // ---------------------------------------------------------------------------
-// safeUnwrapList / unwrapWithAllOdds / safeUnwrapOddsArray
-// — copied verbatim from MatchList
+// Data utils (copied from MatchList)
 // ---------------------------------------------------------------------------
 function safeUnwrapList(raw: unknown): Match[] {
   if (!raw) return [];
@@ -303,20 +265,12 @@ function unwrapWithAllOdds(raw: unknown): Array<{ match: Match; odds: unknown[] 
     const i = item as Record<string, unknown>;
     const match = normalizeMatch(i.match ?? i);
     if (!match?.id) return;
-    const odds: unknown[] =
-      Array.isArray(i.match_result) ? i.match_result :
-      Array.isArray(i.odds)         ? i.odds :
-      Array.isArray(i.markets)      ? i.markets : [];
+    const odds: unknown[] = Array.isArray(i.match_result) ? i.match_result : Array.isArray(i.odds) ? i.odds : Array.isArray(i.markets) ? i.markets : [];
     items.push({ match, odds });
   };
   const data = obj.data;
-  if (Array.isArray(data)) {
-    data.forEach(processItem);
-  } else if (data && typeof data === 'object') {
-    for (const val of Object.values(data as Record<string, unknown>)) {
-      if (Array.isArray(val)) val.forEach(processItem);
-    }
-  }
+  if (Array.isArray(data)) data.forEach(processItem);
+  else if (data && typeof data === 'object') for (const val of Object.values(data as Record<string, unknown>)) if (Array.isArray(val)) val.forEach(processItem);
   return items;
 }
 
@@ -330,9 +284,6 @@ function safeUnwrapOddsArray(raw: unknown): unknown[] {
   return [];
 }
 
-// ---------------------------------------------------------------------------
-// extractOddsMap — copied verbatim from MatchList
-// ---------------------------------------------------------------------------
 function extractOddsMap(oddsArray: unknown[], homeTeam: string, awayTeam: string): OddsMap | undefined {
   if (!Array.isArray(oddsArray) || oddsArray.length === 0) return undefined;
   const pool = oddsArray as Array<Record<string, unknown>>;
@@ -341,10 +292,7 @@ function extractOddsMap(oddsArray: unknown[], homeTeam: string, awayTeam: string
   const norm = (s: string) => s.toLowerCase().trim();
   const normHome = norm(homeTeam);
   const normAway = norm(awayTeam);
-  const matchesTeam = (sel: string, teamNorm: string) => {
-    const s = norm(sel);
-    return s === teamNorm || s.includes(teamNorm) || teamNorm.includes(s);
-  };
+  const matchesTeam = (sel: string, teamNorm: string) => { const s = norm(sel); return s === teamNorm || s.includes(teamNorm) || teamNorm.includes(s); };
   let home = 0, draw = 0, away = 0;
   for (const o of pool) {
     const sel = norm(String(o.selection ?? o.outcome ?? o.name ?? o.label ?? o.type ?? ''));
@@ -358,9 +306,7 @@ function extractOddsMap(oddsArray: unknown[], homeTeam: string, awayTeam: string
   }
   if (home === 0 && draw === 0 && away === 0) {
     const vals = pool.map(parseOdd).filter((v) => v > 1 && v < 50);
-    if (vals.length >= 2) return vals.length >= 3
-      ? { home: vals[0], draw: vals[1], away: vals[2] }
-      : { home: vals[0], draw: 0, away: vals[1] };
+    if (vals.length >= 2) return vals.length >= 3 ? { home: vals[0], draw: vals[1], away: vals[2] } : { home: vals[0], draw: 0, away: vals[1] };
     return undefined;
   }
   return { home, draw, away };
@@ -368,9 +314,7 @@ function extractOddsMap(oddsArray: unknown[], homeTeam: string, awayTeam: string
 
 function dedup(matches: Match[]): EnrichedMatch[] {
   const seen = new Set<string>();
-  return matches
-    .filter(({ id }) => { if (seen.has(id)) return false; seen.add(id); return true; })
-    .map((m) => ({ ...m }));
+  return matches.filter(({ id }) => { if (seen.has(id)) return false; seen.add(id); return true; }).map((m) => ({ ...m }));
 }
 
 function mergeOddsById(oddsById: Map<string, unknown[]>, entries: Array<{ match: Match; odds: unknown[] }>): void {
@@ -382,104 +326,59 @@ function mergeOddsById(oddsById: Map<string, unknown[]>, entries: Array<{ match:
 }
 
 // ---------------------------------------------------------------------------
-// fetchAllFootballMatches — copied verbatim from MatchList
+// Fetch functions (copied from MatchList)
 // ---------------------------------------------------------------------------
 async function fetchAllFootballMatches(): Promise<EnrichedMatch[]> {
-  const [
-    withOddsRes, liveRes, upcomingRes, todayRes, resultsRes,
-    livescoreLiveRes, livescoreTodayRes, allCupsUpcomingRes, allCupsTodayRes, allCupsLive,
-  ] = await Promise.allSettled([
-    api.publicFootball.withAllOdds(),
-    api.publicFootball.live(),
-    api.publicFootball.upcoming(),
-    api.publicFootball.today(),
-    api.publicFootball.results(50),
-    api.publicFootballLivescore.live(),
-    api.publicFootballLivescore.today(),
-    api.publicFootball.allCupsUpcoming(),
-    api.publicFootball.allCupsToday(),
-    api.publicFootball.allCupsLive(),
+  const [withOddsRes, liveRes, upcomingRes, todayRes, resultsRes, livescoreLiveRes, livescoreTodayRes, allCupsUpcomingRes, allCupsTodayRes, allCupsLive] = await Promise.allSettled([
+    api.publicFootball.withAllOdds(), api.publicFootball.live(), api.publicFootball.upcoming(), api.publicFootball.today(), api.publicFootball.results(50),
+    api.publicFootballLivescore.live(), api.publicFootballLivescore.today(), api.publicFootball.allCupsUpcoming(), api.publicFootball.allCupsToday(), api.publicFootball.allCupsLive(),
   ]);
-
-  const oddsById      = new Map<string, unknown[]>();
+  const oddsById = new Map<string, unknown[]>();
   const withOddsItems     = withOddsRes.status  === 'fulfilled' ? unwrapWithAllOdds(withOddsRes.value)  : [];
-  const fromUpcomingItems = upcomingRes.status  === 'fulfilled' ? unwrapWithAllOdds(upcomingRes.value)  : [];
-  const fromTodayItems    = todayRes.status     === 'fulfilled' ? unwrapWithAllOdds(todayRes.value)     : [];
-
-  mergeOddsById(oddsById, withOddsItems);
-  mergeOddsById(oddsById, fromUpcomingItems);
-  mergeOddsById(oddsById, fromTodayItems);
+  const fromUpcomingItems = upcomingRes.status   === 'fulfilled' ? unwrapWithAllOdds(upcomingRes.value) : [];
+  const fromTodayItems    = todayRes.status      === 'fulfilled' ? unwrapWithAllOdds(todayRes.value)    : [];
+  mergeOddsById(oddsById, withOddsItems); mergeOddsById(oddsById, fromUpcomingItems); mergeOddsById(oddsById, fromTodayItems);
   if (liveRes.status === 'fulfilled') mergeOddsById(oddsById, unwrapWithAllOdds(liveRes.value));
-
   const oddsByFingerprint = new Map<string, unknown[]>();
-  const makeFingerprint = (home: string, away: string, kickoff: string) =>
-    `${home.toLowerCase().trim()}|${away.toLowerCase().trim()}|${kickoff.slice(0, 10)}`;
-
+  const makeFingerprint = (home: string, away: string, kickoff: string) => `${home.toLowerCase().trim()}|${away.toLowerCase().trim()}|${kickoff.slice(0, 10)}`;
   for (const [matchId, odds] of oddsById.entries()) {
-    const sourceMatch = [...withOddsItems, ...fromUpcomingItems, ...fromTodayItems]
-      .find(({ match }) => match.id === matchId)?.match;
+    const sourceMatch = [...withOddsItems, ...fromUpcomingItems, ...fromTodayItems].find(({ match }) => match.id === matchId)?.match;
     if (sourceMatch?.homeTeam && sourceMatch?.awayTeam && sourceMatch?.kickoffAt) {
       const fp = makeFingerprint(sourceMatch.homeTeam, sourceMatch.awayTeam, sourceMatch.kickoffAt);
       if (!oddsByFingerprint.has(fp)) oddsByFingerprint.set(fp, odds);
     }
   }
-
-  const fromWithOdds = withOddsItems.map(({ match }) => match);
-  const fromLive     = liveRes.status    === 'fulfilled' ? safeUnwrapList(liveRes.value)             : [];
-  const fromUpcoming = fromUpcomingItems.map(({ match }) => match);
-  const fromToday    = fromTodayItems.map(({ match }) => match);
-  const fromResults  = resultsRes.status === 'fulfilled' ? safeUnwrapList(resultsRes.value)          : [];
-  const fromLsLive          = livescoreLiveRes.status   === 'fulfilled' ? safeUnwrapList(livescoreLiveRes.value)   : [];
-  const fromLsToday         = livescoreTodayRes.status  === 'fulfilled' ? safeUnwrapList(livescoreTodayRes.value)  : [];
-  const fromAllCupsUpcoming = allCupsUpcomingRes.status === 'fulfilled' ? safeUnwrapList(allCupsUpcomingRes.value) : [];
-  const fromAllCupsToday    = allCupsTodayRes.status    === 'fulfilled' ? safeUnwrapList(allCupsTodayRes.value)    : [];
-  const fromAllCupsLive     = allCupsLive.status        === 'fulfilled' ? safeUnwrapList(allCupsLive.value)        : [];
-
-  const allMatches: Match[] = [
-    ...fromWithOdds, ...fromLive, ...fromUpcoming, ...fromToday, ...fromResults,
-    ...fromAllCupsUpcoming, ...fromAllCupsToday, ...fromAllCupsLive,
-    ...fromLsLive, ...fromLsToday,
+  const allMatchesArr: Match[] = [
+    ...withOddsItems.map(({ match }) => match),
+    ...(liveRes.status === 'fulfilled' ? safeUnwrapList(liveRes.value) : []),
+    ...fromUpcomingItems.map(({ match }) => match),
+    ...fromTodayItems.map(({ match }) => match),
+    ...(resultsRes.status === 'fulfilled' ? safeUnwrapList(resultsRes.value) : []),
+    ...(allCupsUpcomingRes.status === 'fulfilled' ? safeUnwrapList(allCupsUpcomingRes.value) : []),
+    ...(allCupsTodayRes.status === 'fulfilled' ? safeUnwrapList(allCupsTodayRes.value) : []),
+    ...(allCupsLive.status === 'fulfilled' ? safeUnwrapList(allCupsLive.value) : []),
+    ...(livescoreLiveRes.status === 'fulfilled' ? safeUnwrapList(livescoreLiveRes.value) : []),
+    ...(livescoreTodayRes.status === 'fulfilled' ? safeUnwrapList(livescoreTodayRes.value) : []),
   ];
-
-  const seenIds = new Set<string>();
-  const seenFps = new Set<string>();
-  const dedupedMatches = allMatches.filter((m) => {
-    if (!m?.id || seenIds.has(m.id)) return false;
-    seenIds.add(m.id);
+  const seenIds = new Set<string>(); const seenFps = new Set<string>();
+  const dedupedMatches = allMatchesArr.filter((m) => {
+    if (!m?.id || seenIds.has(m.id)) return false; seenIds.add(m.id);
     const fp = `${(m.homeTeam ?? '').toLowerCase()}|${(m.awayTeam ?? '').toLowerCase()}|${(m.kickoffAt ?? '').slice(0, 16)}`;
-    if (fp !== '||' && seenFps.has(fp)) return false;
-    if (fp !== '||') seenFps.add(fp);
-    return true;
+    if (fp !== '||' && seenFps.has(fp)) return false; if (fp !== '||') seenFps.add(fp); return true;
   });
-
   const enrichedPass1 = dedupedMatches.map((match) => {
     let odds = oddsById.get(match.id) ?? [];
     if (odds.length === 0 && match.homeTeam && match.awayTeam && match.kickoffAt) {
       const fp = makeFingerprint(match.homeTeam, match.awayTeam, match.kickoffAt);
-      const fpOdds = oddsByFingerprint.get(fp);
-      if (fpOdds && fpOdds.length > 0) odds = fpOdds;
+      const fpOdds = oddsByFingerprint.get(fp); if (fpOdds?.length) odds = fpOdds;
     }
     const oddsMap = extractOddsMap(odds, match.homeTeam ?? '', match.awayTeam ?? '');
     return { ...match, oddsMap, _needsOdds: !oddsMap && !FINISHED_STATUSES.has(match.status ?? '') };
   });
-
   const needsIndividualOdds = enrichedPass1.filter((m) => m._needsOdds).slice(0, 30);
-  const individualOddsResults = await Promise.allSettled(
-    needsIndividualOdds.map((m) =>
-      api.publicFootball.odds(m.id)
-        .then((r) => ({ matchId: m.id, data: r }))
-        .catch(() => ({ matchId: m.id, data: null }))
-    )
-  );
-
+  const individualOddsResults = await Promise.allSettled(needsIndividualOdds.map((m) => api.publicFootball.odds(m.id).then((r) => ({ matchId: m.id, data: r })).catch(() => ({ matchId: m.id, data: null }))));
   const individualOddsMap = new Map<string, unknown[]>();
-  individualOddsResults.forEach((result) => {
-    if (result.status === 'fulfilled' && result.value.data) {
-      const arr = safeUnwrapOddsArray(result.value.data);
-      if (arr.length > 0) individualOddsMap.set(result.value.matchId, arr);
-    }
-  });
-
+  individualOddsResults.forEach((result) => { if (result.status === 'fulfilled' && result.value.data) { const arr = safeUnwrapOddsArray(result.value.data); if (arr.length > 0) individualOddsMap.set(result.value.matchId, arr); } });
   return enrichedPass1.map(({ _needsOdds, ...match }) => {
     if (!_needsOdds || match.oddsMap) return match as EnrichedMatch;
     const indOdds = individualOddsMap.get(match.id) ?? [];
@@ -488,92 +387,36 @@ async function fetchAllFootballMatches(): Promise<EnrichedMatch[]> {
   });
 }
 
-// ---------------------------------------------------------------------------
-// fetchBasketballMatches / Tennis / Baseball / NFL / MMA
-// — copied verbatim from MatchList
-// ---------------------------------------------------------------------------
 async function fetchBasketballMatches(): Promise<EnrichedMatch[]> {
-  const [live, upcoming, results] = await Promise.allSettled([
-    api.publicBasketball.live(), api.publicBasketball.upcoming(), api.publicBasketball.results(),
-  ]);
-  const allItems = [
-    ...(live.status     === 'fulfilled' ? unwrapWithAllOdds(live.value)     : []),
-    ...(upcoming.status === 'fulfilled' ? unwrapWithAllOdds(upcoming.value) : []),
-    ...(results.status  === 'fulfilled' ? unwrapWithAllOdds(results.value)  : []),
-  ];
+  const [live, upcoming, results] = await Promise.allSettled([api.publicBasketball.live(), api.publicBasketball.upcoming(), api.publicBasketball.results()]);
+  const allItems = [...(live.status === 'fulfilled' ? unwrapWithAllOdds(live.value) : []), ...(upcoming.status === 'fulfilled' ? unwrapWithAllOdds(upcoming.value) : []), ...(results.status === 'fulfilled' ? unwrapWithAllOdds(results.value) : [])];
   const seen = new Set<string>();
-  return allItems
-    .filter(({ match }) => { if (!match?.id || seen.has(match.id)) return false; seen.add(match.id); return true; })
-    .map(({ match, odds }) => ({ ...match, oddsMap: extractOddsMap(odds, match.homeTeam ?? '', match.awayTeam ?? '') }));
+  return allItems.filter(({ match }) => { if (!match?.id || seen.has(match.id)) return false; seen.add(match.id); return true; }).map(({ match, odds }) => ({ ...match, oddsMap: extractOddsMap(odds, match.homeTeam ?? '', match.awayTeam ?? '') }));
 }
-
 async function fetchTennisMatches(): Promise<EnrichedMatch[]> {
-  const [live, upcoming, results] = await Promise.allSettled([
-    api.publicTennis.live(), api.publicTennis.upcoming(), api.publicTennis.results(),
-  ]);
-  return dedup([
-    ...(live.status     === 'fulfilled' ? safeUnwrapList(live.value)     : []),
-    ...(upcoming.status === 'fulfilled' ? safeUnwrapList(upcoming.value) : []),
-    ...(results.status  === 'fulfilled' ? safeUnwrapList(results.value)  : []),
-  ]);
+  const [live, upcoming, results] = await Promise.allSettled([api.publicTennis.live(), api.publicTennis.upcoming(), api.publicTennis.results()]);
+  return dedup([...(live.status === 'fulfilled' ? safeUnwrapList(live.value) : []), ...(upcoming.status === 'fulfilled' ? safeUnwrapList(upcoming.value) : []), ...(results.status === 'fulfilled' ? safeUnwrapList(results.value) : [])]);
 }
-
 async function fetchBaseballMatches(): Promise<EnrichedMatch[]> {
-  const [live, upcoming, today] = await Promise.allSettled([
-    api.publicBaseball.live(), api.publicBaseball.upcoming(), api.publicBaseball.today(),
-  ]);
-  const allItems = [
-    ...(live.status     === 'fulfilled' ? unwrapWithAllOdds(live.value)     : []),
-    ...(upcoming.status === 'fulfilled' ? unwrapWithAllOdds(upcoming.value) : []),
-    ...(today.status    === 'fulfilled' ? unwrapWithAllOdds(today.value)    : []),
-  ];
+  const [live, upcoming, today] = await Promise.allSettled([api.publicBaseball.live(), api.publicBaseball.upcoming(), api.publicBaseball.today()]);
+  const allItems = [...(live.status === 'fulfilled' ? unwrapWithAllOdds(live.value) : []), ...(upcoming.status === 'fulfilled' ? unwrapWithAllOdds(upcoming.value) : []), ...(today.status === 'fulfilled' ? unwrapWithAllOdds(today.value) : [])];
   const seen = new Set<string>();
-  const deduped = allItems.filter(({ match }) => {
-    if (!match?.id || seen.has(match.id)) return false; seen.add(match.id); return true;
-  });
+  const deduped = allItems.filter(({ match }) => { if (!match?.id || seen.has(match.id)) return false; seen.add(match.id); return true; });
   const needsOdds = deduped.filter(({ odds }) => odds.length === 0).slice(0, 20);
-  const oddsResponses = await Promise.allSettled(
-    needsOdds.map(({ match }) => api.publicBaseball.odds(match.id).catch(() => null))
-  );
+  const oddsResponses = await Promise.allSettled(needsOdds.map(({ match }) => api.publicBaseball.odds(match.id).catch(() => null)));
   const oddsById = new Map<string, unknown[]>();
-  needsOdds.forEach(({ match }, idx) => {
-    const result = oddsResponses[idx];
-    if (result.status === 'fulfilled' && result.value != null) {
-      const parsed = safeUnwrapOddsArray(result.value);
-      if (parsed.length > 0) oddsById.set(match.id, parsed);
-    }
-  });
-  return deduped.map(({ match, odds }) => ({
-    ...match,
-    oddsMap: extractOddsMap(odds.length > 0 ? odds : (oddsById.get(match.id) ?? []), match.homeTeam ?? '', match.awayTeam ?? ''),
-  }));
+  needsOdds.forEach(({ match }, idx) => { const result = oddsResponses[idx]; if (result.status === 'fulfilled' && result.value != null) { const parsed = safeUnwrapOddsArray(result.value); if (parsed.length > 0) oddsById.set(match.id, parsed); } });
+  return deduped.map(({ match, odds }) => ({ ...match, oddsMap: extractOddsMap(odds.length > 0 ? odds : (oddsById.get(match.id) ?? []), match.homeTeam ?? '', match.awayTeam ?? '') }));
 }
-
 async function fetchNflMatches(): Promise<EnrichedMatch[]> {
-  const [live, upcoming, results] = await Promise.allSettled([
-    api.publicNfl.live(), api.publicNfl.upcoming(), api.publicNfl.results(),
-  ]);
-  return dedup([
-    ...(live.status     === 'fulfilled' ? safeUnwrapList(live.value)     : []),
-    ...(upcoming.status === 'fulfilled' ? safeUnwrapList(upcoming.value) : []),
-    ...(results.status  === 'fulfilled' ? safeUnwrapList(results.value)  : []),
-  ]);
+  const [live, upcoming, results] = await Promise.allSettled([api.publicNfl.live(), api.publicNfl.upcoming(), api.publicNfl.results()]);
+  return dedup([...(live.status === 'fulfilled' ? safeUnwrapList(live.value) : []), ...(upcoming.status === 'fulfilled' ? safeUnwrapList(upcoming.value) : []), ...(results.status === 'fulfilled' ? safeUnwrapList(results.value) : [])]);
 }
-
 async function fetchMmaMatches(): Promise<EnrichedMatch[]> {
-  const [live, upcoming, results] = await Promise.allSettled([
-    api.publicMma.live(), api.publicMma.upcoming(), api.publicMma.results(),
-  ]);
-  return dedup([
-    ...(live.status     === 'fulfilled' ? safeUnwrapList(live.value)     : []),
-    ...(upcoming.status === 'fulfilled' ? safeUnwrapList(upcoming.value) : []),
-    ...(results.status  === 'fulfilled' ? safeUnwrapList(results.value)  : []),
-  ]);
+  const [live, upcoming, results] = await Promise.allSettled([api.publicMma.live(), api.publicMma.upcoming(), api.publicMma.results()]);
+  return dedup([...(live.status === 'fulfilled' ? safeUnwrapList(live.value) : []), ...(upcoming.status === 'fulfilled' ? safeUnwrapList(upcoming.value) : []), ...(results.status === 'fulfilled' ? safeUnwrapList(results.value) : [])]);
 }
 
-// ---------------------------------------------------------------------------
-// fetchAllForSport — same full fetch as MatchList; caller filters to live
-// ---------------------------------------------------------------------------
 async function fetchAllForSport(sport: SportTab): Promise<EnrichedMatch[]> {
   switch (sport) {
     case 'football':   return fetchAllFootballMatches();
@@ -587,224 +430,149 @@ async function fetchAllForSport(sport: SportTab): Promise<EnrichedMatch[]> {
 }
 
 // ---------------------------------------------------------------------------
-// useLiveTimer — copied verbatim from MatchList
+// useLiveTimer (copied from MatchList)
 // ---------------------------------------------------------------------------
 function useLiveTimer(match: EnrichedMatch): string {
   const status = match.status ?? '';
   const isLive = LIVE_STATUSES.has(status);
-
-  const computeDisplay = useCallback((): string => {
-    if (!isLive) return '';
-    if (HALFTIME_STATUSES.has(status))  return 'HT';
-    if (PENALTY_STATUSES.has(status))   return 'PEN';
-    if (match.minutePlayed != null && match.minutePlayed > 0) {
-      if (EXTRA_TIME_STATUSES.has(status)) return `${Math.min(match.minutePlayed, 120)}' ET`;
-      return `${Math.min(match.minutePlayed, 90)}'`;
-    }
-    if (match.kickoffAt) {
-      const elapsedMs = Date.now() - new Date(match.kickoffAt).getTime();
-      if (elapsedMs >= 0) {
-        const mins = Math.floor(elapsedMs / 60_000);
-        if (EXTRA_TIME_STATUSES.has(status)) return `${Math.min(mins, 120)}' ET`;
-        return `${Math.min(mins, 90)}'`;
-      }
-    }
-    return 'LIVE';
-  }, [isLive, status, match.minutePlayed, match.kickoffAt]);
-
-  const [display, setDisplay] = useState<string>(computeDisplay);
+  const getElapsedMins = useCallback((): number => {
+    if (match.kickoffAt) { const elapsed = Date.now() - new Date(match.kickoffAt).getTime(); if (elapsed >= 0) return Math.floor(elapsed / 60_000); }
+    return match.minutePlayed ?? 0;
+  }, [match.kickoffAt, match.minutePlayed]);
+  const [elapsed, setElapsed] = useState<number>(getElapsedMins);
   useEffect(() => {
     if (!isLive) return;
-    setDisplay(computeDisplay());
-    const id = setInterval(() => setDisplay(computeDisplay()), 15_000);
+    setElapsed(getElapsedMins());
+    const id = setInterval(() => setElapsed(getElapsedMins()), 30_000);
     return () => clearInterval(id);
-  }, [isLive, computeDisplay]);
-
-  return display;
+  }, [isLive, getElapsedMins]);
+  if (!isLive) return '';
+  if (HALFTIME_STATUSES.has(status)) return 'HT';
+  if (PENALTY_STATUSES.has(status)) return 'PEN';
+  if (EXTRA_TIME_STATUSES.has(status)) return `${Math.min(elapsed, 120)}' ET`;
+  return `${match.minutePlayed != null ? match.minutePlayed : Math.min(elapsed, 90)}'`;
 }
 
 // ---------------------------------------------------------------------------
-// LiveTimerBadge — copied from MatchList
+// League sort helpers (same as MatchList)
 // ---------------------------------------------------------------------------
-function LiveTimerBadge({ match }: { match: EnrichedMatch }) {
-  const timerStr = useLiveTimer(match);
-  return (
-    <span className="match-status-badge live">
-      <FiberManualRecordIcon sx={{ fontSize: 7 }} className="live-dot" />
-      {timerStr || 'LIVE'}
-    </span>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// OddsButton + OddsRow — copied from MatchList
-// ---------------------------------------------------------------------------
-function OddsButton({ subLabel, value, selected, locked, onClick }: {
-  subLabel: string; value: number; selected: boolean; locked: boolean; onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); if (!locked) onClick(); }}
-      disabled={locked}
-      className={`match-odds-btn${locked ? ' locked' : ''}${selected ? ' selected' : ''}`}
-    >
-      <span className="match-odds-label">{subLabel}</span>
-      <span className="match-odds-value">{locked ? '🔒' : value > 1 ? value.toFixed(2) : '—'}</span>
-    </button>
-  );
-}
-
-function OddsRow({ odds, selections, oddsValues, matchId, matchName, betSlip, addToBetSlip, showToast }: {
-  odds: OddsMap | undefined;
-  selections: { key: string; sub: string }[];
-  oddsValues: number[];
-  matchId: string;
-  matchName: string;
-  betSlip: BetSlipEntry[];
-  addToBetSlip: (entry: BetSlipEntry) => void;
-  showToast: (message: string, type: string) => void;
-}) {
-  const isSelected = (sel: string) =>
-    betSlip.some((s) => s.matchId === matchId && s.market === '1X2' && s.selection === sel);
-
-  if (!odds) {
-    return (
-      <div className="match-odds-row">
-        {selections.map(({ key, sub }) => (
-          <div key={key} className="match-odds-btn empty">
-            <span className="match-odds-label">{sub}</span>
-            <span className="match-odds-value">—</span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className="match-odds-row">
-      {selections.map(({ key, sub }, idx) => (
-        <OddsButton
-          key={key} subLabel={sub} value={oddsValues[idx]} selected={isSelected(key)} locked={false}
-          onClick={() => {
-            addToBetSlip({ matchId, matchName, market: '1X2', selection: key, odd: oddsValues[idx] });
-            showToast('Added to bet slip', 'success');
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// MatchCard — copied from MatchList (always live; scores always visible)
-// ---------------------------------------------------------------------------
-function MatchCard({ match, showDraw = true }: { match: EnrichedMatch; showDraw?: boolean }) {
-  const navigate = useNavigate();
-  const { betSlip, addToBetSlip, showToast } = useAppStore() as {
-    betSlip: BetSlipEntry[];
-    addToBetSlip: (entry: BetSlipEntry) => void;
-    showToast: (message: string, type: string) => void;
-  };
-
-  const odds = match.oddsMap;
-  const selections = showDraw
-    ? [{ key: '1', sub: '1' }, { key: 'X', sub: 'X' }, { key: '2', sub: '2' }]
-    : [{ key: '1', sub: 'H' }, { key: '2', sub: 'A' }];
-  const oddsValues = showDraw
-    ? [odds?.home ?? 0, odds?.draw ?? 0, odds?.away ?? 0]
-    : [odds?.home ?? 0, odds?.away ?? 0];
-
-  return (
-    <div
-      className="match-card live"
-      onClick={() => match.id && navigate(`/match/${match.id}`)}
-      style={{ cursor: 'pointer' }}
-    >
-      <div className="match-card-topbar">
-        <LiveTimerBadge match={match} />
-        <ChevronRightIcon sx={{ fontSize: 14, ml: 'auto', color: 'var(--text-muted)', opacity: 0.5 }} />
-      </div>
-
-      <div className="match-card-body">
-        <div className="match-team-row">
-          <TeamLogo name={match.homeTeam ?? ''} logo={match.homeLogo} size={26} />
-          <span className="match-team-name">{match.homeTeam}</span>
-          <span className="match-score">{match.scoreHome ?? 0}</span>
-        </div>
-        <div className="match-team-row">
-          <TeamLogo name={match.awayTeam ?? ''} logo={match.awayLogo} size={26} />
-          <span className="match-team-name">{match.awayTeam}</span>
-          <span className="match-score">{match.scoreAway ?? 0}</span>
-        </div>
-      </div>
-
-      <OddsRow
-        odds={odds} selections={selections} oddsValues={oddsValues}
-        matchId={match.id} matchName={`${match.homeTeam} vs ${match.awayTeam}`}
-        betSlip={betSlip} addToBetSlip={addToBetSlip} showToast={showToast}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// SkeletonCard — copied from MatchList
-// ---------------------------------------------------------------------------
-function SkeletonCard() {
-  return (
-    <div className="match-card animate-pulse" style={{ pointerEvents: 'none' }}>
-      <div className="match-card-topbar">
-        <div className="skeleton-block" style={{ width: 48, height: 14, borderRadius: 6 }} />
-      </div>
-      <div className="match-card-body">
-        {[0, 1].map((row) => (
-          <div key={row} className="match-team-row" style={{ marginTop: row ? 6 : 0 }}>
-            <div className="skeleton-block" style={{ width: 26, height: 26, borderRadius: 4, flexShrink: 0 }} />
-            <div className="skeleton-block" style={{ width: '50%', height: 14, borderRadius: 4, marginLeft: 8 }} />
-            <div className="skeleton-block" style={{ width: 20, height: 14, borderRadius: 4 }} />
-          </div>
-        ))}
-      </div>
-      <div className="match-odds-row">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="match-odds-btn empty">
-            <div className="skeleton-block" style={{ width: 16, height: 10, borderRadius: 3 }} />
-            <div className="skeleton-block" style={{ width: 28, height: 13, borderRadius: 3, marginTop: 3 }} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// League sort + grouping — same as MatchList
-// ---------------------------------------------------------------------------
-const TOP_6 = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1'];
-const CUPS  = new Set(['FA Cup','EFL Cup / Carabao Cup','Copa del Rey','DFB Pokal','Coppa Italia','Coupe de France','UEFA Champions League','UEFA Europa League','UEFA Conference League','UEFA Nations League']);
+const TOP_6_LEAGUE_DISPLAY_NAMES = ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1'];
+const CUPS_LABELS = new Set<string>(['FA Cup','EFL Cup / Carabao Cup','Copa del Rey','DFB Pokal','Coppa Italia','Coupe de France','UEFA Champions League','UEFA Europa League','UEFA Conference League','UEFA Nations League','UEFA Euros','Copa Libertadores','Copa América','CONCACAF Champions Cup','AFC Champions League','CAF Champions League','Africa Cup of Nations','FIFA World Cup',"Women's World Cup",'FIFA Club World Cup']);
 
 function leagueSortKey(league: string): string {
-  if (!league) return '99_zzz';
-  const i = TOP_6.indexOf(league);
-  if (i !== -1) return `00_${String(i).padStart(2, '0')}_${league}`;
-  if (CUPS.has(league)) return `01_${league.toLowerCase()}`;
+  if (!league) return '99_zzz_unknown';
+  for (let i = 0; i < TOP_6_LEAGUE_DISPLAY_NAMES.length; i++) {
+    if (league === TOP_6_LEAGUE_DISPLAY_NAMES[i]) return `00_${String(i).padStart(2, '0')}_${league}`;
+  }
+  if (CUPS_LABELS.has(league)) return `01_${league.toLowerCase()}`;
   return `02_${league.toLowerCase()}`;
 }
 
-function groupByLeague(matches: EnrichedMatch[]): Map<string, EnrichedMatch[]> {
-  const map = new Map<string, EnrichedMatch[]>();
-  for (const m of matches) {
-    const key = m.league || '(no league)';
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(m);
-  }
-  return new Map([...map.entries()].sort(([a], [b]) => leagueSortKey(a).localeCompare(leagueSortKey(b))));
+// ---------------------------------------------------------------------------
+// SkeletonRow — matches MatchList skeleton exactly
+// ---------------------------------------------------------------------------
+function SkeletonRow() {
+  return (
+    <div className="lm-cmr" style={{ cursor: 'default', pointerEvents: 'none' }}>
+      <div className="lm-cmr-left">
+        <div className="lm-skeleton" style={{ width: 40, height: 13, borderRadius: 4 }} />
+        <div className="lm-skeleton" style={{ width: 24, height: 10, borderRadius: 3, marginTop: 5 }} />
+      </div>
+      <div className="lm-cmr-teams">
+        <div className="lm-skeleton" style={{ width: '72%', height: 13, borderRadius: 4, marginBottom: 5 }} />
+        <div className="lm-skeleton" style={{ width: '58%', height: 13, borderRadius: 4 }} />
+      </div>
+      <div className="lm-cmr-odds">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="lm-cmr-btn empty lm-skeleton" style={{ width: 52 }} />
+        ))}
+      </div>
+      <div style={{ width: 28 }} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LiveCompactMatchRow — mirrors CompactMatchRow from MatchList 1:1
+// ---------------------------------------------------------------------------
+function LiveCompactMatchRow({
+  match, hasDraw = true, matchIndex, onClick,
+}: {
+  match: EnrichedMatch; hasDraw?: boolean; matchIndex: number; onClick?: () => void;
+}) {
+  const { betSlip, addToBetSlip, showToast } = useAppStore() as {
+    betSlip: BetSlipEntry[];
+    addToBetSlip: (e: BetSlipEntry) => void;
+    showToast: (m: string, t: string) => void;
+  };
+
+  const timerStr = useLiveTimer(match);
+  const odds = match.oddsMap;
+  // All matches on this page are live — odds are always locked (same as MatchList live behaviour)
+  const isSel = (sel: string) =>
+    (betSlip as BetSlipEntry[]).some((s) => s.matchId === match.id && s.market === '1X2' && s.selection === sel);
+
+  const oddsSlots = hasDraw
+    ? [{ key: '1', val: odds?.home ?? 0 }, { key: 'X', val: odds?.draw ?? 0 }, { key: '2', val: odds?.away ?? 0 }]
+    : [{ key: '1', val: odds?.home ?? 0 }, { key: '2', val: odds?.away ?? 0 }];
+
+  void isSel; void addToBetSlip; void showToast; void oddsSlots;
+
+  return (
+    <div
+      className="lm-cmr live no-pointer"
+      onClick={onClick}
+      role={onClick ? 'button' : 'presentation'}
+      tabIndex={onClick ? 0 : -1}
+      onKeyDown={(e) => { if (onClick && (e.key === 'Enter' || e.key === ' ')) onClick(); }}
+      style={{ cursor: onClick ? 'pointer' : 'default' }}
+    >
+      {/* Left: time + index */}
+      <div className="lm-cmr-left">
+        <span className="lm-cmr-live">
+          <FiberManualRecordIcon sx={{ fontSize: 8 }} />
+          {timerStr || 'LIVE'}
+        </span>
+        <span className="lm-cmr-id">#{matchIndex}</span>
+      </div>
+
+      {/* Center: teams + scores */}
+      <div className="lm-cmr-teams">
+        <div className="lm-cmr-team">
+          <span className="lm-cmr-score">{match.scoreHome ?? 0}</span>
+          <span className="lm-cmr-name">{match.homeTeam}</span>
+        </div>
+        <div className="lm-cmr-team">
+          <span className="lm-cmr-score">{match.scoreAway ?? 0}</span>
+          <span className="lm-cmr-name">{match.awayTeam}</span>
+        </div>
+        {match.kickoffAt && (
+          <div className="lm-cmr-countdown">
+            <ScheduleIcon sx={{ fontSize: 10, opacity: 0.4 }} />
+            {formatKickoff(match.kickoffAt)}
+          </div>
+        )}
+      </div>
+
+      {/* Right: always locked */}
+      <div className="lm-cmr-odds">
+        <div className="lm-cmr-odds-locked">
+          <LockIcon sx={{ fontSize: 13, color: 'rgba(34,197,94,0.6)' }} />
+          <span className="lm-cmr-locked-label">Live · Locked</span>
+        </div>
+      </div>
+
+      {/* Spacer to align with stats button column */}
+      <div style={{ width: 28, flexShrink: 0 }} />
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Main LiveMatchesPage
 // ---------------------------------------------------------------------------
 export default function LiveMatchesPage() {
+  const navigate = useNavigate();
   const [activeSport, setActiveSport] = useState<SportTab>('football');
   const [liveMatches, setLiveMatches] = useState<EnrichedMatch[]>([]);
   const [loading, setLoading]         = useState(false);
@@ -815,7 +583,6 @@ export default function LiveMatchesPage() {
   const [sportCounts, setSportCounts] = useState<Partial<Record<SportTab, number>>>({});
   const sportGenRefs = useRef<Record<SportTab, number>>({ football: 0, basketball: 0, tennis: 0, baseball: 0, nfl: 0, mma: 0 });
 
-  // ── Fetch: same full fetch as MatchList, then keep only LIVE_STATUSES ─────
   const fetchLive = useCallback(async (sport: SportTab, silent = false) => {
     const gen = ++sportGenRefs.current[sport];
     const alive = () => sportGenRefs.current[sport] === gen;
@@ -826,7 +593,6 @@ export default function LiveMatchesPage() {
     try {
       const all  = await fetchAllForSport(sport);
       if (!alive()) return;
-      // Filter exactly the same way MatchList populates its "Live Now" section
       const live = all.filter((m) => LIVE_STATUSES.has(m.status ?? ''));
       setLiveMatches(live);
       setLastUpdated(new Date());
@@ -851,7 +617,6 @@ export default function LiveMatchesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Background refresh every 30s — same as MatchList
   useEffect(() => {
     const refresh = () => { if (document.visibilityState === 'visible') fetchLive(activeSport, true); };
     const interval = setInterval(refresh, 30_000);
@@ -859,71 +624,70 @@ export default function LiveMatchesPage() {
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', refresh); };
   }, [activeSport, fetchLive]);
 
-  // ── Derived ────────────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     if (!teamFilter.trim()) return liveMatches;
     const lower = teamFilter.toLowerCase();
-    return liveMatches.filter(
-      (m) => (m.homeTeam ?? '').toLowerCase().includes(lower) || (m.awayTeam ?? '').toLowerCase().includes(lower),
-    );
+    return liveMatches.filter((m) => (m.homeTeam ?? '').toLowerCase().includes(lower) || (m.awayTeam ?? '').toLowerCase().includes(lower));
   }, [liveMatches, teamFilter]);
 
-  const grouped  = useMemo(() => groupByLeague(filtered), [filtered]);
+  // Sort by league priority (same as MatchList renderSection)
+  const sortedMatches = useMemo(() =>
+    [...filtered].sort((a, b) => leagueSortKey(a.league || '').localeCompare(leagueSortKey(b.league || '')))
+  , [filtered]);
+
   const showDraw = !TWO_WAY_ODDS_SPORTS.has(activeSport);
 
   const sportEmoji: Record<SportTab, string> = {
     football: '⚽', basketball: '🏀', tennis: '🎾', baseball: '⚾', nfl: '🏈', mma: '🥊',
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="px-4 mt-4">
+    <div className="lm-root px-4 mt-4">
 
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <LiveTvIcon sx={{ fontSize: 18, color: 'var(--live, #22c55e)' }} />
-        <h1 className="section-title-text" style={{ fontSize: 16 }}>Live Now</h1>
-        {!loading && filtered.length > 0 && (
-          <span className="match-status-badge live">
-            <FiberManualRecordIcon sx={{ fontSize: 7 }} className="live-dot" />
-            {filtered.length}
-          </span>
-        )}
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* ── Page header ───────────────────────────────────────────── */}
+      <div className="lm-page-header">
+        <div className="lm-page-header-left">
+          <LiveTvIcon sx={{ fontSize: 16, color: '#22c55e' }} />
+          <span className="lm-page-title">Live Now</span>
+          {!loading && filtered.length > 0 && (
+            <span className="lm-live-pill">
+              <FiberManualRecordIcon sx={{ fontSize: 7 }} />
+              {filtered.length}
+            </span>
+          )}
+        </div>
+        <div className="lm-page-header-right">
           {lastUpdated && (
-            <span className="text-xs hidden sm:block" style={{ color: 'var(--text-muted)' }}>
+            <span className="lm-last-updated">
               {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
           <button
             onClick={() => fetchLive(activeSport, true)}
             disabled={refreshing}
-            className="flex items-center gap-1 text-xs font-medium disabled:opacity-50"
-            style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)' }}
+            className={`lm-refresh-btn${refreshing ? ' spinning' : ''}`}
+            aria-label="Refresh"
           >
-            <RefreshIcon sx={{ fontSize: 14 }} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshIcon sx={{ fontSize: 14 }} />
             Refresh
           </button>
         </div>
       </div>
 
-      {/* Sport tabs — identical markup to MatchList */}
-      <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3 no-scrollbar">
+      {/* ── Sport tabs — identical markup to MatchList ─────────────── */}
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-3 no-scrollbar">
         {SPORT_TABS.map((tab) => {
           const count = sportCounts[tab.key];
           return (
             <button
               key={tab.key}
               onClick={() => handleSportChange(tab.key)}
-              className={`sport-tab${activeSport === tab.key ? ' active' : ''}`}
+              className={`lm-sport-tab${activeSport === tab.key ? ' active' : ''}`}
             >
-              {tab.icon}{tab.label}
+              {tab.icon}
+              {tab.label}
               {count != null && count > 0 && (
-                <span style={{
-                  marginLeft: 4, padding: '1px 5px', borderRadius: 99, fontSize: 10, fontWeight: 700, lineHeight: 1,
-                  background: activeSport === tab.key ? 'rgba(255,255,255,0.25)' : 'rgba(34,197,94,0.15)',
-                  color: activeSport === tab.key ? '#fff' : '#22c55e',
-                }}>
+                <span className={`lm-sport-count${activeSport === tab.key ? ' active' : ''}`}>
                   {count}
                 </span>
               )}
@@ -932,81 +696,458 @@ export default function LiveMatchesPage() {
         })}
       </div>
 
-      {/* Search */}
-      <div className="mb-4" style={{ position: 'relative' }}>
-        <SearchIcon sx={{ fontSize: 15, position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+      {/* ── Search ─────────────────────────────────────────────────── */}
+      <div className="lm-search-wrap">
+        <SearchIcon sx={{ fontSize: 14, position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'rgba(255,255,255,0.25)' }} />
         <input
           type="text"
           placeholder={`Search ${SPORT_TABS.find((t) => t.key === activeSport)?.label ?? ''} teams…`}
           value={teamFilter}
           onChange={(e) => setTeamFilter(e.target.value)}
-          style={{
-            width: '100%', paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7,
-            border: '1px solid var(--border)', borderRadius: 8,
-            background: 'var(--surface)', color: 'var(--text-primary)', fontSize: 13, outline: 'none',
-          }}
+          className="lm-search-input"
         />
       </div>
 
-      {/* Loading */}
+      {/* ── Loading skeletons ───────────────────────────────────────── */}
       {loading && (
-        <div className="space-y-2">
-          {[0, 1, 2, 3, 4].map((i) => <SkeletonCard key={i} />)}
+        <div className="lm-cmsec">
+          <div className="lm-cmsec-hdr">
+            <div className="lm-skeleton" style={{ width: 90, height: 14, borderRadius: 4 }} />
+          </div>
+          <div className="lm-cmsec-col-hdr">
+            <div style={{ flex: 1 }} />
+            {['1', 'X', '2'].map((h) => <div key={h} className="lm-cmsec-col-lbl">{h}</div>)}
+            <div style={{ width: 28 }} />
+          </div>
+          {[0, 1, 2, 3, 4].map((i) => <SkeletonRow key={i} />)}
         </div>
       )}
 
-      {/* Error */}
+      {/* ── Error ──────────────────────────────────────────────────── */}
       {!loading && error && (
-        <div className="text-center py-12">
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{error}</p>
-          <button onClick={() => fetchLive(activeSport, false)} className="mt-3 text-xs font-semibold hover:underline" style={{ color: 'var(--primary)' }}>
+        <div style={{ textAlign: 'center', padding: '48px 0' }}>
+          <p style={{ fontSize: 13, color: '#6b7280', fontFamily: 'system-ui, sans-serif' }}>{error}</p>
+          <button
+            onClick={() => fetchLive(activeSport, false)}
+            style={{ marginTop: 12, fontSize: 12, fontWeight: 700, color: '#22c55e', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'system-ui, sans-serif' }}
+          >
             Try again
           </button>
         </div>
       )}
 
-      {/* Empty */}
+      {/* ── Empty state ─────────────────────────────────────────────── */}
       {!loading && !error && filtered.length === 0 && (
-        <div className="text-center py-16">
+        <div style={{ textAlign: 'center', padding: '64px 0' }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>{sportEmoji[activeSport]}</div>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          <p style={{ fontSize: 13, color: '#6b7280', fontFamily: 'system-ui, sans-serif' }}>
             {teamFilter
               ? `No live ${SPORT_TABS.find((t) => t.key === activeSport)?.label} matches for "${teamFilter}"`
               : `No live ${SPORT_TABS.find((t) => t.key === activeSport)?.label} matches right now`}
           </p>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Refreshes every 30 seconds</p>
+          <p style={{ fontSize: 11, color: '#374151', marginTop: 6, fontFamily: 'system-ui, sans-serif' }}>
+            Refreshes every 30 seconds
+          </p>
         </div>
       )}
 
-      {/* Live matches — same section + league-group markup as MatchList */}
-      {!loading && !error && grouped.size > 0 && (
-        <section className="mb-6">
-          <div className="section-header">
-            <h2 className="section-title-text">
-              <FiberManualRecordIcon sx={{ fontSize: 8 }} className="live-dot" />
+      {/* ── Live matches section — matches MatchList's renderSection ── */}
+      {!loading && !error && sortedMatches.length > 0 && (
+        <div className="lm-cmsec live-section">
+          <div className="lm-cmsec-hdr">
+            <span className="lm-cmsec-title">
+              <FiberManualRecordIcon sx={{ fontSize: 10, color: '#22c55e' }} />
               Live Now
-              <span className="section-count">({filtered.length})</span>
-            </h2>
+              <span className="lm-cmsec-cnt">({filtered.length})</span>
+            </span>
+            <span className="lm-odds-locked-notice">
+              <LockIcon sx={{ fontSize: 11 }} /> Odds locked during live play
+            </span>
           </div>
-
-          {[...grouped.entries()].map(([league, matches]) => (
-            <div key={league} className="league-group">
-              <div className="league-group-header">
-                <span className="league-group-name">{league}</span>
-                <span className="league-group-count" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <FiberManualRecordIcon sx={{ fontSize: 7 }} className="live-dot" />
-                  {matches.length}
-                </span>
-              </div>
-              <div className="match-list-group">
-                {matches.map((m, i) => (
-                  <MatchCard key={m.id ?? `row-${i}`} match={m} showDraw={showDraw} />
-                ))}
-              </div>
-            </div>
+          <div className="lm-cmsec-col-hdr">
+            <div style={{ flex: 1 }} />
+            {showDraw
+              ? ['1', 'X', '2'].map((h) => <div key={h} className="lm-cmsec-col-lbl">{h}</div>)
+              : ['1', '2'].map((h) => <div key={h} className="lm-cmsec-col-lbl">{h}</div>)
+            }
+            <div style={{ width: 28 }} />
+          </div>
+          {sortedMatches.map((m, idx) => (
+            <LiveCompactMatchRow
+              key={m.id}
+              match={m}
+              hasDraw={showDraw}
+              matchIndex={idx + 1}
+              onClick={() => navigate(`/match/${m.id}`)}
+            />
           ))}
-        </section>
+        </div>
       )}
+
+      {/* ── Styles — verbatim from MatchList dark theme ─────────────── */}
+      <style>{`
+        .lm-root {
+          --bg-page:        #07080f;
+          --bg-card:        #0d0f1a;
+          --bg-card2:       #111320;
+          --border:         rgba(255,255,255,0.06);
+          --border-acc:     rgba(34,197,94,0.18);
+          --accent:         #22c55e;
+          --accent-dim:     rgba(34,197,94,0.12);
+          --accent-border:  rgba(34,197,94,0.25);
+          --text-main:      #f1f5f9;
+          --text-muted:     #6b7280;
+          --text-faint:     #374151;
+          background: var(--bg-page);
+          min-height: 100vh;
+        }
+
+        /* ── Skeleton ──────────────────────────────────────────────── */
+        .lm-skeleton {
+          background: linear-gradient(90deg, #1a1d2e 25%, #232640 50%, #1a1d2e 75%);
+          background-size: 200% 100%;
+          animation: lmSkelShimmer 1.4s ease-in-out infinite;
+        }
+        @keyframes lmSkelShimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+        /* ── Page header ───────────────────────────────────────────── */
+        .lm-page-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 16px;
+          gap: 8px;
+        }
+        .lm-page-header-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .lm-page-header-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-left: auto;
+        }
+        .lm-page-title {
+          font-size: 15px;
+          font-weight: 900;
+          color: var(--text-main);
+          font-family: system-ui, sans-serif;
+          letter-spacing: 0.01em;
+        }
+        .lm-live-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 8px;
+          border-radius: 99px;
+          background: rgba(34,197,94,0.12);
+          border: 1px solid rgba(34,197,94,0.25);
+          font-size: 11px;
+          font-weight: 800;
+          color: var(--accent);
+          font-family: system-ui, sans-serif;
+        }
+        .lm-last-updated {
+          font-size: 11px;
+          color: var(--text-faint);
+          font-family: system-ui, sans-serif;
+        }
+        .lm-refresh-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          padding: 5px 11px;
+          border-radius: 7px;
+          border: 1.5px solid var(--border);
+          background: var(--bg-card);
+          color: var(--text-muted);
+          font-size: 11px;
+          font-weight: 700;
+          cursor: pointer;
+          font-family: system-ui, sans-serif;
+          transition: border-color 0.15s, color 0.15s;
+        }
+        .lm-refresh-btn:hover { border-color: var(--accent-border); color: var(--accent); }
+        .lm-refresh-btn:disabled { opacity: 0.5; cursor: default; }
+        .lm-refresh-btn.spinning svg { animation: lmSpin 0.8s linear infinite; }
+        @keyframes lmSpin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+        /* ── Sport tabs — identical to MatchList .sport-tab ─────────── */
+        .lm-sport-tab {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          padding: 7px 13px;
+          border-radius: 8px;
+          border: 1.5px solid var(--border);
+          background: var(--bg-card);
+          color: var(--text-muted);
+          font-size: 12px;
+          font-weight: 700;
+          white-space: nowrap;
+          cursor: pointer;
+          transition: all 0.15s;
+          font-family: system-ui, sans-serif;
+          flex-shrink: 0;
+        }
+        .lm-sport-tab:hover { border-color: var(--accent-border); color: var(--accent); }
+        .lm-sport-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+        .lm-sport-count {
+          padding: 1px 5px;
+          border-radius: 99px;
+          font-size: 10px;
+          font-weight: 700;
+          line-height: 1;
+          background: rgba(34,197,94,0.15);
+          color: var(--accent);
+          margin-left: 2px;
+        }
+        .lm-sport-count.active {
+          background: rgba(255,255,255,0.2);
+          color: #fff;
+        }
+
+        /* ── Search ─────────────────────────────────────────────────── */
+        .lm-search-wrap {
+          position: relative;
+          margin-bottom: 16px;
+        }
+        .lm-search-input {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 8px 12px 8px 32px;
+          border-radius: 8px;
+          border: 1.5px solid var(--border);
+          background: var(--bg-card);
+          color: var(--text-main);
+          font-size: 13px;
+          font-family: system-ui, sans-serif;
+          outline: none;
+          transition: border-color 0.15s;
+        }
+        .lm-search-input::placeholder { color: var(--text-muted); }
+        .lm-search-input:focus { border-color: var(--accent-border); }
+
+        /* ── Section container — identical to MatchList .cmsec ───────── */
+        .lm-cmsec {
+          margin-bottom: 14px;
+          border-radius: 12px;
+          overflow: hidden;
+          border: 1.5px solid var(--border);
+          background: var(--bg-card);
+          box-shadow: 0 2px 16px rgba(0,0,0,0.4);
+        }
+        .lm-cmsec.live-section {
+          border-color: rgba(34,197,94,0.28);
+          box-shadow: 0 2px 20px rgba(34,197,94,0.08);
+        }
+        .lm-cmsec-hdr {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 11px 12px 9px;
+          background: rgba(34,197,94,0.04);
+          border-bottom: 1.5px solid rgba(34,197,94,0.1);
+        }
+        .lm-cmsec-title {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 10px;
+          font-weight: 800;
+          color: var(--text-main);
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          font-family: system-ui, sans-serif;
+        }
+        .lm-cmsec-cnt {
+          font-size: 9px;
+          font-weight: 500;
+          color: var(--text-muted);
+          letter-spacing: 0;
+        }
+        .lm-odds-locked-notice {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          font-size: 11px;
+          color: rgba(34,197,94,0.7);
+          font-weight: 700;
+          font-family: system-ui, sans-serif;
+        }
+        .lm-cmsec-col-hdr {
+          display: flex;
+          align-items: center;
+          padding: 4px 8px;
+          background: rgba(255,255,255,0.015);
+          border-bottom: 1px solid rgba(255,255,255,0.04);
+          gap: 3px;
+        }
+        .lm-cmsec-col-lbl {
+          width: 52px;
+          text-align: center;
+          font-size: 9px;
+          font-weight: 800;
+          color: var(--accent);
+          letter-spacing: 0.07em;
+          flex-shrink: 0;
+        }
+
+        /* ── Match row — identical to MatchList .cmr ─────────────────── */
+        .lm-cmr {
+          display: flex;
+          align-items: center;
+          padding: 9px 8px 9px 10px;
+          gap: 6px;
+          border-bottom: 1px solid rgba(255,255,255,0.04);
+          transition: background 0.12s ease;
+          min-height: 58px;
+          width: 100%;
+          box-sizing: border-box;
+        }
+        .lm-cmr:last-child { border-bottom: none; }
+        .lm-cmr.live {
+          background: rgba(34,197,94,0.03);
+          border-left: 3px solid var(--accent);
+          padding-left: 7px;
+        }
+        .lm-cmr.no-pointer { cursor: default !important; }
+
+        /* Left column */
+        .lm-cmr-left {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 2px;
+          width: 48px;
+          min-width: 48px;
+          flex-shrink: 0;
+        }
+        .lm-cmr-live {
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          font-size: 10px;
+          font-weight: 900;
+          color: var(--accent);
+          font-family: system-ui, sans-serif;
+          letter-spacing: 0.02em;
+          white-space: nowrap;
+        }
+        .lm-cmr-id {
+          font-size: 9px;
+          color: rgba(34,197,94,0.4);
+          font-family: system-ui, sans-serif;
+          font-weight: 600;
+        }
+
+        /* Teams column */
+        .lm-cmr-teams {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          min-width: 0;
+          overflow: hidden;
+        }
+        .lm-cmr-team {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          min-width: 0;
+          width: 100%;
+        }
+        .lm-cmr-score {
+          font-size: 13px;
+          font-weight: 900;
+          color: var(--accent);
+          min-width: 14px;
+          flex-shrink: 0;
+          font-family: system-ui, sans-serif;
+        }
+        .lm-cmr-name {
+          font-size: 12px;
+          font-weight: 600;
+          color: var(--text-main);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          font-family: system-ui, sans-serif;
+          line-height: 1.3;
+          flex: 1;
+          min-width: 0;
+        }
+        .lm-cmr-countdown {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          font-size: 8px;
+          color: var(--text-faint);
+          margin-top: 1px;
+          font-family: system-ui, sans-serif;
+          white-space: nowrap;
+        }
+
+        /* Odds column — always locked on this page */
+        .lm-cmr-odds {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          flex-shrink: 0;
+        }
+        .lm-cmr-odds-locked {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
+          width: 162px;
+          height: 44px;
+          border-radius: 8px;
+          border: 1.5px solid rgba(34,197,94,0.2);
+          background: rgba(34,197,94,0.04);
+          flex-shrink: 0;
+        }
+        .lm-cmr-locked-label {
+          font-size: 8px;
+          font-weight: 800;
+          color: rgba(34,197,94,0.55);
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+          font-family: system-ui, sans-serif;
+        }
+
+        /* Odds btn (skeleton use only) */
+        .lm-cmr-btn {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          width: 52px;
+          height: 44px;
+          border-radius: 7px;
+          border: 1.5px solid rgba(34,197,94,0.2);
+          background: rgba(34,197,94,0.06);
+          flex-shrink: 0;
+        }
+        .lm-cmr-btn.empty {
+          opacity: 0.22;
+          border-color: rgba(255,255,255,0.05);
+          background: rgba(255,255,255,0.02);
+        }
+
+        /* ── Responsive ─────────────────────────────────────────────── */
+        @media (max-width: 380px) {
+          .lm-cmr { padding: 8px 6px 8px 8px; gap: 4px; }
+          .lm-cmr.live { padding-left: 5px; }
+          .lm-cmr-left { width: 44px; min-width: 44px; }
+          .lm-cmr-name { font-size: 11px; }
+          .lm-cmr-odds-locked { width: 134px; }
+          .lm-cmsec-col-lbl { width: 44px; font-size: 8px; }
+        }
+      `}</style>
     </div>
   );
 }

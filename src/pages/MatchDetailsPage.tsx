@@ -83,7 +83,6 @@ function finishedLabel(status?: string) {
   return 'FT';
 }
 
-// Module-level norm helper (ported from reference)
 function norm(s: string) { return s.toLowerCase().replace(/[\s_\-]/g, ''); }
 
 // ---------------------------------------------------------------------------
@@ -137,60 +136,8 @@ function detectSport(match: Match): SportKind {
 }
 
 // ---------------------------------------------------------------------------
-// Tab definitions — updated signature to accept data-availability flags
+// Admin odds classification helpers
 // ---------------------------------------------------------------------------
-type TabKey = '1x2' | 'halfTime' | 'correctScore' | 'handicap';
-interface TabDef { key: TabKey; label: string; icon: React.ReactNode; }
-
-function getTabsForSport(
-  sport: SportKind,
-  hasHalfTime: boolean,
-  hasCorrectScore: boolean,
-  hasHandicap: boolean,
-): TabDef[] {
-  const base: TabDef[] = [
-    { key: '1x2',          label: '1X2',          icon: <SportsIcon fontSize="small" /> },
-    { key: 'halfTime',     label: 'Half Time',     icon: <ScheduleIcon fontSize="small" /> },
-    { key: 'correctScore', label: 'Correct Score', icon: <SportsIcon fontSize="small" /> },
-    { key: 'handicap',     label: 'Handicap',      icon: <SportsIcon fontSize="small" /> },
-  ];
-
-  // Admin: show only tabs that actually have data
-  if (sport === 'admin') {
-    return base.filter((t) => {
-      if (t.key === '1x2')          return true;
-      if (t.key === 'halfTime')     return hasHalfTime;
-      if (t.key === 'correctScore') return hasCorrectScore;
-      if (t.key === 'handicap')     return hasHandicap;
-      return false;
-    });
-  }
-
-  const allowed: Partial<Record<SportKind, TabKey[]>> = {
-    football:   ['1x2', 'halfTime', 'correctScore', 'handicap'],
-    basketball: ['1x2', 'halfTime', 'handicap'],
-    nfl:        ['1x2', 'handicap'],
-    baseball:   ['1x2'],
-    mma:        ['1x2'],
-    tennis:     ['1x2'],
-  };
-
-  const keys = allowed[sport] ?? ['1x2'];
-  return base
-    .filter((t) => keys.includes(t.key))
-    .map((t) => {
-      if (sport === 'basketball' && t.key === 'halfTime')  return { ...t, label: 'Totals' };
-      if (sport === 'basketball' && t.key === 'handicap')  return { ...t, label: 'Spread' };
-      if (sport === 'nfl'        && t.key === 'handicap')  return { ...t, label: 'Spread' };
-      return t;
-    });
-}
-
-// ---------------------------------------------------------------------------
-// Admin odds classification helpers (ported from reference)
-// ---------------------------------------------------------------------------
-
-/** Returns true if a label looks like a scoreline e.g. "1:0", "2-1" */
 function isScoreLabel(label: string): boolean {
   return /^\d+[\:\-]\d+$/.test(label.trim());
 }
@@ -214,12 +161,6 @@ interface AdminOddsClassified {
   oddsHandicap:     OddsGroup[];
 }
 
-/**
- * Given the raw array returned by /api/public/admin-matches/{id}/odds,
- * classify every row into 1X2, Half-Time, Correct Score, or Handicap buckets.
- *
- * Schema: { id, matchId, market, selection, value, line?, handicap?, capturedAt }
- */
 function classifyAdminOdds(raw: unknown[]): AdminOddsClassified {
   const result: AdminOddsClassified = {
     odds1x2: [], oddsHalfTime: [], oddsCorrectScore: [], oddsHandicap: [],
@@ -227,8 +168,7 @@ function classifyAdminOdds(raw: unknown[]): AdminOddsClassified {
 
   if (!raw.length) return result;
 
-  // Group by market
-  const marketMap = new Map<string, Array<{ selection: string; odd: number; handicap?: string }>> ();
+  const marketMap = new Map<string, Array<{ selection: string; odd: number; handicap?: string }>>();
   for (const row of raw as Array<Record<string, unknown>>) {
     const market    = String(row.market ?? row.name ?? 'match_result');
     const selection = String(row.selection ?? row.outcome ?? row.label ?? '');
@@ -247,25 +187,18 @@ function classifyAdminOdds(raw: unknown[]): AdminOddsClassified {
 
     const group: OddsGroup = { market, options };
 
-    // Handicap / Asian handicap
     if (isHandicapMarket(market) || entries.some((e) => e.handicap)) {
       result.oddsHandicap.push(group);
       continue;
     }
-
-    // Half-time markets
     if (isHalfTimeMarket(market)) {
       result.oddsHalfTime.push(group);
       continue;
     }
-
-    // Correct score — all selections look like "N:M"
     if (options.length >= 2 && options.every((o) => isScoreLabel(o.label))) {
       result.oddsCorrectScore.push(group);
       continue;
     }
-
-    // Correct score — market name hints
     const mn = market.toLowerCase();
     if (mn.includes('correct') || mn.includes('exactscore') || mn.includes('exact score') || mn.includes('score')) {
       const selLabels = options.map((o) => norm(o.label));
@@ -277,8 +210,6 @@ function classifyAdminOdds(raw: unknown[]): AdminOddsClassified {
         continue;
       }
     }
-
-    // Default → 1X2 bucket
     result.odds1x2.push(group);
   }
 
@@ -408,15 +339,13 @@ function parseCorrectScoreGroups(groups: OddsGroup[]) {
 // ---------------------------------------------------------------------------
 // API fetch helpers
 // ---------------------------------------------------------------------------
-const ADMIN_ODDS_BASE = 'https://futballbackend-production-2b7e.up.railway.app';
+const ADMIN_ODDS_BASE = 'https://futballbackend-production-13f1.up.railway.app';
 
-/** Directly fetches raw odds rows from the admin-matches endpoint */
 async function fetchAdminOddsRaw(id: string): Promise<unknown[]> {
   try {
     const raw = await fetch(
-  `${ADMIN_ODDS_BASE}/api/public/admin-matches/${id}/odds`
-).then((r) => r.json());
-    // Unwrap { success, data: [...] }
+      `${ADMIN_ODDS_BASE}/api/public/admin-matches/${id}/odds`
+    ).then((r) => r.json());
     if (raw && typeof raw === 'object' && Array.isArray((raw as Record<string, unknown>).data)) {
       return (raw as Record<string, unknown>).data as unknown[];
     }
@@ -452,19 +381,10 @@ interface AllOddsResult {
 async function fetchAllOddsForSport(id: string, sport: SportKind): Promise<AllOddsResult> {
   const empty: AllOddsResult = { odds1x2: [], oddsHalfTime: [], oddsCorrectScore: [], oddsHandicap: [] };
 
-  // Admin: fetch raw rows then classify into the four buckets
   if (sport === 'admin') {
     const rawOdds = await fetchAdminOddsRaw(id);
-    console.log(`[AdminOdds] Match ${id}: ${rawOdds.length} odds row(s) fetched`);
     if (!rawOdds.length) return empty;
-    const classified = classifyAdminOdds(rawOdds);
-    console.log('[AdminOdds] Classified →', {
-      '1x2':          classified.odds1x2.length,
-      'halfTime':     classified.oddsHalfTime.length,
-      'correctScore': classified.oddsCorrectScore.length,
-      'handicap':     classified.oddsHandicap.length,
-    });
-    return classified;
+    return classifyAdminOdds(rawOdds);
   }
 
   if (sport === 'football') {
@@ -521,10 +441,30 @@ async function fetchAllOddsForSport(id: string, sport: SportKind): Promise<AllOd
 }
 
 // ---------------------------------------------------------------------------
-// UI Primitives — all CSS-var themed (unchanged)
+// UI Primitives
 // ---------------------------------------------------------------------------
 function SkeletonBlock({ className }: { className?: string }) {
   return <div className={`skeleton-block ${className ?? ''}`} />;
+}
+
+// ---------------------------------------------------------------------------
+// Section header — replaces tabs
+// ---------------------------------------------------------------------------
+function SectionHeader({ title, icon }: { title: string; icon?: React.ReactNode }) {
+  return (
+    <div
+      className="flex items-center gap-2 px-4 py-3 rounded-xl mb-3"
+      style={{ background: 'var(--card-alt)' }}
+    >
+      {icon && <span style={{ color: 'var(--primary)' }}>{icon}</span>}
+      <span
+        className="text-base font-black uppercase tracking-widest"
+        style={{ color: 'var(--text-main)' }}
+      >
+        {title}
+      </span>
+    </div>
+  );
 }
 
 function OddButton({
@@ -536,20 +476,20 @@ function OddButton({
   if (locked) {
     return (
       <div
-        className="flex flex-col items-center py-2.5 px-2 rounded-xl border-2 border-dashed opacity-50 cursor-not-allowed select-none"
+        className="flex flex-col items-center py-3 px-2 rounded-xl border-2 border-dashed opacity-50 cursor-not-allowed select-none"
         style={{ borderColor: 'var(--border-light)' }}
       >
         {sublabel && (
-          <span className="text-[10px] font-black uppercase tracking-widest mb-0.5" style={{ color: 'var(--text-muted)' }}>
+          <span className="text-xs font-black uppercase tracking-widest mb-0.5" style={{ color: 'var(--text-muted)' }}>
             {sublabel}
           </span>
         )}
-        <span className="text-xs font-medium mb-1 text-center leading-tight px-0.5 truncate max-w-full" style={{ color: 'var(--text-muted)' }}>
+        <span className="text-sm font-medium mb-1 text-center leading-tight px-0.5 truncate max-w-full" style={{ color: 'var(--text-muted)' }}>
           {label}
         </span>
         <span className="flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-          <LockIcon sx={{ fontSize: 14 }} />
-          <span className="text-sm font-black tabular-nums">{odd > 0 ? odd.toFixed(2) : '—'}</span>
+          <LockIcon sx={{ fontSize: 16 }} />
+          <span className="text-base font-black tabular-nums">{odd > 0 ? odd.toFixed(2) : '—'}</span>
         </span>
       </div>
     );
@@ -559,7 +499,7 @@ function OddButton({
     <button
       onClick={onClick}
       disabled={odd <= 0}
-      className={`flex flex-col items-center py-2.5 px-2 rounded-xl border-2 transition-all select-none
+      className={`flex flex-col items-center py-3 px-2 rounded-xl border-2 transition-all select-none
         ${odd <= 0
           ? 'opacity-40 cursor-not-allowed'
           : selected
@@ -576,19 +516,19 @@ function OddButton({
     >
       {sublabel && (
         <span
-          className="text-[10px] font-black uppercase tracking-widest mb-0.5"
+          className="text-xs font-black uppercase tracking-widest mb-0.5"
           style={{ color: selected ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)' }}
         >
           {sublabel}
         </span>
       )}
       <span
-        className="text-xs font-medium mb-1 text-center leading-tight px-0.5 truncate max-w-full"
+        className="text-sm font-medium mb-1 text-center leading-tight px-0.5 truncate max-w-full"
         style={{ color: selected ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)' }}
       >
         {label}
       </span>
-      <span className="text-xl font-black tabular-nums" style={{ color: selected ? '#fff' : 'var(--text-main)' }}>
+      <span className="text-2xl font-black tabular-nums" style={{ color: selected ? '#fff' : 'var(--text-main)' }}>
         {odd > 0 ? odd.toFixed(2) : '—'}
       </span>
     </button>
@@ -601,10 +541,10 @@ function OddButton({
 function LockedBanner() {
   return (
     <div
-      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs"
+      className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm"
       style={{ background: 'var(--card-alt)', color: 'var(--text-muted)' }}
     >
-      <LockIcon sx={{ fontSize: 14 }} /> Odds locked — match has finished
+      <LockIcon sx={{ fontSize: 16 }} /> Odds locked — match has finished
     </div>
   );
 }
@@ -626,7 +566,7 @@ function Match1x2Panel({ groups, matchId, matchName, homeTeam, awayTeam, locked,
   };
 
   if (!groups.length) return (
-    <p className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>No odds available yet.</p>
+    <p className="text-center text-base py-6" style={{ color: 'var(--text-muted)' }}>No odds available yet.</p>
   );
 
   const hasDraw    = sport === 'football' || sport === 'admin';
@@ -670,7 +610,7 @@ function Match1x2Panel({ groups, matchId, matchName, homeTeam, awayTeam, locked,
     <div className="space-y-3">
       {locked && <LockedBanner />}
       <div className="card p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>
+        <p className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>
           {panelTitle}
         </p>
         <div className={`grid gap-2 grid-cols-${slots.length}`}>
@@ -683,7 +623,7 @@ function Match1x2Panel({ groups, matchId, matchName, homeTeam, awayTeam, locked,
       </div>
       {rest.map((group, gi) => (
         <div key={gi} className="card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>
+          <p className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>
             {group.market.replace(/_/g, ' ')}
           </p>
           <div className={`grid gap-2 ${group.options.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
@@ -717,7 +657,7 @@ function HalfTimePanel({ groups, matchId, matchName, locked, sport }: {
   const panelTitle = sport === 'basketball' ? 'Totals (Over/Under)' : 'Half Time Result';
 
   if (!groups.length) return (
-    <p className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>
+    <p className="text-center text-base py-6" style={{ color: 'var(--text-muted)' }}>
       {sport === 'basketball' ? 'No totals available.' : 'No half-time odds available.'}
     </p>
   );
@@ -741,7 +681,7 @@ function HalfTimePanel({ groups, matchId, matchName, locked, sport }: {
 
         return (
           <div key={gi} className="card p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-sm font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>
               {group.market.replace(/_/g, ' ') || panelTitle}
             </p>
             <div className={`grid gap-2 ${slots.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
@@ -777,7 +717,7 @@ function CorrectScorePanel({ groups, matchId, matchName, homeTeam, awayTeam, loc
   const scores = parseCorrectScoreGroups(groups);
   const market = groups[0]?.market ?? 'correct_score';
   if (!scores.length) return (
-    <p className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>No correct score odds available.</p>
+    <p className="text-center text-base py-6" style={{ color: 'var(--text-muted)' }}>No correct score odds available.</p>
   );
 
   const parseScore = (s: string) => { const m = s.match(/(\d+)[:\-](\d+)/); return m ? { h: parseInt(m[1]), a: parseInt(m[2]) } : null; };
@@ -794,8 +734,8 @@ function CorrectScorePanel({ groups, matchId, matchName, homeTeam, awayTeam, loc
     if (!items.length) return null;
     return (
       <div className="card overflow-hidden">
-        <div className={`px-4 py-2.5 ${bg}`}>
-          <span className="text-xs font-black uppercase tracking-widest text-white">{title}</span>
+        <div className={`px-4 py-3 ${bg}`}>
+          <span className="text-sm font-black uppercase tracking-widest text-white">{title}</span>
         </div>
         <div className="p-3 grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2">
           {items.map((s) => {
@@ -805,7 +745,7 @@ function CorrectScorePanel({ groups, matchId, matchName, homeTeam, awayTeam, loc
                 key={s.label}
                 onClick={() => !locked && pick(market, s.label, s.odd)}
                 disabled={locked}
-                className={`flex flex-col items-center py-2 px-1 rounded-xl border-2 transition-all
+                className={`flex flex-col items-center py-2.5 px-1 rounded-xl border-2 transition-all
                   ${locked
                     ? 'opacity-50 cursor-not-allowed border-dashed'
                     : sel
@@ -816,14 +756,14 @@ function CorrectScorePanel({ groups, matchId, matchName, homeTeam, awayTeam, loc
                      : locked           ? { borderColor: 'var(--border-light)' }
                      : undefined}
               >
-                <span className="text-sm font-black tabular-nums leading-none" style={{ color: sel ? '#fff' : 'var(--text-main)' }}>
+                <span className="text-base font-black tabular-nums leading-none" style={{ color: sel ? '#fff' : 'var(--text-main)' }}>
                   {s.label}
                 </span>
                 <span
-                  className="text-[11px] font-bold tabular-nums mt-0.5"
+                  className="text-sm font-bold tabular-nums mt-0.5"
                   style={{ color: locked ? 'var(--text-muted)' : sel ? 'rgba(255,255,255,0.8)' : 'var(--primary)' }}
                 >
-                  {locked ? <LockIcon sx={{ fontSize: 10 }} /> : s.odd.toFixed(2)}
+                  {locked ? <LockIcon sx={{ fontSize: 12 }} /> : s.odd.toFixed(2)}
                 </span>
               </button>
             );
@@ -862,7 +802,7 @@ function HandicapPanel({ groups, matchId, matchName, locked, sport }: {
   const panelLabel = sport === 'basketball' || sport === 'nfl' ? 'Point Spread' : 'Asian Handicap';
 
   if (!groups.length) return (
-    <p className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>
+    <p className="text-center text-base py-6" style={{ color: 'var(--text-muted)' }}>
       No {panelLabel.toLowerCase()} odds available.
     </p>
   );
@@ -874,10 +814,10 @@ function HandicapPanel({ groups, matchId, matchName, locked, sport }: {
         className="flex items-center justify-between px-4 py-2 rounded-xl"
         style={{ background: 'var(--card-alt)' }}
       >
-        <span className="text-xs font-black uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
+        <span className="text-sm font-black uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
           {panelLabel}
         </span>
-        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{groups.length} line(s)</span>
+        <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{groups.length} line(s)</span>
       </div>
       {groups.map((group, gi) => {
         const isPushLine = group.options.some((o) => o.label.toLowerCase().includes('push') || o.label.toLowerCase().includes('refund'));
@@ -890,8 +830,8 @@ function HandicapPanel({ groups, matchId, matchName, locked, sport }: {
               className="flex items-center gap-2 px-4 py-2 border-b"
               style={{ background: 'var(--card-alt)', borderColor: 'var(--border-light)' }}
             >
-              <span className="text-xs font-black tabular-nums" style={{ color: 'var(--primary)' }}>{group.market}</span>
-              {isPushLine && <span className="text-[10px] ml-1" style={{ color: 'var(--text-muted)' }}>includes push/refund</span>}
+              <span className="text-sm font-black tabular-nums" style={{ color: 'var(--primary)' }}>{group.market}</span>
+              {isPushLine && <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>includes push/refund</span>}
             </div>
             <div className={`p-3 grid gap-2 ${mainOpts.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
               {mainOpts.map((opt) => {
@@ -905,7 +845,7 @@ function HandicapPanel({ groups, matchId, matchName, locked, sport }: {
                     key={opt.label}
                     disabled={locked}
                     onClick={() => !locked && pick('asian_handicap', selKey, opt.odd)}
-                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl border-2 transition-all
+                    className={`flex items-center justify-between px-3 py-3 rounded-xl border-2 transition-all
                       ${locked
                         ? 'opacity-50 cursor-not-allowed border-dashed'
                         : sel
@@ -918,14 +858,14 @@ function HandicapPanel({ groups, matchId, matchName, locked, sport }: {
                   >
                     <div className="flex flex-col items-start min-w-0">
                       <span
-                        className="text-sm font-bold truncate"
+                        className="text-base font-bold truncate"
                         style={{ color: locked ? 'var(--text-muted)' : sel ? '#fff' : 'var(--text-main)' }}
                       >
                         {teamName}
                       </span>
                       {handicap && (
                         <span
-                          className="text-[11px] font-black tabular-nums"
+                          className="text-sm font-black tabular-nums"
                           style={{ color: locked ? 'var(--text-muted)' : sel ? 'rgba(255,255,255,0.7)' : 'var(--primary)' }}
                         >
                           {handicap}
@@ -933,10 +873,10 @@ function HandicapPanel({ groups, matchId, matchName, locked, sport }: {
                       )}
                     </div>
                     <span
-                      className="text-lg font-black tabular-nums ml-2 shrink-0"
+                      className="text-xl font-black tabular-nums ml-2 shrink-0"
                       style={{ color: locked ? 'var(--text-muted)' : sel ? '#fff' : 'var(--text-main)' }}
                     >
-                      {locked ? <LockIcon sx={{ fontSize: 16 }} /> : opt.odd.toFixed(2)}
+                      {locked ? <LockIcon sx={{ fontSize: 18 }} /> : opt.odd.toFixed(2)}
                     </span>
                   </button>
                 );
@@ -952,8 +892,8 @@ function HandicapPanel({ groups, matchId, matchName, locked, sport }: {
                     borderColor: 'var(--border-light)',
                   }}
                 >
-                  <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Push / Refund</span>
-                  <span className="text-sm font-black tabular-nums" style={{ color: 'var(--text-main)' }}>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>Push / Refund</span>
+                  <span className="text-base font-black tabular-nums" style={{ color: 'var(--text-main)' }}>
                     {pushOpt.odd.toFixed(2)}
                   </span>
                 </button>
@@ -964,6 +904,13 @@ function HandicapPanel({ groups, matchId, matchName, locked, sport }: {
       })}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Section divider
+// ---------------------------------------------------------------------------
+function SectionDivider() {
+  return <div className="my-6 border-t" style={{ borderColor: 'var(--border-light)' }} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -983,8 +930,6 @@ export default function MatchDetailsPage() {
   const [oddsCorrectScore, setOddsCorrectScore] = useState<OddsGroup[]>([]);
   const [oddsHandicap, setOddsHandicap]         = useState<OddsGroup[]>([]);
   const [loadingOdds, setLoadingOdds]           = useState(false);
-
-  const [activeTab, setActiveTab] = useState<TabKey>('1x2');
 
   const timerStr = useLiveTimer(match);
 
@@ -1034,6 +979,38 @@ export default function MatchDetailsPage() {
     return () => clearInterval(interval);
   }, [match, fetchMatch]);
 
+  // ── Sport-specific section config ─────────────────────────────────────
+  function getSectionsForSport(s: SportKind) {
+    type Section = { key: string; label: string; icon: React.ReactNode };
+    const all: Section[] = [
+      { key: '1x2',          label: s === 'basketball' || s === 'nfl' ? 'Moneyline' : '1X2',                     icon: <SportsIcon fontSize="small" /> },
+      { key: 'halfTime',     label: s === 'basketball' ? 'Totals' : 'Half Time',                                  icon: <ScheduleIcon fontSize="small" /> },
+      { key: 'correctScore', label: 'Correct Score',                                                              icon: <SportsIcon fontSize="small" /> },
+      { key: 'handicap',     label: s === 'basketball' || s === 'nfl' ? 'Spread' : 'Asian Handicap',             icon: <SportsIcon fontSize="small" /> },
+    ];
+
+    if (s === 'admin') {
+      return all.filter((sec) => {
+        if (sec.key === '1x2')          return true;
+        if (sec.key === 'halfTime')     return oddsHalfTime.length > 0;
+        if (sec.key === 'correctScore') return oddsCorrectScore.length > 0;
+        if (sec.key === 'handicap')     return oddsHandicap.length > 0;
+        return false;
+      });
+    }
+
+    const allowed: Partial<Record<SportKind, string[]>> = {
+      football:   ['1x2', 'halfTime', 'correctScore', 'handicap'],
+      basketball: ['1x2', 'halfTime', 'handicap'],
+      nfl:        ['1x2', 'handicap'],
+      baseball:   ['1x2'],
+      mma:        ['1x2'],
+      tennis:     ['1x2'],
+    };
+    const keys = allowed[s] ?? ['1x2'];
+    return all.filter((sec) => keys.includes(sec.key));
+  }
+
   // ── Loading skeleton ───────────────────────────────────────────────────
   if (loadingMatch) return (
     <div className="max-w-4xl mx-auto p-4 space-y-4">
@@ -1047,15 +1024,14 @@ export default function MatchDetailsPage() {
         </div>
         <SkeletonBlock className="h-4 w-48 mx-auto" />
       </div>
-      <div className="flex gap-1">{[0,1,2,3].map((i) => <SkeletonBlock key={i} className="h-10 flex-1" />)}</div>
       <div className="space-y-3">{[0,1,2].map((i) => <SkeletonBlock key={i} className="h-24" />)}</div>
     </div>
   );
 
   if (matchError || !match) return (
     <div className="p-8 text-center">
-      <p className="text-red-500 text-sm mb-3">{matchError ?? 'Match not found'}</p>
-      <button onClick={() => navigate(-1)} className="text-sm hover:underline" style={{ color: 'var(--primary)' }}>
+      <p className="text-red-500 text-base mb-3">{matchError ?? 'Match not found'}</p>
+      <button onClick={() => navigate(-1)} className="text-base hover:underline" style={{ color: 'var(--primary)' }}>
         Go back
       </button>
     </div>
@@ -1065,17 +1041,7 @@ export default function MatchDetailsPage() {
   const isFinished = FINISHED_STATUSES.has(match.status ?? '');
   const oddsLocked = isFinished;
   const matchName  = `${match.homeTeam} vs ${match.awayTeam}`;
-
-  // Build tabs — for admin, only show tabs that actually have data (after odds load)
-  const tabs = getTabsForSport(
-    sport,
-    oddsHalfTime.length > 0,
-    oddsCorrectScore.length > 0,
-    oddsHandicap.length > 0,
-  );
-  const validTabKeys = tabs.map((t) => t.key);
-  const currentTab   = validTabKeys.includes(activeTab) ? activeTab : validTabKeys[0];
-  const oddsTabKeys: TabKey[] = ['1x2', 'halfTime', 'correctScore', 'handicap'];
+  const sections   = getSectionsForSport(sport);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -1091,7 +1057,7 @@ export default function MatchDetailsPage() {
         </button>
 
         {/* Match Header */}
-        <div className="card p-6 mb-4">
+        <div className="card p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             {match.leagueLogo && (
               <img src={match.leagueLogo} alt={match.league ?? ''} className="w-5 h-5 object-contain"
@@ -1102,19 +1068,19 @@ export default function MatchDetailsPage() {
             </span>
 
             {isLive && (
-              <span className="flex items-center gap-1 text-xs text-green-500 font-semibold ml-auto shrink-0">
+              <span className="flex items-center gap-1 text-sm text-green-500 font-semibold ml-auto shrink-0">
                 <FiberManualRecordIcon sx={{ fontSize: 8 }} className="live-dot" />
                 {timerStr || 'LIVE'}
               </span>
             )}
             {isFinished && (
-              <span className="ml-auto text-xs font-bold uppercase tracking-wide shrink-0" style={{ color: 'var(--text-muted)' }}>
+              <span className="ml-auto text-sm font-bold uppercase tracking-wide shrink-0" style={{ color: 'var(--text-muted)' }}>
                 {finishedLabel(match.status)}
               </span>
             )}
             {!isLive && !isFinished && match.kickoffAt && (
-              <span className="flex items-center gap-1 ml-auto text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>
-                <ScheduleIcon sx={{ fontSize: 12 }} />
+              <span className="flex items-center gap-1 ml-auto text-sm shrink-0" style={{ color: 'var(--text-muted)' }}>
+                <ScheduleIcon sx={{ fontSize: 14 }} />
                 {formatKickoff(match.kickoffAt)}
               </span>
             )}
@@ -1136,30 +1102,30 @@ export default function MatchDetailsPage() {
                 <img src={match.homeLogo} alt={match.homeTeam} className="w-12 h-12 object-contain mx-auto mb-2"
                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
               )}
-              <h2 className="font-heading text-base md:text-xl font-bold leading-tight" style={{ color: 'var(--text-main)' }}>
+              <h2 className="font-heading text-lg md:text-2xl font-bold leading-tight" style={{ color: 'var(--text-main)' }}>
                 {match.homeTeam}
               </h2>
             </div>
 
             <div className="text-center shrink-0 px-2">
               {(isLive || isFinished) ? (
-                <div className="font-heading text-4xl md:text-5xl font-bold tabular-nums" style={{ color: 'var(--primary)' }}>
+                <div className="font-heading text-5xl md:text-6xl font-bold tabular-nums" style={{ color: 'var(--primary)' }}>
                   {match.scoreHome ?? 0}
-                  <span style={{ color: 'var(--border-light)', margin: '0 4px' }}>–</span>
+                  <span style={{ color: 'var(--border-light)', margin: '0 6px' }}>–</span>
                   {match.scoreAway ?? 0}
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-1">
-                  <span className="font-heading text-2xl font-bold" style={{ color: 'var(--text-main)' }}>
+                  <span className="font-heading text-3xl font-bold" style={{ color: 'var(--text-main)' }}>
                     {formatKickoff(match.kickoffAt)}
                   </span>
-                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Kick-off</span>
+                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Kick-off</span>
                 </div>
               )}
               {isLive && (
                 <div className="flex items-center justify-center gap-1 mt-1">
                   <FiberManualRecordIcon sx={{ fontSize: 8 }} className="text-green-500 live-dot" />
-                  <span className="text-xs text-green-500 font-semibold">{timerStr}</span>
+                  <span className="text-sm text-green-500 font-semibold">{timerStr}</span>
                 </div>
               )}
             </div>
@@ -1169,86 +1135,77 @@ export default function MatchDetailsPage() {
                 <img src={match.awayLogo} alt={match.awayTeam} className="w-12 h-12 object-contain mx-auto mb-2"
                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
               )}
-              <h2 className="font-heading text-base md:text-xl font-bold leading-tight" style={{ color: 'var(--text-main)' }}>
+              <h2 className="font-heading text-lg md:text-2xl font-bold leading-tight" style={{ color: 'var(--text-main)' }}>
                 {match.awayTeam}
               </h2>
             </div>
           </div>
 
           {/* Meta */}
-          <div className="flex flex-wrap justify-center gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+          <div className="flex flex-wrap justify-center gap-4 text-sm" style={{ color: 'var(--text-muted)' }}>
             {match.kickoffAt && (
               <span className="flex items-center gap-1">
-                <CalendarTodayIcon sx={{ fontSize: 13 }} />{formatDate(match.kickoffAt)}
+                <CalendarTodayIcon sx={{ fontSize: 14 }} />{formatDate(match.kickoffAt)}
               </span>
             )}
             {match.sport && (
               <span className="flex items-center gap-1">
-                <SportsIcon sx={{ fontSize: 13 }} />{match.sport}
+                <SportsIcon sx={{ fontSize: 14 }} />{match.sport}
               </span>
             )}
             {oddsLocked && (
               <span className="flex items-center gap-1 text-amber-500">
-                <LockIcon sx={{ fontSize: 13 }} /> Odds locked
+                <LockIcon sx={{ fontSize: 14 }} /> Odds locked
               </span>
             )}
           </div>
         </div>
 
-        {/* Tabs */}
-        <div
-          className="flex border-b mb-4 overflow-x-auto no-scrollbar"
-          style={{ borderColor: 'var(--border-light)' }}
-        >
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className="flex items-center gap-1 px-3 py-3 text-xs font-semibold border-b-2 whitespace-nowrap transition-colors shrink-0"
-              style={{
-                color: currentTab === tab.key ? 'var(--primary)' : 'var(--text-muted)',
-                borderBottomColor: currentTab === tab.key ? 'var(--primary)' : 'transparent',
-              }}
-            >
-              {tab.icon}
-              <span className="hidden sm:inline">{tab.label}</span>
-              <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
-            </button>
-          ))}
-        </div>
-
         {/* Odds loading spinner */}
-        {loadingOdds && oddsTabKeys.includes(currentTab) && (
-          <div className="flex justify-center py-8">
-            <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
+        {loadingOdds && (
+          <div className="flex justify-center py-10">
+            <div className="w-7 h-7 border-2 border-t-transparent rounded-full animate-spin"
+                 style={{ borderColor: 'var(--primary)', borderTopColor: 'transparent' }} />
           </div>
         )}
 
-        {/* Tab Panels */}
-        {!loadingOdds && currentTab === '1x2' && (
-          <Match1x2Panel
-            groups={odds1x2} matchId={match.id} matchName={matchName}
-            homeTeam={match.homeTeam} awayTeam={match.awayTeam}
-            locked={oddsLocked} sport={sport}
-          />
-        )}
-        {!loadingOdds && currentTab === 'halfTime' && (
-          <HalfTimePanel
-            groups={oddsHalfTime} matchId={match.id} matchName={matchName}
-            locked={oddsLocked} sport={sport}
-          />
-        )}
-        {!loadingOdds && currentTab === 'correctScore' && (
-          <CorrectScorePanel
-            groups={oddsCorrectScore} matchId={match.id} matchName={matchName}
-            homeTeam={match.homeTeam} awayTeam={match.awayTeam} locked={oddsLocked}
-          />
-        )}
-        {!loadingOdds && currentTab === 'handicap' && (
-          <HandicapPanel
-            groups={oddsHandicap} matchId={match.id} matchName={matchName}
-            locked={oddsLocked} sport={sport}
-          />
+        {/* All odds sections stacked vertically — no tabs */}
+        {!loadingOdds && (
+          <div>
+            {sections.map((section, idx) => (
+              <div key={section.key}>
+                <SectionHeader title={section.label} icon={section.icon} />
+
+                {section.key === '1x2' && (
+                  <Match1x2Panel
+                    groups={odds1x2} matchId={match.id} matchName={matchName}
+                    homeTeam={match.homeTeam} awayTeam={match.awayTeam}
+                    locked={oddsLocked} sport={sport}
+                  />
+                )}
+                {section.key === 'halfTime' && (
+                  <HalfTimePanel
+                    groups={oddsHalfTime} matchId={match.id} matchName={matchName}
+                    locked={oddsLocked} sport={sport}
+                  />
+                )}
+                {section.key === 'correctScore' && (
+                  <CorrectScorePanel
+                    groups={oddsCorrectScore} matchId={match.id} matchName={matchName}
+                    homeTeam={match.homeTeam} awayTeam={match.awayTeam} locked={oddsLocked}
+                  />
+                )}
+                {section.key === 'handicap' && (
+                  <HandicapPanel
+                    groups={oddsHandicap} matchId={match.id} matchName={matchName}
+                    locked={oddsLocked} sport={sport}
+                  />
+                )}
+
+                {idx < sections.length - 1 && <SectionDivider />}
+              </div>
+            ))}
+          </div>
         )}
 
       </div>

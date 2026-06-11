@@ -1,9 +1,10 @@
-// Bet360 — Header.tsx
+// WINNINGBET — Header.tsx
 // Auth-responsive: shows wallet balance + avatar when logged in, Join/Login when not
 // Currency: backend stores GH₵. Detected country switches display:
 //   Ghana   → GH₵ (no conversion)
 //   Nigeria → ₦ NGN (live GHS→NGN rate)
 //   Others  → $ USD (live GHS→USD rate)
+// Country detection is cached in localStorage for 24 hours.
 
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -16,55 +17,84 @@ import type { ApiResponse } from '../../utils/api';
 type CurrencyInfo = {
   code: 'GHS' | 'NGN' | 'USD';
   symbol: string;
-  rate: number; // how many units per 1 GHS
+  rate: number;
 };
 
+const CURRENCY_CACHE_KEY = 'wb_currency_cache';
+const CURRENCY_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+function getCachedCurrency(): CurrencyInfo | null {
+  try {
+    const raw = localStorage.getItem(CURRENCY_CACHE_KEY);
+    if (!raw) return null;
+    const { data, timestamp } = JSON.parse(raw) as { data: CurrencyInfo; timestamp: number };
+    if (Date.now() - timestamp > CURRENCY_CACHE_TTL) {
+      localStorage.removeItem(CURRENCY_CACHE_KEY);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedCurrency(info: CurrencyInfo): void {
+  try {
+    localStorage.setItem(CURRENCY_CACHE_KEY, JSON.stringify({ data: info, timestamp: Date.now() }));
+  } catch {}
+}
+
 async function detectCurrency(): Promise<CurrencyInfo> {
-  // 1. Detect country via IP
-  let countryCode = 'GH'; // default to Ghana
+  const cached = getCachedCurrency();
+  if (cached) return cached;
+
+  let countryCode = 'GH';
   try {
     const geoRes = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
     if (geoRes.ok) {
       const geo = await geoRes.json();
       countryCode = geo?.country_code ?? 'GH';
     }
-  } catch {
-    // fall through to default
-  }
+  } catch {}
 
-  // Ghana — no conversion needed
+  let result: CurrencyInfo;
+
   if (countryCode === 'GH') {
-    return { code: 'GHS', symbol: 'GH₵', rate: 1 };
-  }
-
-  // Nigeria — fetch live GHS→NGN rate
-  if (countryCode === 'NG') {
+    result = { code: 'GHS', symbol: 'GH₵', rate: 1 };
+  } else if (countryCode === 'NG') {
     try {
       const fxRes = await fetch('https://open.er-api.com/v6/latest/GHS', { signal: AbortSignal.timeout(5000) });
       if (fxRes.ok) {
         const fx = await fxRes.json();
         const rate = fx?.rates?.NGN;
-        if (typeof rate === 'number' && rate > 0) {
-          return { code: 'NGN', symbol: '₦', rate };
-        }
+        result = typeof rate === 'number' && rate > 0
+          ? { code: 'NGN', symbol: '₦', rate }
+          : { code: 'NGN', symbol: '₦', rate: 52 };
+      } else {
+        result = { code: 'NGN', symbol: '₦', rate: 52 };
       }
-    } catch { /* fall through */ }
-    // Fallback rate if API fails (~realistic as of 2025)
-    return { code: 'NGN', symbol: '₦', rate: 52 };
+    } catch {
+      result = { code: 'NGN', symbol: '₦', rate: 52 };
+    }
+  } else {
+    try {
+      const fxRes = await fetch('https://open.er-api.com/v6/latest/GHS', { signal: AbortSignal.timeout(5000) });
+      if (fxRes.ok) {
+        const fx = await fxRes.json();
+        const rate = fx?.rates?.USD;
+        result = typeof rate === 'number' && rate > 0
+          ? { code: 'USD', symbol: '$', rate }
+          : { code: 'USD', symbol: '$', rate: 0.067 };
+      } else {
+        result = { code: 'USD', symbol: '$', rate: 0.067 };
+      }
+    } catch {
+      result = { code: 'USD', symbol: '$', rate: 0.067 };
+    }
   }
 
-  // All other countries — show USD
-  try {
-    const fxRes = await fetch('https://open.er-api.com/v6/latest/GHS', { signal: AbortSignal.timeout(5000) });
-    if (fxRes.ok) {
-      const fx = await fxRes.json();
-      const rate = fx?.rates?.USD;
-      if (typeof rate === 'number' && rate > 0) {
-        return { code: 'USD', symbol: '$', rate };
-      }
-    }
-  } catch { /* fall through */ }
-  return { code: 'USD', symbol: '$', rate: 0.067 };
+  setCachedCurrency(result);
+  return result;
 }
 
 function formatAmount(cedis: number, currency: CurrencyInfo): string {
@@ -75,20 +105,32 @@ function formatAmount(cedis: number, currency: CurrencyInfo): string {
 }
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────
-function Bet360Logo({ dark = false }: { dark?: boolean }) {
-  const textColor   = dark ? '#111' : '#ffffff';
-  const accentColor = dark ? '#CC0000' : '#ffffff';
+function WinningBetLogo() {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 7, userSelect: 'none' }} aria-label="Bet360">
-      <svg width="26" height="30" viewBox="0 0 28 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M14 1L2 6.5v9c0 8.5 5.2 14.7 12 16.5C20.8 30.2 26 24 26 15.5v-9L14 1z" fill={dark ? '#CC0000' : 'rgba(255,255,255,0.25)'} />
-        <path d="M14 5L5.5 9v7.5c0 6.5 3.8 11.2 8.5 12.8C18.7 27.7 22.5 23 22.5 16.5V9L14 5z" fill="none" stroke={dark ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.35)'} strokeWidth="1" />
-        <text x="14" y="20" textAnchor="middle" fontFamily="'Inter', 'Arial Narrow', sans-serif" fontWeight="800" fontSize="9" fill={dark ? '#fff' : '#CC0000'} letterSpacing="-0.3">360</text>
-      </svg>
-      <div style={{ display: 'flex', alignItems: 'baseline', lineHeight: 1 }}>
-        <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800, fontSize: '1.3rem', letterSpacing: '0.02em', color: textColor, textTransform: 'uppercase' }}>BET</span>
-        <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800, fontSize: '1.3rem', letterSpacing: '0.02em', color: accentColor, textTransform: 'uppercase', ...(dark ? {} : { background: 'rgba(255,255,255,0.18)', borderRadius: 3, padding: '0 3px' }) }}>360</span>
-      </div>
+    <div style={{ display: 'flex', alignItems: 'center', userSelect: 'none' }} aria-label="WINNINGBET">
+      <span style={{
+        fontFamily: "'Inter', sans-serif", fontWeight: 900,
+        fontSize: '0.55rem', color: '#ffffff',
+        alignSelf: 'flex-start', marginTop: 3, marginRight: 1, lineHeight: 1,
+      }}>°</span>
+
+      <span style={{
+        fontFamily: "'Inter', sans-serif", fontWeight: 900, fontStyle: 'italic',
+        fontSize: '1.35rem', letterSpacing: '-0.01em', color: '#ffffff',
+        textTransform: 'uppercase', lineHeight: 1,
+        display: 'inline-block', transform: 'skewX(-16deg)',
+      }}>WINNING</span>
+
+      <span style={{
+        display: 'inline-block', background: '#ffffff', borderRadius: '4px',
+        padding: '1px 12px 2px 12px', marginLeft: 5, transform: 'skewX(-16deg)',
+      }}>
+        <span style={{
+          fontFamily: "'Inter', sans-serif", fontWeight: 900, fontStyle: 'italic',
+          fontSize: '1.35rem', letterSpacing: '-0.01em', color: '#E8000D',
+          textTransform: 'uppercase', lineHeight: 1, display: 'inline-block',
+        }}>BET</span>
+      </span>
     </div>
   );
 }
@@ -114,16 +156,25 @@ function WalletChip({ currency }: { currency: CurrencyInfo | null }) {
   return (
     <Link
       to="/wallet"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(0,0,0,0.22)', border: '1.5px solid rgba(255,255,255,0.22)', borderRadius: 7, padding: '5px 11px 5px 8px', textDecoration: 'none', transition: 'background 0.15s', cursor: 'pointer' }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.38)')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.22)')}
+      className="wb-wallet-chip"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        background: 'rgba(0,0,0,0.20)', border: '1.5px solid rgba(255,255,255,0.25)',
+        borderRadius: 7, padding: '5px 11px 5px 8px',
+        textDecoration: 'none', transition: 'background 0.15s', cursor: 'pointer',
+      }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.35)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'rgba(0,0,0,0.20)')}
     >
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 8V5a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3"/>
         <path d="M3 8h16a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V8z"/>
         <circle cx="16" cy="13" r="1" fill="rgba(255,255,255,0.85)" stroke="none"/>
       </svg>
-      <span style={{ fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: '0.82rem', color: '#fff', letterSpacing: '0.01em', minWidth: 72, textAlign: 'right' }}>
+      <span style={{
+        fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: '0.82rem',
+        color: '#fff', letterSpacing: '0.01em', minWidth: 60, textAlign: 'right',
+      }}>
         {displayBalance}
       </span>
     </Link>
@@ -132,20 +183,20 @@ function WalletChip({ currency }: { currency: CurrencyInfo | null }) {
 
 // ─── User Avatar + dropdown ───────────────────────────────────────────────────
 function UserMenu() {
-  const [open, setOpen] = useState(false);
-  const ref             = useRef<HTMLDivElement>(null);
-  const { user, logout } = useAppStore();
-  const navigate        = useNavigate();
+  const [open, setOpen]     = useState(false);
+  const ref                 = useRef<HTMLDivElement>(null);
+  const { user, logout }    = useAppStore();
+  const navigate            = useNavigate();
 
-  const fullName = [
-    (user as unknown as Record<string, unknown>)?.firstName,
-    (user as unknown as Record<string, unknown>)?.lastName,
-  ].filter(Boolean).join(' ') || (user as unknown as Record<string, unknown>)?.email as string || 'U';
+  const u = user as unknown as Record<string, unknown>;
+  const fullName = [u?.firstName, u?.lastName].filter(Boolean).join(' ') || (u?.email as string) || 'U';
   const initials = fullName.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase();
 
   useEffect(() => {
     if (!open) return;
-    const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const close = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, [open]);
@@ -153,9 +204,18 @@ function UserMenu() {
   const handleLogout = () => { logout(); setOpen(false); navigate('/'); };
 
   const menuItems = [
-    { label: 'My Account', to: '/account', icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg> },
-    { label: 'Wallet',     to: '/wallet',  icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8V5a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3"/><path d="M3 8h16a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V8z"/><circle cx="16" cy="13" r="1" fill="currentColor" stroke="none"/></svg> },
-    { label: 'Deposit',    to: '/deposit', icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> },
+    {
+      label: 'My Account', to: '/account',
+      icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>,
+    },
+    {
+      label: 'Wallet', to: '/wallet',
+      icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 8V5a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h12a1 1 0 0 1 1 1v3"/><path d="M3 8h16a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V8z"/><circle cx="16" cy="13" r="1" fill="currentColor" stroke="none"/></svg>,
+    },
+    {
+      label: 'Deposit', to: '/deposit',
+      icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+    },
   ];
 
   return (
@@ -163,18 +223,36 @@ function UserMenu() {
       <button
         onClick={() => setOpen(v => !v)}
         aria-label="Account menu"
-        style={{ width: 38, height: 38, borderRadius: '50%', background: 'rgba(255,255,255,0.18)', border: '2px solid rgba(255,255,255,0.55)', color: '#fff', fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: '0.88rem', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s, border-color 0.15s', flexShrink: 0, outline: 'none' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.30)'; (e.currentTarget as HTMLElement).style.borderColor = '#fff'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.18)'; (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.55)'; }}
+        style={{
+          width: 38, height: 38, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.18)', border: '2px solid rgba(255,255,255,0.55)',
+          color: '#fff', fontFamily: "'Inter', sans-serif", fontWeight: 700,
+          fontSize: '0.88rem', letterSpacing: '0.04em', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'background 0.15s, border-color 0.15s', flexShrink: 0, outline: 'none',
+        }}
+        onMouseEnter={e => {
+          (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.30)';
+          (e.currentTarget as HTMLElement).style.borderColor = '#fff';
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.18)';
+          (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.55)';
+        }}
       >
         {initials}
       </button>
 
       {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 10px)', right: 0, minWidth: 220, background: '#fff', borderRadius: 10, boxShadow: '0 8px 32px rgba(0,0,0,0.22)', overflow: 'hidden', zIndex: 9999, animation: 'b360DropIn 0.15s ease-out' }}>
-          <div style={{ padding: '14px 16px 12px', background: '#CC0000', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 10px)', right: 0,
+          minWidth: 220, background: '#fff', borderRadius: 10,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.22)', overflow: 'hidden',
+          zIndex: 9999, animation: 'wbDropIn 0.15s ease-out',
+        }}>
+          <div style={{ padding: '14px 16px 12px', background: '#E8000D', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
             <p style={{ margin: 0, fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: '0.88rem', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fullName}</p>
-            <p style={{ margin: '2px 0 0', fontFamily: "'Inter', sans-serif", fontSize: '0.74rem', color: 'rgba(255,255,255,0.75)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(user as unknown as Record<string, unknown>)?.email as string ?? ''}</p>
+            <p style={{ margin: '2px 0 0', fontFamily: "'Inter', sans-serif", fontSize: '0.74rem', color: 'rgba(255,255,255,0.75)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u?.email as string ?? ''}</p>
           </div>
 
           {menuItems.map(item => (
@@ -189,7 +267,7 @@ function UserMenu() {
           ))}
 
           <button onClick={handleLogout}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '11px 16px', fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: '0.83rem', color: '#CC0000', background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', transition: 'background 0.12s' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '11px 16px', fontFamily: "'Inter', sans-serif", fontWeight: 700, fontSize: '0.83rem', color: '#E8000D', background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer', transition: 'background 0.12s' }}
             onMouseEnter={e => (e.currentTarget.style.background = '#fff0f0')}
             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
           >
@@ -209,11 +287,16 @@ function UserMenu() {
 function DepositBtn() {
   return (
     <Link to="/deposit" aria-label="Deposit"
-      style={{ width: 34, height: 34, borderRadius: '50%', background: '#ffffff', border: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', flexShrink: 0, transition: 'opacity 0.15s' }}
+      style={{
+        width: 34, height: 34, borderRadius: '50%',
+        background: '#ffffff', border: 'none',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        textDecoration: 'none', flexShrink: 0, transition: 'opacity 0.15s',
+      }}
       onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
       onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
     >
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CC0000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E8000D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <line x1="12" y1="5" x2="12" y2="19"/>
         <line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
@@ -223,12 +306,11 @@ function DepositBtn() {
 
 // ─── Header ───────────────────────────────────────────────────────────────────
 export default function Header() {
-  const [scrolled, setScrolled]   = useState(false);
-  const [currency, setCurrency]   = useState<CurrencyInfo | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const [currency, setCurrency] = useState<CurrencyInfo | null>(null);
   const { user, modalOpen, setModalOpen } = useAppStore();
   const isLoggedIn = !!user;
 
-  // Detect country + fetch live rate once on mount
   useEffect(() => {
     detectCurrency().then(setCurrency);
   }, []);
@@ -242,70 +324,145 @@ export default function Header() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-        .bet360-header {
+        .wb-header {
           position: sticky;
           top: 0;
           z-index: 9997;
-          background: #CC0000;
-          box-shadow: ${scrolled ? '0 4px 24px rgba(0,0,0,0.45)' : '0 2px 10px rgba(0,0,0,0.25)'};
+          background: #E8000D;
+          box-shadow: ${scrolled ? '0 4px 24px rgba(0,0,0,0.45)' : '0 2px 8px rgba(0,0,0,0.20)'};
           transition: box-shadow 0.2s, transform 0.3s ease-in-out;
           transform: ${modalOpen ? 'translateY(-100%)' : 'translateY(0)'};
         }
 
-        .bet360-btn-login {
+        .wb-header-inner {
+          max-width: 1440px;
+          margin: 0 auto;
+          padding: 0 16px;
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        /* Tighten logo on very small screens */
+        @media (max-width: 360px) {
+          .wb-logo-winning {
+            font-size: 1.1rem !important;
+          }
+          .wb-logo-bet {
+            font-size: 1.1rem !important;
+          }
+        }
+
+        /* Hide wallet balance text on small screens, show icon only */
+        @media (max-width: 400px) {
+          .wb-wallet-label {
+            display: none;
+          }
+          .wb-wallet-chip {
+            padding: 5px 8px !important;
+          }
+        }
+
+        /* Join Now — white pill, red text */
+        .wb-btn-join {
           font-family: 'Inter', sans-serif;
           font-weight: 700;
-          font-size: 0.82rem;
-          letter-spacing: 0.03em;
-          color: #CC0000;
+          font-size: 0.84rem;
+          letter-spacing: 0.02em;
+          color: #E8000D;
           background: #ffffff;
           border: none;
-          padding: 7px 18px;
-          border-radius: 5px;
+          padding: 8px 22px;
+          border-radius: 50px;
           text-decoration: none;
           white-space: nowrap;
           cursor: pointer;
-          transition: opacity 0.15s;
+          transition: opacity 0.15s, transform 0.12s;
           display: inline-flex;
           align-items: center;
         }
-        .bet360-btn-login:hover { opacity: 0.88; }
+        .wb-btn-join:hover {
+          opacity: 0.90;
+          transform: translateY(-1px);
+        }
 
-        .bet360-btn-register {
+        /* Log In — white outline pill */
+        .wb-btn-login {
           font-family: 'Inter', sans-serif;
           font-weight: 700;
-          font-size: 0.82rem;
-          letter-spacing: 0.03em;
-          color: #fff;
+          font-size: 0.84rem;
+          letter-spacing: 0.02em;
+          color: #ffffff;
           background: transparent;
-          border: 2px solid rgba(255,255,255,0.75);
-          padding: 6px 18px;
-          border-radius: 5px;
+          border: 2px solid #ffffff;
+          padding: 6px 20px;
+          border-radius: 50px;
           text-decoration: none;
           white-space: nowrap;
           cursor: pointer;
-          transition: background 0.15s, border-color 0.15s;
+          transition: background 0.15s, transform 0.12s;
           display: inline-flex;
           align-items: center;
         }
-        .bet360-btn-register:hover { background: rgba(255,255,255,0.12); border-color: #fff; }
+        .wb-btn-login:hover {
+          background: rgba(255,255,255,0.15);
+          transform: translateY(-1px);
+        }
 
-        @keyframes b360DropIn {
+        /* Compact buttons on small screens */
+        @media (max-width: 380px) {
+          .wb-btn-join {
+            padding: 7px 14px;
+            font-size: 0.78rem;
+          }
+          .wb-btn-login {
+            padding: 5px 12px;
+            font-size: 0.78rem;
+          }
+        }
+
+        @keyframes wbDropIn {
           from { opacity: 0; transform: translateY(-8px); }
           to   { opacity: 1; transform: translateY(0); }
         }
       `}</style>
 
-      <header className="bet360-header">
-        <div style={{ maxWidth: 1440, margin: '0 auto', padding: '0 16px', height: 58, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <header className="wb-header">
+        <div className="wb-header-inner">
 
+          {/* Left — Logo */}
           <Link to="/" style={{ textDecoration: 'none', flexShrink: 0 }}>
-            <Bet360Logo />
+            <div style={{ display: 'flex', alignItems: 'center', userSelect: 'none' }} aria-label="WINNINGBET">
+              <span style={{
+                fontFamily: "'Inter', sans-serif", fontWeight: 900,
+                fontSize: '0.55rem', color: '#ffffff',
+                alignSelf: 'flex-start', marginTop: 3, marginRight: 1, lineHeight: 1,
+              }}>°</span>
+              <span className="wb-logo-winning" style={{
+                fontFamily: "'Inter', sans-serif", fontWeight: 900, fontStyle: 'italic',
+                fontSize: '1.35rem', letterSpacing: '-0.01em', color: '#ffffff',
+                textTransform: 'uppercase', lineHeight: 1,
+                display: 'inline-block', transform: 'skewX(-16deg)',
+              }}>WINNING</span>
+              <span style={{
+                display: 'inline-block', background: '#ffffff', borderRadius: '4px',
+                padding: '1px 12px 2px 12px', marginLeft: 5, transform: 'skewX(-16deg)',
+              }}>
+                <span className="wb-logo-bet" style={{
+                  fontFamily: "'Inter', sans-serif", fontWeight: 900, fontStyle: 'italic',
+                  fontSize: '1.35rem', letterSpacing: '-0.01em', color: '#E8000D',
+                  textTransform: 'uppercase', lineHeight: 1, display: 'inline-block',
+                }}>BET</span>
+              </span>
+            </div>
           </Link>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Right — Auth controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             {isLoggedIn ? (
               <>
                 <WalletChip currency={currency} />
@@ -314,8 +471,8 @@ export default function Header() {
               </>
             ) : (
               <>
-                <Link to="/register" className="bet360-btn-login">Join Now</Link>
-                <Link to="/login"    className="bet360-btn-register">Log In</Link>
+                <Link to="/register" className="wb-btn-join">Join Now</Link>
+                <Link to="/login"    className="wb-btn-login">Log In</Link>
               </>
             )}
           </div>

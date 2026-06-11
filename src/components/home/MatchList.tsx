@@ -1,12 +1,6 @@
 // ---------------------------------------------------------------------------
-// updated match list — live odds locked, no redirect on live games,
-// supporters carousel, footer section
-// CHANGES IN THIS VERSION:
-//   • LIVE games: odds buttons locked (disabled, greyed with "LIVE" overlay)
-//   • LIVE games: clicking row does NOT navigate to match details
-//   • Supporters section: horizontal carousel with logo images (upload your own)
-//   • Small footer under supporters section — transparent backgrounds
-//   • Branding updated to Bet360
+// MatchList — WinningBet dark theme, no league labels, live odds locked
+// UPDATED: Previous Results section + all matches shown (no odds filter for display)
 // ---------------------------------------------------------------------------
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -24,6 +18,8 @@ import SportsMmaIcon from '@mui/icons-material/SportsMma';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import LockIcon from '@mui/icons-material/Lock';
+import HistoryIcon from '@mui/icons-material/History';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
 
 // ---------------------------------------------------------------------------
 // ADMIN LOGO POOLS
@@ -91,38 +87,31 @@ const CURRENCY_SYMBOL: Record<Winner['currency'], string> = { GHS: 'GHS', NGN: '
 
 // ---------------------------------------------------------------------------
 // SUPPORTERS DATA
-// ⚠️  Replace each `logoUrl` with the actual uploaded image URL/path.
-//     The `name` is shown as alt text only (not rendered visibly).
-//     Remove the `badge` label column — carousel shows logo image only.
 // ---------------------------------------------------------------------------
 interface Supporter {
   name: string;
-  logoUrl: string; // ← swap in your real logo image URLs here
+  logoUrl: string;
   type: 'brand' | 'club' | 'media';
 }
 
 const SUPPORTERS: Supporter[] = [
-  // ── Payment / Telecom / Brand logos ──────────────────────────────────────
   { name: 'Visa',          logoUrl: 'https://1000logos.net/wp-content/uploads/2021/11/VISA-logo.png', type: 'brand' },
   { name: 'Mastercard',    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg', type: 'brand' },
   { name: 'MTN',           logoUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcsX815Q5iM1YzjweBSeX3KwWKFy0hS7Xy1A&s', type: 'brand' },
   { name: 'Betway',        logoUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSXudjZT_JUXrXPxTRYuuoOJ07j1wmTD3mUBQ&s', type: 'brand' },
   { name: 'Sportybet',     logoUrl: 'https://www.latestmodapks.com/wp-content/uploads/2023/04/8rBblg0p56.png', type: 'brand' },
-  // ── Media ────────────────────────────────────────────────────────────────
   { name: 'DStv',          logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/9/94/DStv_2012_logo.svg', type: 'media' },
   { name: 'SuperSport',    logoUrl: 'https://e7.pngegg.com/pngimages/97/609/png-clipart-supersport-dstv-television-channel-others-miscellaneous-television-thumbnail.png', type: 'media' },
   { name: 'ESPN',          logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/960px-ESPN_wordmark.svg.png?_=20180702212649', type: 'media' },
   { name: 'Sky Sports',    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Sky_Sports_2025.svg/3840px-Sky_Sports_2025.svg.png', type: 'media' },
-  // ── Club logos ───────────────────────────────────────────────────────────
   { name: 'Real Madrid',   logoUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/5/56/Real_Madrid_CF.svg/960px-Real_Madrid_CF.svg.png', type: 'club'  },
   { name: 'Barcelona',     logoUrl: 'https://upload.wikimedia.org/wikipedia/sco/thumb/4/47/FC_Barcelona_%28crest%29.svg/3840px-FC_Barcelona_%28crest%29.svg.png', type: 'club'  },
   { name: 'Bayern Munich', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/FC_Bayern_M%C3%BCnchen_logo_%282017%29.svg/3840px-FC_Bayern_M%C3%BCnchen_logo_%282017%29.svg.png', type: 'club'  },
   { name: 'PSG',           logoUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQvWP3Scw6W8CRg2_uogPSLjPF6-TGxpp_JbA&s', type: 'club'  },
   { name: 'Man City',      logoUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Manchester_City_FC_badge.svg/250px-Manchester_City_FC_badge.svg.png', type: 'club'  },
-  // ── More brands ──────────────────────────────────────────────────────────
   { name: 'Coca-Cola',     logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/Coca-Cola_logo.svg/960px-Coca-Cola_logo.svg.png', type: 'brand' },
   { name: 'Nike',          logoUrl: 'https://media.about.nike.com/image-downloads/cf68f541-fc92-4373-91cb-086ae0fe2f88/002-nike-logos-swoosh-white.jpg', type: 'brand' },
-  { name: 'Adidas',        logoUrl: 'https://preview.thenewsmarket.com/Previews/ADID/StillAssets/1920x1440/689347.jpg', type: 'brand' }
+  { name: 'Adidas',        logoUrl: 'https://preview.thenewsmarket.com/Previews/ADID/StillAssets/1920x1440/689347.jpg', type: 'brand' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -137,17 +126,10 @@ function SupportersCarousel() {
           {doubled.map((s, i) => (
             <div key={i} className="supporter-chip">
               {s.logoUrl ? (
-                <img
-                  src={s.logoUrl}
-                  alt={s.name}
-                  className="supporter-logo-img"
-                  draggable={false}
-                />
+                <img src={s.logoUrl} alt={s.name} className="supporter-logo-img" draggable={false} />
               ) : (
                 <div className="supporter-logo-placeholder" title={s.name}>
-                  <span className="supporter-placeholder-initial">
-                    {s.name.charAt(0)}
-                  </span>
+                  <span className="supporter-placeholder-initial">{s.name.charAt(0)}</span>
                 </div>
               )}
             </div>
@@ -156,82 +138,19 @@ function SupportersCarousel() {
         <div className="supporters-fade-l" />
         <div className="supporters-fade-r" />
       </div>
-     <style>{`
-  .supporters-wrap {
-    margin: 48px 0 0;
-    border-radius: 12px;
-    overflow: hidden;
-    background: transparent;
-  }
-  .supporters-track-wrap {
-    position: relative;
-    overflow: hidden;
-    padding: 10px 0;
-    background: transparent;
-  }
-  .supporters-track {
-    display: flex;
-    gap: 12px;
-    animation: supportersScroll 60s linear infinite;
-    width: max-content;
-    padding: 0 12px;
-  }
-  .supporter-chip {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    padding: 2px;
-    cursor: default;
-    transition: transform 0.15s;
-  }
-  .supporter-chip:hover {
-    transform: translateY(-2px);
-  }
-  .supporter-logo-img {
-    height: 40px;
-    width: auto;
-    max-width: 90px;
-    object-fit: contain;
-    display: block;
-    border-radius: 4px;
-    user-select: none;
-  }
-  .supporter-logo-placeholder {
-    height: 40px;
-    width: 70px;
-    border-radius: 6px;
-    border: 1.5px dashed rgba(128,128,128,0.25);
-    background: rgba(128,128,128,0.05);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .supporter-placeholder-initial {
-    font-size: 16px;
-    font-weight: 800;
-    color: rgba(128,128,128,0.3);
-    font-family: system-ui, sans-serif;
-    text-transform: uppercase;
-  }
-  .supporters-fade-l {
-    position: absolute; top: 0; left: 0; bottom: 0; width: 28px;
-    background: linear-gradient(90deg, var(--bg-page) 0%, transparent 100%);
-    pointer-events: none; z-index: 2;
-  }
-  .supporters-fade-r {
-    position: absolute; top: 0; right: 0; bottom: 0; width: 28px;
-    background: linear-gradient(270deg, var(--bg-page) 0%, transparent 100%);
-    pointer-events: none; z-index: 2;
-  }
-  @keyframes supportersScroll {
-    0%   { transform: translateX(0); }
-    100% { transform: translateX(-50%); }
-  }
-`}</style>
+      <style>{`
+        .supporters-wrap { margin: 48px 0 0; border-radius: 12px; overflow: hidden; background: transparent; }
+        .supporters-track-wrap { position: relative; overflow: hidden; padding: 10px 0; background: transparent; }
+        .supporters-track { display: flex; gap: 12px; animation: supportersScroll 60s linear infinite; width: max-content; padding: 0 12px; }
+        .supporter-chip { flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 8px; padding: 2px; cursor: default; transition: transform 0.15s; }
+        .supporter-chip:hover { transform: translateY(-2px); }
+        .supporter-logo-img { height: 40px; width: auto; max-width: 90px; object-fit: contain; display: block; border-radius: 4px; user-select: none; filter: brightness(0.85) contrast(1.1); }
+        .supporter-logo-placeholder { height: 40px; width: 70px; border-radius: 6px; border: 1.5px dashed rgba(255,255,255,0.1); background: rgba(255,255,255,0.03); display: flex; align-items: center; justify-content: center; }
+        .supporter-placeholder-initial { font-size: 16px; font-weight: 800; color: rgba(255,255,255,0.15); font-family: system-ui, sans-serif; text-transform: uppercase; }
+        .supporters-fade-l { position: absolute; top: 0; left: 0; bottom: 0; width: 28px; background: linear-gradient(90deg, #07080f 0%, transparent 100%); pointer-events: none; z-index: 2; }
+        .supporters-fade-r { position: absolute; top: 0; right: 0; bottom: 0; width: 28px; background: linear-gradient(270deg, #07080f 0%, transparent 100%); pointer-events: none; z-index: 2; }
+        @keyframes supportersScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+      `}</style>
     </div>
   );
 }
@@ -246,11 +165,10 @@ function SiteFooter() {
       <div className="footer-top">
         <div className="footer-brand">
           <SportsSoccerIcon sx={{ fontSize: 20, color: '#22c55e' }} />
-          <span className="footer-brand-name">Bet360</span>
+          <span className="footer-brand-name">WinningBet</span>
         </div>
         <p className="footer-tagline">Your #1 destination for live sports betting.</p>
       </div>
-
       <div className="footer-links">
         <a href="#" className="footer-link">About Us</a>
         <span className="footer-dot">·</span>
@@ -262,113 +180,32 @@ function SiteFooter() {
         <span className="footer-dot">·</span>
         <a href="#" className="footer-link">Contact Support</a>
       </div>
-
       <div className="footer-warning">
         <span className="footer-warning-icon">⚠️</span>
         <span>Gambling can be addictive. Please play responsibly. You must be 18+ to use this service. For help visit <strong>www.gamcare.org.uk</strong></span>
       </div>
-
       <div className="footer-bottom">
-        <span>© {year} Bet360. All rights reserved.</span>
+        <span>© {year} WinningBet. All rights reserved.</span>
         <span className="footer-pipe">|</span>
         <span>Licensed &amp; Regulated</span>
         <span className="footer-18">18+</span>
       </div>
-
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap');
-
-        .site-footer {
-          margin-top: 24px;
-          padding: 22px 16px 36px;
-          border-top: 1.5px solid rgba(0,0,0,0.08);
-          background: transparent;
-          border-radius: 12px 12px 0 0;
-          font-family: 'Open Sans', sans-serif;
-        }
-        .footer-top {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 6px;
-          margin-bottom: 16px;
-        }
-        .footer-brand {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .footer-brand-name {
-          font-size: 20px;
-          font-weight: 800;
-          color: #ef4444;
-          letter-spacing: 0.02em;
-          font-family: 'Open Sans', sans-serif;
-        }
-        .footer-tagline {
-          font-size: 14px;
-          color: #64748b;
-          font-family: 'Open Sans', sans-serif;
-          text-align: center;
-          margin: 0;
-          font-weight: 400;
-        }
-        .footer-links {
-          display: flex;
-          flex-wrap: wrap;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          margin-bottom: 14px;
-        }
-        .footer-link {
-          font-size: 13px;
-          color: #475569;
-          text-decoration: none;
-          font-family: 'Open Sans', sans-serif;
-          font-weight: 600;
-          transition: color 0.15s;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        .site-footer { margin-top: 24px; padding: 22px 16px 36px; border-top: 1.5px solid rgba(255,255,255,0.06); background: transparent; border-radius: 12px 12px 0 0; font-family: 'Inter', system-ui, sans-serif; }
+        .footer-top { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 16px; }
+        .footer-brand { display: flex; align-items: center; gap: 8px; }
+        .footer-brand-name { font-size: 20px; font-weight: 900; color: #22c55e; letter-spacing: 0.02em; font-family: 'Inter', system-ui, sans-serif; }
+        .footer-tagline { font-size: 13px; color: #4b5563; font-family: 'Inter', system-ui, sans-serif; text-align: center; margin: 0; font-weight: 400; }
+        .footer-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; }
+        .footer-link { font-size: 12px; color: #6b7280; text-decoration: none; font-family: 'Inter', system-ui, sans-serif; font-weight: 600; transition: color 0.15s; }
         .footer-link:hover { color: #22c55e; }
-        .footer-dot { font-size: 13px; color: #94a3b8; }
-        .footer-warning {
-          display: flex;
-          align-items: flex-start;
-          gap: 8px;
-          padding: 11px 14px;
-          background: rgba(239,68,68,0.05);
-          border: 1px solid rgba(239,68,68,0.15);
-          border-radius: 8px;
-          margin-bottom: 14px;
-          font-size: 12px;
-          color: #64748b;
-          font-family: 'Open Sans', sans-serif;
-          line-height: 1.6;
-          font-weight: 400;
-        }
+        .footer-dot { font-size: 12px; color: #374151; }
+        .footer-warning { display: flex; align-items: flex-start; gap: 8px; padding: 11px 14px; background: rgba(34,197,94,0.04); border: 1px solid rgba(34,197,94,0.12); border-radius: 8px; margin-bottom: 14px; font-size: 11px; color: #4b5563; font-family: 'Inter', system-ui, sans-serif; line-height: 1.6; font-weight: 400; }
         .footer-warning-icon { flex-shrink: 0; font-size: 14px; }
-        .footer-bottom {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          font-size: 12px;
-          color: #94a3b8;
-          font-family: 'Open Sans', sans-serif;
-          font-weight: 400;
-          flex-wrap: wrap;
-        }
-        .footer-pipe { opacity: 0.4; }
-        .footer-18 {
-          background: #22c55e;
-          color: #000;
-          font-size: 11px;
-          font-weight: 800;
-          border-radius: 4px;
-          padding: 2px 6px;
-          letter-spacing: 0.05em;
-          font-family: 'Open Sans', sans-serif;
-        }
+        .footer-bottom { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 11px; color: #374151; font-family: 'Inter', system-ui, sans-serif; font-weight: 400; flex-wrap: wrap; }
+        .footer-pipe { opacity: 0.3; }
+        .footer-18 { background: #22c55e; color: #000; font-size: 10px; font-weight: 900; border-radius: 4px; padding: 2px 6px; letter-spacing: 0.05em; font-family: 'Inter', system-ui, sans-serif; }
       `}</style>
     </footer>
   );
@@ -381,27 +218,11 @@ function GrandPrizeWinnersBar() {
   const doubled = useMemo(() => [...RECENT_WINNERS, ...RECENT_WINNERS], []);
   return (
     <div style={{ marginBottom: 16 }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 8px',
-        background: 'var(--bg-card, rgba(255,255,255,0.04))',
-        borderRadius: '10px 10px 0 0',
-        borderBottom: '1px solid rgba(34,197,94,0.2)',
-        border: '1px solid rgba(34,197,94,0.2)',
-        borderBottomLeftRadius: 0,
-        borderBottomRightRadius: 0,
-      }}>
-        <EmojiEventsIcon sx={{ fontSize: 16, color: '#f5a623' }} />
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-main, #e2e8f0)', letterSpacing: '0.04em', fontFamily: 'system-ui, sans-serif' }}>
-          Grand Prize Winners
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 8px', background: 'rgba(34,197,94,0.06)', borderRadius: '10px 10px 0 0', border: '1px solid rgba(34,197,94,0.15)', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
+        <EmojiEventsIcon sx={{ fontSize: 16, color: '#22c55e' }} />
+        <span style={{ fontSize: 12, fontWeight: 800, color: '#e5e7eb', letterSpacing: '0.05em', fontFamily: 'system-ui, sans-serif' }}>Grand Prize Winners</span>
       </div>
-      <div style={{
-        overflow: 'hidden', padding: '8px 0 8px', position: 'relative',
-        background: 'var(--bg-card, rgba(255,255,255,0.04))',
-        borderRadius: '0 0 10px 10px',
-        border: '1px solid rgba(34,197,94,0.2)',
-        borderTop: 'none',
-      }}>
+      <div style={{ overflow: 'hidden', padding: '8px 0 8px', position: 'relative', background: 'rgba(34,197,94,0.03)', borderRadius: '0 0 10px 10px', border: '1px solid rgba(34,197,94,0.12)', borderTop: 'none' }}>
         <div style={{ display: 'flex', gap: 8, animation: 'winnersScroll 90s linear infinite', width: 'max-content', padding: '0 12px' }}>
           {doubled.map((w, i) => (
             <div key={i} className="wc-card">
@@ -420,14 +241,14 @@ function GrandPrizeWinnersBar() {
         <div className="wc-fade-left" /><div className="wc-fade-right" />
       </div>
       <style>{`
-        .wc-card { flex-shrink:0; background:rgba(34,197,94,0.06); border-radius:8px; padding:10px 14px; display:flex; align-items:flex-start; gap:10px; border:1px solid rgba(34,197,94,0.15); min-width:140px; position:relative; overflow:hidden; }
-        .wc-shimmer { position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent 0%,#22c55e 50%,transparent 100%); opacity:0.4; }
-        .wc-phone { font-size:11px; font-weight:500; color:var(--text-muted,#94a3b8); white-space:nowrap; font-family:system-ui,sans-serif; }
+        .wc-card { flex-shrink:0; background:rgba(34,197,94,0.05); border-radius:8px; padding:10px 14px; display:flex; align-items:flex-start; gap:10px; border:1px solid rgba(34,197,94,0.12); min-width:140px; position:relative; overflow:hidden; }
+        .wc-shimmer { position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent 0%,#22c55e 50%,transparent 100%); opacity:0.35; }
+        .wc-phone { font-size:11px; font-weight:500; color:#6b7280; white-space:nowrap; font-family:system-ui,sans-serif; }
         .wc-symbol { font-size:12px; font-weight:700; color:#22c55e; font-family:system-ui,sans-serif; }
         .wc-amount { font-size:15px; font-weight:800; color:#22c55e; letter-spacing:-0.01em; font-family:system-ui,sans-serif; }
-        .wc-sub { font-size:10px; color:var(--text-faint,#64748b); margin-top:3px; font-family:system-ui,sans-serif; }
-        .wc-fade-left { position:absolute; top:0; left:0; bottom:0; width:24px; background:linear-gradient(90deg,var(--bg-page,#0f172a) 0%,transparent 100%); pointer-events:none; z-index:2; }
-        .wc-fade-right { position:absolute; top:0; right:0; bottom:0; width:24px; background:linear-gradient(270deg,var(--bg-page,#0f172a) 0%,transparent 100%); pointer-events:none; z-index:2; }
+        .wc-sub { font-size:10px; color:#374151; margin-top:3px; font-family:system-ui,sans-serif; }
+        .wc-fade-left { position:absolute; top:0; left:0; bottom:0; width:24px; background:linear-gradient(90deg,#07080f 0%,transparent 100%); pointer-events:none; z-index:2; }
+        .wc-fade-right { position:absolute; top:0; right:0; bottom:0; width:24px; background:linear-gradient(270deg,#07080f 0%,transparent 100%); pointer-events:none; z-index:2; }
         @keyframes winnersScroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
       `}</style>
     </div>
@@ -442,24 +263,10 @@ function FloatingBetSlipButton() {
   const { betSlip } = useAppStore() as { betSlip: { matchId: string }[] };
   const count = betSlip?.length ?? 0;
   return (
-    <button onClick={() => navigate('/betslip')} aria-label="Open bet slip" style={{
-      position:'fixed', bottom:80, right:16, zIndex:1000,
-      width:56, height:56, borderRadius:'50%',
-      background:'linear-gradient(135deg,#16a34a 0%,#22c55e 100%)',
-      border:'2px solid rgba(34,197,94,0.4)', cursor:'pointer',
-      display:'flex', alignItems:'center', justifyContent:'center',
-      boxShadow:'0 4px 20px rgba(34,197,94,0.45)',
-      transition:'transform 0.15s ease, box-shadow 0.15s ease',
-    }}>
-      <ReceiptLongIcon sx={{ fontSize:26, color:'#fff' }} />
+    <button onClick={() => navigate('/betslip')} aria-label="Open bet slip" style={{ position: 'fixed', bottom: 80, right: 16, zIndex: 1000, width: 56, height: 56, borderRadius: '50%', background: 'linear-gradient(135deg,#15803d 0%,#22c55e 100%)', border: '2px solid rgba(34,197,94,0.4)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(34,197,94,0.35)', transition: 'transform 0.15s ease, box-shadow 0.15s ease' }}>
+      <ReceiptLongIcon sx={{ fontSize: 26, color: '#000' }} />
       {count > 0 && (
-        <span style={{
-          position:'absolute', top:-2, right:-2,
-          background:'#064e3b', color:'#6ee7b7', borderRadius:'50%',
-          width:20, height:20, fontSize:11, fontWeight:800,
-          display:'flex', alignItems:'center', justifyContent:'center',
-          border:'2px solid #0d1117', lineHeight:1,
-        }}>{count > 9 ? '9+' : count}</span>
+        <span style={{ position: 'absolute', top: -2, right: -2, background: '#1c1917', color: '#22c55e', borderRadius: '50%', width: 20, height: 20, fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #07080f', lineHeight: 1 }}>{count > 9 ? '9+' : count}</span>
       )}
     </button>
   );
@@ -470,7 +277,8 @@ function FloatingBetSlipButton() {
 // ---------------------------------------------------------------------------
 type SportTab = 'football' | 'basketball' | 'tennis' | 'baseball' | 'nfl' | 'mma';
 type FootballLeagueTab = 'all' | 'premier_league' | 'la_liga' | 'bundesliga' | 'serie_a' | 'ligue_1' | 'other';
-type MatchCategory = 'live' | 'today' | 'upcoming';
+// NEW: 'results' added to match categories
+type MatchCategory = 'live' | 'today' | 'upcoming' | 'results';
 
 interface OddsMap { home: number; draw: number; away: number; }
 interface EnrichedMatch extends Match {
@@ -680,13 +488,21 @@ const FINISHED_STATUSES = new Set([
   'STATUS_CANCELED','STATUS_SUSPENDED','STATUS_ABANDONED','STATUS_RAIN_DELAY',
 ]);
 
+// Statuses that should go into results but still show scores
+const RESULT_WITH_SCORE_STATUSES = new Set([
+  'FINISHED','finished','FULL_TIME','full_time','FT','ft',
+  'AWARDED','awarded','AFTER_EXTRA_TIME','after_extra_time','AET','aet',
+  'AFTER_PENALTIES','after_penalties','AP','ap',
+  'ENDED','ended','COMPLETED','completed','COMPLETE','complete',
+  'STATUS_FINAL','STATUS_FULL_TIME',
+]);
+
 const HALFTIME_STATUSES   = new Set(['HALFTIME','halftime','HALF_TIME','half_time','HT','ht','STATUS_HALFTIME']);
 const EXTRA_TIME_STATUSES = new Set(['EXTRA_TIME','extra_time','ET','et','ET1','et1','ET2','et2','STATUS_OVERTIME']);
 const PENALTY_STATUSES    = new Set(['PENALTIES','penalties','PEN','pen','SHOOTOUT','shootout']);
 
 const TOP_6_LEAGUE_DISPLAY_NAMES = ['Premier League','La Liga','Bundesliga','Serie A','Ligue 1'];
-const TOP_6_LABELS = new Set<string>(TOP_6_LEAGUE_DISPLAY_NAMES);
-const CUPS_LABELS  = new Set<string>([
+const CUPS_LABELS = new Set<string>([
   'FA Cup','EFL Cup / Carabao Cup','Copa del Rey','DFB Pokal','Coppa Italia',
   'Coupe de France','UEFA Champions League','UEFA Europa League',
   'UEFA Conference League','UEFA Nations League','UEFA Euros',
@@ -704,9 +520,12 @@ function leagueSortKey(league: string): string {
   return `02_${league.toLowerCase()}`;
 }
 
+// ---------------------------------------------------------------------------
+// UPDATED categorise — finished matches go to 'results' instead of null
+// ---------------------------------------------------------------------------
 function categorise(match: Match): MatchCategory | null {
   const status = match.status ?? '';
-  if (FINISHED_STATUSES.has(status)) return null;
+  if (FINISHED_STATUSES.has(status)) return 'results';
   if (LIVE_STATUSES.has(status)) return 'live';
   if (match.kickoffAt) {
     const kickoff = new Date(match.kickoffAt);
@@ -723,6 +542,16 @@ function formatKickoff(kickoffAt?: string): string {
   return new Date(kickoffAt).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', hour12: false });
 }
 
+function formatMatchDate(kickoffAt?: string): string {
+  if (!kickoffAt) return '';
+  const d = new Date(kickoffAt);
+  const now = new Date();
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === now.toDateString()) return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+}
+
 function formatCountdown(kickoffAt?: string): string {
   if (!kickoffAt) return '';
   const diff = new Date(kickoffAt).getTime() - Date.now();
@@ -733,6 +562,22 @@ function formatCountdown(kickoffAt?: string): string {
   if (days > 0) return `${days}d ${hours}h`;
   if (hours > 0) return `${hours}h ${mins}m`;
   return `${mins}m`;
+}
+
+function getResultLabel(match: Match): string {
+  const status = match.status ?? '';
+  if (status.toLowerCase().includes('cancel') || status.toLowerCase().includes('void') || status.toLowerCase().includes('abandon')) return 'VOID';
+  if (status.toLowerCase().includes('postpone')) return 'PST';
+  if (PENALTY_STATUSES.has(status) || status.toLowerCase().includes('penalt')) return 'AET (P)';
+  if (EXTRA_TIME_STATUSES.has(status) || status.toLowerCase().includes('extra') || status.toLowerCase().includes('aet')) return 'AET';
+  return 'FT';
+}
+
+function getMatchWinner(match: Match): 'home' | 'away' | 'draw' | null {
+  if (match.scoreHome == null || match.scoreAway == null) return null;
+  if (match.scoreHome > match.scoreAway) return 'home';
+  if (match.scoreAway > match.scoreHome) return 'away';
+  return 'draw';
 }
 
 function extractOddsMap(oddsArray: unknown[], homeTeam: string, awayTeam: string): OddsMap | undefined {
@@ -931,7 +776,7 @@ function unwrapAdminMatches(raw: unknown): Match[] {
 }
 
 async function fetchAdminMatchOdds(matchId: string): Promise<unknown[]> {
-  try { return safeUnwrapOddsArray(await fetch(`https://futballbackend-production-2b7e.up.railway.app/api/public/admin-matches/${matchId}/odds`).then((r) => r.json())); }
+  try { return safeUnwrapOddsArray(await fetch(`https://futballbackend-production-13f1.up.railway.app/api/public/admin-matches/${matchId}/odds`).then((r) => r.json())); }
   catch { return []; }
 }
 
@@ -943,7 +788,9 @@ function mergeOddsById(oddsById: Map<string, unknown[]>, entries: Array<{ match:
   }
 }
 
+// UPDATED: hasValidOdds — results/finished matches always pass; only filter odds for upcoming/live
 function hasValidOdds(match: EnrichedMatch): boolean {
+  // Always show finished matches in results
   if (FINISHED_STATUSES.has(match.status ?? '')) return true;
   const o = match.oddsMap;
   return !!o && o.home > 0 && o.away > 0;
@@ -989,9 +836,15 @@ async function fetchAllFootballMatches(): Promise<EnrichedMatch[]> {
   });
   const enrichedPass1 = dedupedMatches.map((match) => {
     let odds = oddsById.get(match.id) ?? [];
-    if (odds.length === 0 && match.homeTeam && match.awayTeam && match.kickoffAt) { const fp = makeFingerprint(match.homeTeam, match.awayTeam, match.kickoffAt); const fpOdds = oddsByFingerprint.get(fp); if (fpOdds?.length) odds = fpOdds; }
+    if (odds.length === 0 && match.homeTeam && match.awayTeam && match.kickoffAt) {
+      const fp = makeFingerprint(match.homeTeam, match.awayTeam, match.kickoffAt);
+      const fpOdds = oddsByFingerprint.get(fp);
+      if (fpOdds?.length) odds = fpOdds;
+    }
     const oddsMap = extractOddsMap(odds, match.homeTeam ?? '', match.awayTeam ?? '');
-    return { ...match, oddsMap, _needsOdds: !oddsMap && !FINISHED_STATUSES.has(match.status ?? '') };
+    // Only mark as needing odds if NOT finished
+    const needsOdds = !oddsMap && !FINISHED_STATUSES.has(match.status ?? '');
+    return { ...match, oddsMap, _needsOdds: needsOdds };
   });
   const needsIndividualOdds = enrichedPass1.filter((m) => m._needsOdds).slice(0, 30);
   const individualOddsResults = await Promise.allSettled(needsIndividualOdds.map((m) => api.publicFootball.odds(m.id).then((r) => ({ matchId: m.id, data: r })).catch(() => ({ matchId: m.id, data: null }))));
@@ -1070,7 +923,59 @@ function useLiveTimer(match: EnrichedMatch): string {
 const ADMIN_FINISHED_LINGER_MS = 10_000;
 
 // ---------------------------------------------------------------------------
-// CompactMatchRow — LIVE: odds locked, no navigation
+// ResultMatchRow — dedicated row for finished/results matches
+// ---------------------------------------------------------------------------
+function ResultMatchRow({ match, matchIndex }: { match: EnrichedMatch; matchIndex: number }) {
+  const navigate = useNavigate();
+  const winner = getMatchWinner(match);
+  const resultLabel = getResultLabel(match);
+  const hasScore = match.scoreHome != null && match.scoreAway != null;
+  const dateStr = formatMatchDate(match.kickoffAt);
+  const timeStr = match.kickoffAt ? formatKickoff(match.kickoffAt) : '';
+
+  return (
+    <div
+      className="rmr"
+      onClick={() => navigate(`/match/${match.id}`)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/match/${match.id}`); }}
+    >
+      {/* Left: date/time + index */}
+      <div className="rmr-left">
+        <span className="rmr-date">{dateStr}</span>
+        <span className="rmr-time">{timeStr}</span>
+        <span className="rmr-idx">#{matchIndex}</span>
+      </div>
+
+      {/* Center: teams + scores */}
+      <div className="rmr-center">
+        <div className={`rmr-team${winner === 'home' ? ' rmr-winner' : winner === 'draw' ? ' rmr-draw-team' : ' rmr-loser'}`}>
+          <span className="rmr-team-name">{match.homeTeam}</span>
+          {hasScore && <span className={`rmr-score${winner === 'home' ? ' rmr-score-win' : ''}`}>{match.scoreHome}</span>}
+        </div>
+        <div className={`rmr-team${winner === 'away' ? ' rmr-winner' : winner === 'draw' ? ' rmr-draw-team' : ' rmr-loser'}`}>
+          <span className="rmr-team-name">{match.awayTeam}</span>
+          {hasScore && <span className={`rmr-score${winner === 'away' ? ' rmr-score-win' : ''}`}>{match.scoreAway}</span>}
+        </div>
+      </div>
+
+      {/* Right: result label + league */}
+      <div className="rmr-right">
+        <span className={`rmr-badge${winner === 'draw' ? ' rmr-badge-draw' : ''}`}>{resultLabel}</span>
+        {match.league && <span className="rmr-league">{match.league}</span>}
+      </div>
+
+      {/* Stats arrow */}
+      <button className="cmr-stats" onClick={(e) => { e.stopPropagation(); navigate(`/match/${match.id}`); }} aria-label="stats">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CompactMatchRow — LIVE: odds locked, no navigation, NO league label
 // ---------------------------------------------------------------------------
 function CompactMatchRow({
   match, hasDraw = true, onClick, isAdmin = false, matchIndex,
@@ -1082,7 +987,6 @@ function CompactMatchRow({
   const isLive = LIVE_STATUSES.has(status);
   const timerStr = useLiveTimer(match);
   const odds = match.oddsMap;
-  const sportLabel = isAdmin ? 'SPECIAL' : (match.league || match.sport || '');
 
   const isSel = (sel: string) => (betSlip as BetSlipEntry[]).some((s) => s.matchId === match.id && s.market === '1X2' && s.selection === sel);
 
@@ -1112,7 +1016,6 @@ function CompactMatchRow({
       onKeyDown={(e) => { if (!isLive && (e.key === 'Enter' || e.key === ' ')) onClick?.(); }}
       style={isLive ? { cursor: 'default' } : undefined}
     >
-      {/* Left: time/status */}
       <div className="cmr-left">
         {isAdmin && <span className="cmr-star">★</span>}
         {isLive ? (
@@ -1121,10 +1024,8 @@ function CompactMatchRow({
           <span className="cmr-time">{match.kickoffAt ? formatKickoff(match.kickoffAt) : '--:--'}</span>
         )}
         <span className="cmr-id">#{matchIndex}</span>
-        <span className="cmr-sport">{sportLabel.toUpperCase().slice(0, 10)}</span>
       </div>
 
-      {/* Center: teams */}
       <div className="cmr-teams">
         <div className="cmr-team">
           {isLive && <span className="cmr-score">{match.scoreHome ?? 0}</span>}
@@ -1135,15 +1036,14 @@ function CompactMatchRow({
           <span className="cmr-name">{match.awayTeam}</span>
         </div>
         {!isLive && match.kickoffAt && (
-          <div className="cmr-countdown"><ScheduleIcon sx={{ fontSize: 10, opacity: 0.5 }} />{formatCountdown(match.kickoffAt)}</div>
+          <div className="cmr-countdown"><ScheduleIcon sx={{ fontSize: 10, opacity: 0.4 }} />{formatCountdown(match.kickoffAt)}</div>
         )}
       </div>
 
-      {/* Right: odds — LOCKED when live */}
       <div className="cmr-odds">
         {isLive ? (
           <div className="cmr-odds-locked">
-            <LockIcon sx={{ fontSize: 13, color: 'rgba(239,68,68,0.7)' }} />
+            <LockIcon sx={{ fontSize: 13, color: 'rgba(34,197,94,0.6)' }} />
             <span className="cmr-locked-label">Live · Locked</span>
           </div>
         ) : (
@@ -1189,7 +1089,7 @@ function SpecialGamesSection({ onAdminFingerprintsChange, hasDraw, globalIndexSt
     const alive = () => myGen === genRef.current;
     async function load() {
       try {
-        const raw = await fetch('https://futballbackend-production-2b7e.up.railway.app/api/public/admin-matches?ngrok-skip-browser-warning=true').then((r) => r.json());
+        const raw = await fetch('https://futballbackend-production-13f1.up.railway.app/api/public/admin-matches?ngrok-skip-browser-warning=true').then((r) => r.json());
         if (!alive()) return;
         const matches = unwrapAdminMatches(raw);
         if (matches.length === 0) { setAdminMatches([]); onAdminFingerprintsChange(new Set()); return; }
@@ -1240,10 +1140,10 @@ function SpecialGamesSection({ onAdminFingerprintsChange, hasDraw, globalIndexSt
     <div className="cmsec special">
       <div className="cmsec-hdr">
         <span className="cmsec-title">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ color: '#f5a623' }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style={{ color: '#22c55e' }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
           Special Games <span className="cmsec-cnt">({visibleMatches.length})</span>
         </span>
-        {liveCount > 0 && <span style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, fontWeight:700, color:'var(--live-green,#22c55e)' }}><FiberManualRecordIcon sx={{ fontSize:8 }} />{liveCount} Live</span>}
+        {liveCount > 0 && <span style={{ display:'flex', alignItems:'center', gap:4, fontSize:12, fontWeight:700, color:'#22c55e' }}><FiberManualRecordIcon sx={{ fontSize:8 }} />{liveCount} Live</span>}
       </div>
       <div className="cmsec-col-hdr">
         <div style={{ flex:1 }} />
@@ -1269,7 +1169,7 @@ function SkeletonRow() {
     <div className="cmr" style={{ cursor:'default', pointerEvents:'none' }}>
       <div className="cmr-left">
         <div className="skeleton-block" style={{ width:40, height:13, borderRadius:4 }} />
-        <div className="skeleton-block" style={{ width:30, height:10, borderRadius:3, marginTop:5 }} />
+        <div className="skeleton-block" style={{ width:24, height:10, borderRadius:3, marginTop:5 }} />
       </div>
       <div className="cmr-teams">
         <div className="skeleton-block" style={{ width:'72%', height:13, borderRadius:4, marginBottom:5 }} />
@@ -1283,11 +1183,71 @@ function SkeletonRow() {
 
 function FallbackNotice({ tabLabel }: { tabLabel: string }) {
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 14px', marginBottom:10, borderRadius:8, background:'rgba(34,197,94,0.07)', border:'1px solid rgba(34,197,94,0.2)' }}>
+    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 14px', marginBottom:10, borderRadius:8, background:'rgba(34,197,94,0.05)', border:'1px solid rgba(34,197,94,0.15)' }}>
       <span style={{ fontSize:14 }}>ℹ️</span>
-      <span style={{ fontSize:12, color:'var(--text-muted,#64748b)', fontFamily:'system-ui,sans-serif' }}>
-        No <strong style={{ color:'var(--text-main,#cbd5e1)', fontWeight:700 }}>{tabLabel}</strong> matches right now — showing all available games.
+      <span style={{ fontSize:12, color:'#6b7280', fontFamily:'system-ui,sans-serif' }}>
+        No <strong style={{ color:'#d1d5db', fontWeight:700 }}>{tabLabel}</strong> matches right now — showing all available games.
       </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ResultsSection — collapsible, shows previous matches with scores
+// ---------------------------------------------------------------------------
+function ResultsSection({ matches, startIdx }: { matches: EnrichedMatch[]; startIdx: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const INITIAL_SHOW = 5;
+
+  if (matches.length === 0) return null;
+
+  const sorted = [...matches].sort((a, b) => {
+    const ta = a.kickoffAt ? new Date(a.kickoffAt).getTime() : 0;
+    const tb = b.kickoffAt ? new Date(b.kickoffAt).getTime() : 0;
+    return tb - ta; // most recent first
+  });
+
+  const visible = expanded ? sorted : sorted.slice(0, INITIAL_SHOW);
+
+  return (
+    <div className="cmsec results-section">
+      <div className="cmsec-hdr" style={{ background: 'rgba(255,255,255,0.02)', borderBottomColor: 'rgba(255,255,255,0.06)' }}>
+        <span className="cmsec-title" style={{ color: '#9ca3af' }}>
+          <HistoryIcon sx={{ fontSize: 12, color: '#6b7280' }} />
+          Recent Results <span className="cmsec-cnt">({matches.length})</span>
+        </span>
+        <span style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'#6b7280', fontFamily:'system-ui,sans-serif' }}>
+          <CheckCircleOutlineIcon sx={{ fontSize: 12 }} />
+          Final Scores
+        </span>
+      </div>
+
+      {/* Results column headers */}
+      <div className="cmsec-col-hdr" style={{ background: 'rgba(255,255,255,0.01)' }}>
+        <div style={{ flex: 1 }} />
+        <div style={{ width: 80, textAlign: 'center', fontSize: 9, fontWeight: 800, color: '#4b5563', letterSpacing: '0.07em', flexShrink: 0 }}>SCORE</div>
+        <div style={{ width: 60, textAlign: 'center', fontSize: 9, fontWeight: 800, color: '#4b5563', letterSpacing: '0.07em', flexShrink: 0 }}>RESULT</div>
+        <div style={{ width: 28, flexShrink: 0 }} />
+      </div>
+
+      {visible.map((m, idx) => (
+        <ResultMatchRow key={m.id} match={m} matchIndex={startIdx + idx + 1} />
+      ))}
+
+      {sorted.length > INITIAL_SHOW && (
+        <button
+          onClick={() => setExpanded((p) => !p)}
+          style={{ width: '100%', padding: '10px', background: 'rgba(255,255,255,0.02)', border: 'none', borderTop: '1px solid rgba(255,255,255,0.04)', color: '#6b7280', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'background 0.12s' }}
+          onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+          onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
+        >
+          {expanded ? (
+            <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15" /></svg> Show less</>
+          ) : (
+            <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg> Show {sorted.length - INITIAL_SHOW} more results</>
+          )}
+        </button>
+      )}
     </div>
   );
 }
@@ -1344,20 +1304,41 @@ export default function MatchList() {
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', refresh); };
   }, [activeSport, fetchFootball, fetchSport]);
 
-  const { allMatches, isFallback } = useMemo((): { allMatches: EnrichedMatch[]; isFallback: boolean } => {
+  // UPDATED: allMatches now includes finished matches; separate into active + results
+  const { activeMatches, resultMatches, isFallback } = useMemo((): {
+    activeMatches: EnrichedMatch[];
+    resultMatches: EnrichedMatch[];
+    isFallback: boolean;
+  } => {
+    let source: EnrichedMatch[];
+    let fallback = false;
+
     if (activeSport === 'football') {
       const result = filterByLeagueTab(allFootballMatches, activeLeagueTab);
-      const filtered = adminFingerprints.size > 0 ? result.matches.filter((m) => !isMatchInAdminSet(m, adminFingerprints)) : result.matches;
-      return { allMatches: filtered.filter((m) => !FINISHED_STATUSES.has(m.status ?? '')), isFallback: result.isFallback };
+      fallback = result.isFallback;
+      const filtered = adminFingerprints.size > 0
+        ? result.matches.filter((m) => !isMatchInAdminSet(m, adminFingerprints))
+        : result.matches;
+      source = filtered;
+    } else {
+      source = sportMatches[activeSport];
     }
-    return { allMatches: sportMatches[activeSport].filter((m) => !FINISHED_STATUSES.has(m.status ?? '')), isFallback: false };
+
+    return {
+      activeMatches: source.filter((m) => !FINISHED_STATUSES.has(m.status ?? '')),
+      resultMatches: source.filter((m) => FINISHED_STATUSES.has(m.status ?? '')),
+      isFallback: fallback,
+    };
   }, [activeSport, activeLeagueTab, allFootballMatches, sportMatches, adminFingerprints]);
 
   const grouped = useMemo(() => {
-    const cats: Record<MatchCategory, EnrichedMatch[]> = { live:[], today:[], upcoming:[] };
-    for (const m of allMatches) { const cat = categorise(m); if (cat) cats[cat].push(m); }
+    const cats: Record<Exclude<MatchCategory, 'results'>, EnrichedMatch[]> = { live:[], today:[], upcoming:[] };
+    for (const m of activeMatches) {
+      const cat = categorise(m);
+      if (cat && cat !== 'results') cats[cat].push(m);
+    }
     return cats;
-  }, [allMatches]);
+  }, [activeMatches]);
 
   const isLoading = useMemo(() => activeSport === 'football' ? footballLoading : sportLoading[activeSport], [activeSport, footballLoading, sportLoading]);
   const navigate = useNavigate();
@@ -1365,37 +1346,32 @@ export default function MatchList() {
 
   function renderSection(title: string, matches: EnrichedMatch[], opts: { isLive?: boolean } = {}, startIdx: number): { node: React.ReactNode; count: number } {
     if (matches.length === 0) return { node: null, count: 0 };
-    const grouped = new Map<string, EnrichedMatch[]>();
-    for (const m of matches) { const key = m.league || '(Other)'; if (!grouped.has(key)) grouped.set(key, []); grouped.get(key)!.push(m); }
-    const sortedGroups = [...grouped.entries()].sort(([a], [b]) => leagueSortKey(a).localeCompare(leagueSortKey(b)));
+    const sorted = [...matches].sort((a, b) => leagueSortKey(a.league || '').localeCompare(leagueSortKey(b.league || '')));
     let rowIdx = startIdx;
-    const rows: React.ReactNode[] = [];
-    for (const [league, lm] of sortedGroups) {
-      rows.push(<div key={`lhdr-${league}`} className="cm-league-hdr"><span className="cm-league-name">{league}</span><span className="cm-league-cnt">{lm.length}</span></div>);
-      for (const m of lm) {
-        const isMatchLive = LIVE_STATUSES.has(m.status ?? '');
-        rows.push(
-          <CompactMatchRow
-            key={m.id}
-            match={m}
-            hasDraw={showDraw}
-            onClick={isMatchLive ? undefined : () => navigate(`/match/${m.id}`)}
-            matchIndex={rowIdx + 1}
-          />
-        );
-        rowIdx++;
-      }
-    }
+    const rows: React.ReactNode[] = sorted.map((m) => {
+      const isMatchLive = LIVE_STATUSES.has(m.status ?? '');
+      const node = (
+        <CompactMatchRow
+          key={m.id}
+          match={m}
+          hasDraw={showDraw}
+          onClick={isMatchLive ? undefined : () => navigate(`/match/${m.id}`)}
+          matchIndex={rowIdx + 1}
+        />
+      );
+      rowIdx++;
+      return node;
+    });
     return {
       node: (
         <div className={`cmsec${opts.isLive ? ' live-section' : ''}`}>
           <div className="cmsec-hdr">
             <span className="cmsec-title">
-              {opts.isLive && <FiberManualRecordIcon sx={{ fontSize:10, color:'var(--live-green,#22c55e)' }} />}
+              {opts.isLive && <FiberManualRecordIcon sx={{ fontSize:10, color:'#22c55e' }} />}
               {title} <span className="cmsec-cnt">({matches.length})</span>
             </span>
             {opts.isLive && (
-              <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'rgba(239,68,68,0.8)', fontWeight:700, fontFamily:'system-ui,sans-serif' }}>
+              <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'rgba(34,197,94,0.7)', fontWeight:700, fontFamily:'system-ui,sans-serif' }}>
                 <LockIcon sx={{ fontSize: 11 }} /> Odds locked during live play
               </span>
             )}
@@ -1416,7 +1392,7 @@ export default function MatchList() {
   let globalIdx = 0;
 
   return (
-    <div className="px-4 mt-4">
+    <div className="wb-root px-4 mt-4">
       <GrandPrizeWinnersBar />
 
       {/* Sport tabs */}
@@ -1426,7 +1402,6 @@ export default function MatchList() {
         ))}
       </div>
 
-      {/* League sub-tabs */}
       {activeSport === 'football' && (
         <div className="flex gap-2 overflow-x-auto pb-2 mb-3 no-scrollbar">
           {FOOTBALL_LEAGUE_TABS.map((tab) => (
@@ -1437,16 +1412,14 @@ export default function MatchList() {
 
       {isFallback && !isLoading && <FallbackNotice tabLabel={activeLeagueTabLabel} />}
 
-      {/* Special Games */}
       {activeSport === 'football' && (
         <SpecialGamesSection onAdminFingerprintsChange={setAdminFingerprints} hasDraw={showDraw} globalIndexStart={globalIdx} />
       )}
 
-      {/* Matches */}
       {error ? (
         <div className="text-center py-12">
-          <p className="text-sm" style={{ color:'var(--text-muted)' }}>{error}</p>
-          <button onClick={handleRetry} className="mt-3 text-xs font-semibold hover:underline" style={{ color:'var(--primary)' }}>Try again</button>
+          <p className="text-sm" style={{ color:'#6b7280' }}>{error}</p>
+          <button onClick={handleRetry} className="mt-3 text-xs font-semibold hover:underline" style={{ color:'#22c55e' }}>Try again</button>
         </div>
       ) : isLoading ? (
         <div className="cmsec">
@@ -1457,369 +1430,222 @@ export default function MatchList() {
       ) : (
         <>
           {(() => {
-            const liveR    = renderSection('Live Now', grouped.live,     { isLive: true }, globalIdx); globalIdx += liveR.count;
-            const todayR   = renderSection('Today',    grouped.today,    {},               globalIdx); globalIdx += todayR.count;
-            const upcomingR = renderSection('Upcoming', grouped.upcoming, {},              globalIdx);
+            const liveR     = renderSection('Live Now',  grouped.live,     { isLive: true }, globalIdx); globalIdx += liveR.count;
+            const todayR    = renderSection('Today',     grouped.today,    {},               globalIdx); globalIdx += todayR.count;
+            const upcomingR = renderSection('Upcoming',  grouped.upcoming, {},               globalIdx); globalIdx += upcomingR.count;
             return <>{liveR.node}{todayR.node}{upcomingR.node}</>;
           })()}
-          {allMatches.length === 0 && (
+
+          {/* ── Previous Results Section ── */}
+          <ResultsSection matches={resultMatches} startIdx={globalIdx} />
+
+          {activeMatches.length === 0 && resultMatches.length === 0 && (
             <div className="text-center py-16">
               <div className="text-5xl mb-4">{activeSport === 'football' ? '⚽' : activeSport === 'basketball' ? '🏀' : activeSport === 'tennis' ? '🎾' : activeSport === 'baseball' ? '⚾' : activeSport === 'nfl' ? '🏈' : '🥊'}</div>
-              <p className="text-sm" style={{ color:'var(--text-muted)' }}>No {SPORT_TABS.find((t) => t.key === activeSport)?.label} matches available right now.</p>
+              <p className="text-sm" style={{ color:'#6b7280' }}>No {SPORT_TABS.find((t) => t.key === activeSport)?.label} matches available right now.</p>
             </div>
           )}
         </>
       )}
 
-      {/* ── Supporters Carousel ── */}
       <SupportersCarousel />
-
-      {/* ── Footer ── */}
       <SiteFooter />
-
       <FloatingBetSlipButton />
 
-  <style>{`
-  /* ═══════════════════════════════════════════════
-     SECTION CONTAINER
-  ═══════════════════════════════════════════════ */
-  .cmsec {
-    margin-bottom: 14px;
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1.5px solid rgba(34,197,94,0.18);
-    background: var(--card-bg, rgba(13,20,34,0.98));
-    box-shadow: 0 2px 12px rgba(0,0,0,0.18);
-  }
-  .cmsec.special {
-    border-color: rgba(245,166,35,0.3);
-    box-shadow: 0 2px 16px rgba(245,166,35,0.08);
-  }
-  .cmsec.live-section {
-    border-color: rgba(34,197,94,0.35);
-    box-shadow: 0 2px 16px rgba(34,197,94,0.1);
-  }
+      <style>{`
+        /* ── Dark root ─────────────────────────────────────────────── */
+        .wb-root {
+          --bg-page:   #07080f;
+          --bg-card:   #0d0f1a;
+          --bg-card2:  #111320;
+          --border:    rgba(255,255,255,0.06);
+          --border-acc: rgba(34,197,94,0.18);
+          --accent:    #22c55e;
+          --accent-dim: rgba(34,197,94,0.12);
+          --accent-border: rgba(34,197,94,0.25);
+          --text-main: #f1f5f9;
+          --text-muted: #6b7280;
+          --text-faint: #374151;
+          background: var(--bg-page);
+          min-height: 100vh;
+        }
 
-  .cmsec-hdr {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 11px 12px 9px;
-    background: rgba(34,197,94,0.06);
-    border-bottom: 1.5px solid rgba(34,197,94,0.15);
-  }
-  .cmsec.special .cmsec-hdr {
-    background: rgba(245,166,35,0.07);
-    border-bottom-color: rgba(245,166,35,0.2);
-  }
-  .cmsec-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 10px;
-    font-weight: 800;
-    color: var(--text-main, #e2e8f0);
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    font-family: system-ui, sans-serif;
-  }
-  .cmsec-cnt {
-    font-size: 9px;
-    font-weight: 500;
-    color: var(--text-muted, #64748b);
-    letter-spacing: 0;
-  }
+        /* ── Skeleton ──────────────────────────────────────────────── */
+        .skeleton-block {
+          background: linear-gradient(90deg, #1a1d2e 25%, #232640 50%, #1a1d2e 75%);
+          background-size: 200% 100%;
+          animation: skelShimmer 1.4s ease-in-out infinite;
+        }
+        @keyframes skelShimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
 
-  .cmsec-col-hdr {
-    display: flex;
-    align-items: center;
-    padding: 4px 8px;
-    background: rgba(255,255,255,0.02);
-    border-bottom: 1.5px solid rgba(34,197,94,0.1);
-    gap: 3px;
-  }
-  .cmsec-col-lbl {
-    width: 52px;
-    text-align: center;
-    font-size: 9px;
-    font-weight: 800;
-    color: #22c55e;
-    letter-spacing: 0.07em;
-    flex-shrink: 0;
-  }
-  @media (max-width: 380px) {
-    .cmsec-col-lbl { width: 44px; font-size: 8px; }
-  }
+        /* ── Sport tabs ─────────────────────────────────────────────── */
+        .sport-tab {
+          display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px;
+          border-radius: 8px; border: 1.5px solid var(--border); background: var(--bg-card);
+          color: var(--text-muted); font-size: 12px; font-weight: 700; white-space: nowrap;
+          cursor: pointer; transition: all 0.15s; font-family: system-ui, sans-serif; flex-shrink: 0;
+        }
+        .sport-tab:hover { border-color: var(--accent-border); color: var(--accent); }
+        .sport-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
-  .cm-league-hdr {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 5px 12px;
-    background: rgba(34,197,94,0.04);
-    border-bottom: 1px solid rgba(34,197,94,0.08);
-  }
-  .cm-league-name {
-    font-size: 9px;
-    font-weight: 700;
-    color: var(--text-muted, #94a3b8);
-    letter-spacing: 0.03em;
-    font-family: system-ui, sans-serif;
-    text-transform: uppercase;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-    flex: 1;
-    margin-right: 8px;
-  }
-  .cm-league-cnt {
-    font-size: 8px;
-    color: var(--text-faint, #475569);
-    font-family: system-ui, sans-serif;
-    background: rgba(34,197,94,0.08);
-    border: 1px solid rgba(34,197,94,0.15);
-    border-radius: 10px;
-    padding: 1px 7px;
-    flex-shrink: 0;
-  }
+        /* ── League sub-tabs ────────────────────────────────────────── */
+        .league-tab {
+          display: inline-flex; align-items: center; padding: 5px 11px;
+          border-radius: 6px; border: 1.5px solid var(--border); background: var(--bg-card);
+          color: var(--text-muted); font-size: 11px; font-weight: 700; white-space: nowrap;
+          cursor: pointer; transition: all 0.15s; font-family: system-ui, sans-serif; flex-shrink: 0;
+        }
+        .league-tab:hover { border-color: var(--accent-border); color: var(--accent); }
+        .league-tab.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
-  /* ═══════════════════════════════════════════════
-     MATCH ROW
-  ═══════════════════════════════════════════════ */
-  .cmr {
-    display: flex;
-    align-items: center;
-    padding: 9px 8px 9px 10px;
-    gap: 6px;
-    border-bottom: 1px solid rgba(34,197,94,0.09);
-    cursor: pointer;
-    transition: background 0.12s ease;
-    min-height: 60px;
-    width: 100%;
-    box-sizing: border-box;
-  }
-  .cmr:last-child { border-bottom: none; }
-  .cmr:hover { background: rgba(34,197,94,0.05); }
-  .cmr.live { background: rgba(34,197,94,0.04); border-left: 3px solid #22c55e; padding-left: 7px; }
-  .cmr.live:hover { background: rgba(34,197,94,0.04); }
-  .cmr.no-pointer { cursor: default !important; }
-  .cmr.admin { background: rgba(245,166,35,0.04); border-left: 3px solid #f5a623; padding-left: 7px; }
+        /* ── Section container ─────────────────────────────────────── */
+        .cmsec {
+          margin-bottom: 14px; border-radius: 12px; overflow: hidden;
+          border: 1.5px solid var(--border); background: var(--bg-card);
+          box-shadow: 0 2px 16px rgba(0,0,0,0.4);
+        }
+        .cmsec.special { border-color: var(--accent-border); box-shadow: 0 2px 20px rgba(34,197,94,0.07); }
+        .cmsec.live-section { border-color: rgba(34,197,94,0.28); box-shadow: 0 2px 20px rgba(34,197,94,0.08); }
+        .cmsec.results-section { border-color: rgba(255,255,255,0.04); opacity: 0.92; }
 
-  .cmr-left {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    width: 54px;
-    min-width: 54px;
-    flex-shrink: 0;
-  }
-  .cmr-time {
-    font-size: 11px;
-    font-weight: 800;
-    color: var(--text-main, #e2e8f0);
-    font-family: system-ui, sans-serif;
-    letter-spacing: 0.01em;
-    white-space: nowrap;
-  }
-  .cmr-id {
-    font-size: 9px;
-    color: rgba(34,197,94,0.55);
-    font-family: system-ui, sans-serif;
-    font-weight: 600;
-  }
-  .cmr-sport {
-    font-size: 8px;
-    font-weight: 700;
-    color: var(--text-faint, #475569);
-    letter-spacing: 0.04em;
-    font-family: system-ui, sans-serif;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 54px;
-  }
-  .cmr-live {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 10px;
-    font-weight: 900;
-    color: #22c55e;
-    font-family: system-ui, sans-serif;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
-  }
-  .cmr-star { font-size: 12px; color: #f5a623; }
+        .cmsec-hdr {
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 11px 12px 9px; background: rgba(34,197,94,0.04);
+          border-bottom: 1.5px solid rgba(34,197,94,0.1);
+        }
+        .cmsec.special .cmsec-hdr { background: rgba(34,197,94,0.06); border-bottom-color: rgba(34,197,94,0.18); }
+        .cmsec-title {
+          display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 800;
+          color: var(--text-main); letter-spacing: 0.06em; text-transform: uppercase;
+          font-family: system-ui, sans-serif;
+        }
+        .cmsec-cnt { font-size: 9px; font-weight: 500; color: var(--text-muted); letter-spacing: 0; }
+        .cmsec-col-hdr {
+          display: flex; align-items: center; padding: 4px 8px;
+          background: rgba(255,255,255,0.015); border-bottom: 1px solid rgba(255,255,255,0.04); gap: 3px;
+        }
+        .cmsec-col-lbl { width: 52px; text-align: center; font-size: 9px; font-weight: 800; color: var(--accent); letter-spacing: 0.07em; flex-shrink: 0; }
+        @media (max-width: 380px) { .cmsec-col-lbl { width: 44px; font-size: 8px; } }
 
-  .cmr-teams {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    min-width: 0;
-    overflow: hidden;
-  }
-  .cmr-team {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    min-width: 0;
-    width: 100%;
-  }
-  .cmr-score {
-    font-size: 12px;
-    font-weight: 900;
-    color: #22c55e;
-    min-width: 14px;
-    flex-shrink: 0;
-    font-family: system-ui, sans-serif;
-  }
-  .cmr-name {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-main, #e2e8f0);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-family: system-ui, sans-serif;
-    line-height: 1.3;
-    flex: 1;
-    min-width: 0;
-  }
-  .cmr-countdown {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 8px;
-    color: var(--text-faint, #475569);
-    margin-top: 1px;
-    font-family: system-ui, sans-serif;
-    white-space: nowrap;
-  }
+        /* ── Match row ─────────────────────────────────────────────── */
+        .cmr {
+          display: flex; align-items: center; padding: 9px 8px 9px 10px; gap: 6px;
+          border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer;
+          transition: background 0.12s ease; min-height: 58px; width: 100%; box-sizing: border-box;
+        }
+        .cmr:last-child { border-bottom: none; }
+        .cmr:hover { background: rgba(34,197,94,0.04); }
+        .cmr.live { background: rgba(34,197,94,0.03); border-left: 3px solid var(--accent); padding-left: 7px; }
+        .cmr.live:hover { background: rgba(34,197,94,0.03); }
+        .cmr.no-pointer { cursor: default !important; }
+        .cmr.admin { background: rgba(34,197,94,0.03); border-left: 3px solid var(--accent); padding-left: 7px; }
 
-  /* ═══════════════════════════════════════════════
-     ODDS BUTTONS
-  ═══════════════════════════════════════════════ */
-  .cmr-odds {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    flex-shrink: 0;
-  }
+        .cmr-left {
+          display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+          width: 48px; min-width: 48px; flex-shrink: 0;
+        }
+        .cmr-time { font-size: 12px; font-weight: 800; color: var(--text-main); font-family: system-ui, sans-serif; letter-spacing: 0.01em; white-space: nowrap; }
+        .cmr-id { font-size: 9px; color: rgba(34,197,94,0.4); font-family: system-ui, sans-serif; font-weight: 600; }
+        .cmr-live { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 900; color: var(--accent); font-family: system-ui, sans-serif; letter-spacing: 0.02em; white-space: nowrap; }
+        .cmr-star { font-size: 12px; color: var(--accent); }
 
-  .cmr-odds-locked {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    width: 162px;
-    height: 44px;
-    border-radius: 8px;
-    border: 1.5px solid rgba(239,68,68,0.25);
-    background: rgba(239,68,68,0.06);
-    flex-shrink: 0;
-  }
-  .cmr-locked-label {
-    font-size: 8px;
-    font-weight: 800;
-    color: rgba(239,68,68,0.65);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    font-family: system-ui, sans-serif;
-  }
-  @media (max-width: 380px) {
-    .cmr-odds-locked { width: 134px; }
-  }
+        .cmr-teams { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow: hidden; }
+        .cmr-team { display: flex; align-items: center; gap: 5px; min-width: 0; width: 100%; }
+        .cmr-score { font-size: 13px; font-weight: 900; color: var(--accent); min-width: 14px; flex-shrink: 0; font-family: system-ui, sans-serif; }
+        .cmr-name { font-size: 12px; font-weight: 600; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: system-ui, sans-serif; line-height: 1.3; flex: 1; min-width: 0; }
+        .cmr-countdown { display: flex; align-items: center; gap: 3px; font-size: 8px; color: var(--text-faint); margin-top: 1px; font-family: system-ui, sans-serif; white-space: nowrap; }
 
-  .cmr-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 52px;
-    height: 44px;
-    border-radius: 7px;
-    border: 1.5px solid rgba(34,197,94,0.35);
-    background: rgba(34,197,94,0.08);
-    cursor: pointer;
-    transition: background 0.12s, border-color 0.12s, transform 0.08s;
-    flex-shrink: 0;
-    padding: 0;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .cmr-btn:hover:not(.empty):not(.sel) {
-    background: rgba(34,197,94,0.16);
-    border-color: rgba(34,197,94,0.6);
-  }
-  .cmr-btn:active:not(.empty):not(.sel) { transform: scale(0.94); }
-  .cmr-btn.sel {
-    background: rgba(34,197,94,0.22);
-    border-color: #22c55e;
-    box-shadow: 0 0 0 2px rgba(34,197,94,0.2);
-  }
-  .cmr-btn.empty {
-    opacity: 0.28;
-    cursor: default;
-    border-color: rgba(255,255,255,0.06);
-    background: rgba(255,255,255,0.02);
-  }
-  .cmr-btn-label {
-    font-size: 8px;
-    font-weight: 800;
-    color: rgba(34,197,94,0.65);
-    letter-spacing: 0.07em;
-    font-family: system-ui, sans-serif;
-    line-height: 1;
-  }
-  .cmr-btn-val {
-    font-size: 11px;
-    font-weight: 800;
-    color: #22c55e;
-    font-family: system-ui, sans-serif;
-    letter-spacing: -0.01em;
-    line-height: 1.2;
-    margin-top: 2px;
-  }
-  .cmr-btn.sel .cmr-btn-label { color: rgba(34,197,94,0.9); }
-  .cmr-btn.sel .cmr-btn-val { color: #4ade80; }
-  .cmr-btn.empty .cmr-btn-val { color: var(--text-faint, #475569); }
+        /* ── Odds buttons ──────────────────────────────────────────── */
+        .cmr-odds { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+        .cmr-odds-locked {
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          gap: 3px; width: 162px; height: 44px; border-radius: 8px;
+          border: 1.5px solid rgba(34,197,94,0.2); background: rgba(34,197,94,0.04); flex-shrink: 0;
+        }
+        .cmr-locked-label { font-size: 8px; font-weight: 800; color: rgba(34,197,94,0.55); letter-spacing: 0.06em; text-transform: uppercase; font-family: system-ui, sans-serif; }
+        @media (max-width: 380px) { .cmr-odds-locked { width: 134px; } }
+        .cmr-btn {
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          width: 52px; height: 44px; border-radius: 7px; border: 1.5px solid rgba(34,197,94,0.2);
+          background: rgba(34,197,94,0.06); cursor: pointer;
+          transition: background 0.12s, border-color 0.12s, transform 0.08s;
+          flex-shrink: 0; padding: 0; -webkit-tap-highlight-color: transparent;
+        }
+        .cmr-btn:hover:not(.empty):not(.sel) { background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.5); }
+        .cmr-btn:active:not(.empty):not(.sel) { transform: scale(0.94); }
+        .cmr-btn.sel { background: rgba(34,197,94,0.18); border-color: var(--accent); box-shadow: 0 0 0 2px rgba(34,197,94,0.18); }
+        .cmr-btn.empty { opacity: 0.22; cursor: default; border-color: rgba(255,255,255,0.05); background: rgba(255,255,255,0.02); }
+        .cmr-btn-label { font-size: 8px; font-weight: 800; color: rgba(34,197,94,0.55); letter-spacing: 0.07em; font-family: system-ui, sans-serif; line-height: 1; }
+        .cmr-btn-val { font-size: 11px; font-weight: 800; color: var(--accent); font-family: system-ui, sans-serif; letter-spacing: -0.01em; line-height: 1.2; margin-top: 2px; }
+        .cmr-btn.sel .cmr-btn-label { color: rgba(34,197,94,0.85); }
+        .cmr-btn.sel .cmr-btn-val   { color: #86efac; }
+        .cmr-btn.empty .cmr-btn-val  { color: var(--text-faint); }
+        .cmr-stats {
+          width: 28px; height: 28px; border-radius: 7px; border: 1.5px solid rgba(34,197,94,0.15);
+          background: rgba(34,197,94,0.04); cursor: pointer; display: flex; align-items: center;
+          justify-content: center; color: rgba(34,197,94,0.4); flex-shrink: 0;
+          transition: background 0.1s, color 0.1s, border-color 0.1s; -webkit-tap-highlight-color: transparent;
+        }
+        .cmr-stats:hover { background: rgba(34,197,94,0.1); color: var(--accent); border-color: rgba(34,197,94,0.4); }
 
-  @media (max-width: 380px) {
-    .cmr { padding: 8px 6px 8px 8px; gap: 4px; }
-    .cmr.live, .cmr.admin { padding-left: 5px; }
-    .cmr-left { width: 48px; min-width: 48px; }
-    .cmr-time { font-size: 10px; }
-    .cmr-name { font-size: 10px; }
-    .cmr-btn { width: 44px; height: 40px; border-radius: 6px; }
-    .cmr-btn-val { font-size: 10px; }
-    .cmr-odds { gap: 2px; }
-    .cmr-stats { width: 26px; height: 26px; }
-  }
+        /* ── Results row ────────────────────────────────────────────── */
+        .rmr {
+          display: flex; align-items: center; padding: 9px 8px 9px 10px; gap: 6px;
+          border-bottom: 1px solid rgba(255,255,255,0.04); cursor: pointer;
+          transition: background 0.12s ease; min-height: 54px; width: 100%; box-sizing: border-box;
+        }
+        .rmr:last-of-type { border-bottom: none; }
+        .rmr:hover { background: rgba(255,255,255,0.02); }
 
-  .cmr-stats {
-    width: 28px;
-    height: 28px;
-    border-radius: 7px;
-    border: 1.5px solid rgba(34,197,94,0.2);
-    background: rgba(34,197,94,0.05);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(34,197,94,0.45);
-    flex-shrink: 0;
-    transition: background 0.1s, color 0.1s, border-color 0.1s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .cmr-stats:hover {
-    background: rgba(34,197,94,0.12);
-    color: #22c55e;
-    border-color: rgba(34,197,94,0.4);
-  }
-`}</style>
+        .rmr-left {
+          display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+          width: 48px; min-width: 48px; flex-shrink: 0;
+        }
+        .rmr-date { font-size: 9px; font-weight: 700; color: #4b5563; font-family: system-ui, sans-serif; white-space: nowrap; }
+        .rmr-time { font-size: 11px; font-weight: 800; color: #6b7280; font-family: system-ui, sans-serif; letter-spacing: 0.01em; white-space: nowrap; }
+        .rmr-idx  { font-size: 9px; color: rgba(255,255,255,0.1); font-family: system-ui, sans-serif; font-weight: 600; }
+
+        .rmr-center { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow: hidden; }
+        .rmr-team { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; }
+        .rmr-team-name { font-size: 12px; font-weight: 600; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: system-ui, sans-serif; flex: 1; min-width: 0; }
+        .rmr-score { font-size: 13px; font-weight: 900; color: #4b5563; flex-shrink: 0; font-family: system-ui, sans-serif; min-width: 16px; text-align: right; }
+        .rmr-winner .rmr-team-name { color: #e5e7eb; font-weight: 700; }
+        .rmr-winner .rmr-score { color: #22c55e; }
+        .rmr-score-win { color: #22c55e !important; }
+        .rmr-draw-team .rmr-team-name { color: #9ca3af; }
+        .rmr-draw-team .rmr-score { color: #9ca3af; }
+        .rmr-loser .rmr-team-name { color: #4b5563; }
+        .rmr-loser .rmr-score { color: #374151; }
+
+        .rmr-right {
+          display: flex; flex-direction: column; align-items: flex-end; gap: 3px;
+          flex-shrink: 0; min-width: 52px;
+        }
+        .rmr-badge {
+          font-size: 9px; font-weight: 800; color: #4b5563; background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.07); border-radius: 4px; padding: 2px 5px;
+          letter-spacing: 0.05em; font-family: system-ui, sans-serif; white-space: nowrap;
+        }
+        .rmr-badge-draw { color: #9ca3af; border-color: rgba(156,163,175,0.15); background: rgba(156,163,175,0.05); }
+        .rmr-league { font-size: 9px; color: #374151; font-family: system-ui, sans-serif; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 72px; text-align: right; }
+
+        @media (max-width: 380px) {
+          .cmr { padding: 8px 6px 8px 8px; gap: 4px; }
+          .cmr.live, .cmr.admin { padding-left: 5px; }
+          .cmr-left { width: 44px; min-width: 44px; }
+          .cmr-time { font-size: 11px; }
+          .cmr-name { font-size: 11px; }
+          .cmr-btn { width: 44px; height: 40px; border-radius: 6px; }
+          .cmr-btn-val { font-size: 10px; }
+          .cmr-odds { gap: 2px; }
+          .cmr-stats { width: 26px; height: 26px; }
+          .rmr { padding: 8px 6px 8px 8px; gap: 4px; }
+          .rmr-left { width: 44px; min-width: 44px; }
+          .rmr-team-name { font-size: 11px; }
+          .rmr-right { min-width: 44px; }
+          .rmr-league { max-width: 56px; }
+        }
+      `}</style>
     </div>
   );
 }

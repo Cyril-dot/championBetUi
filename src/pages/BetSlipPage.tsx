@@ -132,9 +132,9 @@ function ghsToLocal(ghsAmount: number, currency: CurrencyInfo): number {
 
 const MIN_STAKE_GHS = 300;
 
-const DEBUG = (() => { try { return localStorage.getItem('BET360_DEBUG') === 'true'; } catch { return false; } })();
-function log(area: string, ...args: unknown[]) { if (!DEBUG) return; console.log(`%c[Bet360:${area}]`, 'color:#dc2626;font-weight:bold', ...args); }
-function logError(area: string, ...args: unknown[]) { console.error(`[Bet360:${area}]`, ...args); }
+const DEBUG = (() => { try { return localStorage.getItem('WINNINGBET_DEBUG') === 'true'; } catch { return false; } })();
+function log(area: string, ...args: unknown[]) { if (!DEBUG) return; console.log(`%c[WinningBet:${area}]`, 'color:#dc2626;font-weight:bold', ...args); }
+function logError(area: string, ...args: unknown[]) { console.error(`[WinningBet:${area}]`, ...args); }
 
 function buildMatchLabel(s: Record<string, unknown>): string {
   if (!s) return 'Unknown match';
@@ -178,9 +178,9 @@ function normaliseBet(bet: Bet): Bet {
   };
 }
 
-// ─── Bet360 Logo SVG ──────────────────────────────────────────────────────────
+// ─── WinningBet Logo SVG ──────────────────────────────────────────────────────
 
-function Bet360LogoSvg({ size = 20 }: { size?: number }) {
+function WinningBetLogoSvg({ size = 20 }: { size?: number }) {
   return (
     <svg
       width={size}
@@ -193,26 +193,26 @@ function Bet360LogoSvg({ size = 20 }: { size?: number }) {
     >
       <circle cx="28" cy="28" r="26" fill="#dc2626" />
       <circle cx="28" cy="28" r="20" fill="none" stroke="white" strokeWidth="3" />
-      <text x="28" y="33" textAnchor="middle" fontSize="13" fontWeight="900"
-        fontFamily="Georgia,serif" fill="white" letterSpacing="-0.5">360</text>
+      <text x="28" y="31" textAnchor="middle" fontSize="9" fontWeight="900"
+        fontFamily="Georgia,serif" fill="white" letterSpacing="-0.5">WIN</text>
     </svg>
   );
 }
 
 /** Inline wordmark for dark backgrounds */
-function Bet360WordmarkDark({ size = 14 }: { size?: number }) {
+function WinningBetWordmarkDark({ size = 14 }: { size?: number }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'baseline', lineHeight: 1 }}>
       <span style={{
         fontFamily: 'Georgia, "Times New Roman", serif',
         fontWeight: 900, fontStyle: 'italic',
         fontSize: size, letterSpacing: '-0.02em', color: '#ffffff',
-      }}>Bet</span>
+      }}>Winning</span>
       <span style={{
         fontFamily: 'Georgia, "Times New Roman", serif',
         fontWeight: 900, fontStyle: 'italic',
         fontSize: size, letterSpacing: '-0.02em', color: '#ef4444',
-      }}>360</span>
+      }}>Bet</span>
     </span>
   );
 }
@@ -299,8 +299,8 @@ async function generateSlipImage(bet: Bet, isWin: boolean, currency: CurrencyInf
     <div style="background: linear-gradient(135deg, #0f0f0f 0%, #1a0000 50%, #0f0f0f 100%);">
       <div style="background: linear-gradient(90deg, #7f1d1d, #dc2626, #7f1d1d); padding:6px 20px; display:flex; align-items:center; justify-content:space-between;">
         <span style="display:flex;align-items:center;gap:6px;">
-          <span style="width:18px;height:18px;background:#dc2626;border:2px solid white;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:7px;font-weight:900;color:white;font-family:Georgia,serif;">360</span>
-          <span style="font-size:13px;font-weight:900;font-family:Georgia,serif;font-style:italic;color:#fff;">Bet<span style="color:#ef4444;">360</span></span>
+          <span style="width:18px;height:18px;background:#dc2626;border:2px solid white;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:6px;font-weight:900;color:white;font-family:Georgia,serif;">WIN</span>
+          <span style="font-size:13px;font-weight:900;font-family:Georgia,serif;font-style:italic;color:#fff;">Winning<span style="color:#ef4444;">Bet</span></span>
         </span>
         <span style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.7);">Bet Slip</span>
       </div>
@@ -308,7 +308,7 @@ async function generateSlipImage(bet: Bet, isWin: boolean, currency: CurrencyInf
         <div style="font-size:14px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#ef4444;margin-bottom:8px;">${isWin ? '🏆 YOU WON!' : '😭 BETTER LUCK NEXT TIME'}</div>
         <div style="font-size:38px;font-weight:900;color:#ffffff;line-height:1.1;">${headlineAmount}</div>
         ${headlineSubGhs ? `<div style="font-size:13px;color:rgba(255,255,255,0.4);margin-top:4px;">${headlineSubGhs}</div>` : ''}
-        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px;">Your bet on Bet360.</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px;">Your bet on WinningBet.</div>
       </div>
       <div style="background:rgba(255,255,255,0.05);margin:0 16px;border-radius:12px;overflow:hidden;">
         <div style="display:grid;grid-template-columns:auto 1fr auto auto;gap:0;padding:8px 12px;background:rgba(220,38,38,0.4);">
@@ -348,7 +348,7 @@ async function generateSlipImage(bet: Bet, isWin: boolean, currency: CurrencyInf
       </div>
       <div style="background:rgba(0,0,0,0.4);padding:10px 24px;display:flex;justify-content:space-between;align-items:center;">
         <div style="font-size:10px;color:rgba(255,255,255,0.3);">${new Date(bet.placedAt).toLocaleString()}</div>
-        <span style="font-size:12px;font-weight:900;font-family:Georgia,serif;font-style:italic;color:#fff;">Bet<span style="color:#ef4444;">360</span></span>
+        <span style="font-size:12px;font-weight:900;font-family:Georgia,serif;font-style:italic;color:#fff;">Winning<span style="color:#ef4444;">Bet</span></span>
       </div>
     </div>
   `;
@@ -366,14 +366,14 @@ async function generateSlipImage(bet: Bet, isWin: boolean, currency: CurrencyInf
 function ShareImageModal({ imageUrl, onClose }: { imageUrl: string; onClose: () => void }) {
   const handleDownload = () => {
     const a = document.createElement('a');
-    a.href = imageUrl; a.download = `bet360-slip-${Date.now()}.png`; a.click();
+    a.href = imageUrl; a.download = `winningbet-slip-${Date.now()}.png`; a.click();
   };
   const handleShare = async () => {
     try {
       const blob = await (await fetch(imageUrl)).blob();
-      const file = new File([blob], 'bet360-bet.png', { type: 'image/png' });
+      const file = new File([blob], 'winningbet-bet.png', { type: 'image/png' });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'My Bet360 Bet Slip' });
+        await navigator.share({ files: [file], title: 'My WinningBet Bet Slip' });
       } else { handleDownload(); }
     } catch { handleDownload(); }
   };
@@ -534,10 +534,10 @@ function WinModal({ bet, currency, onClose }: { bet: Bet; currency: CurrencyInfo
               </div>
             </div>
 
-            {/* Bet360 branding */}
+            {/* WinningBet branding */}
             <div className="flex items-center justify-center gap-2 mb-2">
-              <Bet360LogoSvg size={22} />
-              <Bet360WordmarkDark size={16} />
+              <WinningBetLogoSvg size={22} />
+              <WinningBetWordmarkDark size={16} />
             </div>
 
             {/* YOU WON */}
@@ -547,7 +547,7 @@ function WinModal({ bet, currency, onClose }: { bet: Bet; currency: CurrencyInfo
               </h1>
             </div>
 
-            {/* Trophy SVG — muted, more visible, less blown-out */}
+            {/* Trophy SVG */}
             <div className="flex justify-center mb-3">
               <div className="trophy-anim relative">
                 <div style={{
@@ -555,42 +555,41 @@ function WinModal({ bet, currency, onClose }: { bet: Bet; currency: CurrencyInfo
                   background: 'radial-gradient(circle, rgba(220,38,38,0.18) 0%, transparent 70%)',
                   animation: 'pulseRed 2.5s ease-in-out infinite',
                 }} />
-                {/* Dimmed, more visible trophy — grey-silver tones on dark bg */}
                 <svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <defs>
-                    <linearGradient id="trophyGradB360" x1="0" y1="0" x2="1" y2="1">
+                    <linearGradient id="trophyGradWB" x1="0" y1="0" x2="1" y2="1">
                       <stop offset="0%" stopColor="#e2e8f0"/>
                       <stop offset="30%" stopColor="#cbd5e1"/>
                       <stop offset="60%" stopColor="#94a3b8"/>
                       <stop offset="100%" stopColor="#64748b"/>
                     </linearGradient>
-                    <linearGradient id="trophyShineB360" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="trophyShineWB" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#f8fafc" stopOpacity="0.6"/>
                       <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.2"/>
                     </linearGradient>
-                    <radialGradient id="cupGlowB360" cx="50%" cy="30%" r="60%">
+                    <radialGradient id="cupGlowWB" cx="50%" cy="30%" r="60%">
                       <stop offset="0%" stopColor="#f1f5f9" stopOpacity="0.5"/>
                       <stop offset="100%" stopColor="#cbd5e1" stopOpacity="0"/>
                     </radialGradient>
-                    <filter id="glowB360">
+                    <filter id="glowWB">
                       <feGaussianBlur stdDeviation="2" result="blur"/>
                       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
                     </filter>
                   </defs>
-                  <rect x="52" y="138" width="56" height="8" rx="4" fill="url(#trophyGradB360)" filter="url(#glowB360)"/>
-                  <rect x="44" y="134" width="72" height="8" rx="4" fill="url(#trophyGradB360)" filter="url(#glowB360)"/>
-                  <rect x="68" y="112" width="24" height="24" rx="3" fill="url(#trophyGradB360)" filter="url(#glowB360)"/>
-                  <rect x="72" y="112" width="16" height="24" rx="2" fill="url(#trophyShineB360)" opacity="0.4"/>
-                  <path d="M36 28 L124 28 L116 92 Q110 116 80 116 Q50 116 44 92 Z" fill="url(#trophyGradB360)" filter="url(#glowB360)"/>
-                  <path d="M46 28 L90 28 L84 85 Q78 108 60 112 Q44 100 44 92 Z" fill="url(#cupGlowB360)" opacity="0.4"/>
+                  <rect x="52" y="138" width="56" height="8" rx="4" fill="url(#trophyGradWB)" filter="url(#glowWB)"/>
+                  <rect x="44" y="134" width="72" height="8" rx="4" fill="url(#trophyGradWB)" filter="url(#glowWB)"/>
+                  <rect x="68" y="112" width="24" height="24" rx="3" fill="url(#trophyGradWB)" filter="url(#glowWB)"/>
+                  <rect x="72" y="112" width="16" height="24" rx="2" fill="url(#trophyShineWB)" opacity="0.4"/>
+                  <path d="M36 28 L124 28 L116 92 Q110 116 80 116 Q50 116 44 92 Z" fill="url(#trophyGradWB)" filter="url(#glowWB)"/>
+                  <path d="M46 28 L90 28 L84 85 Q78 108 60 112 Q44 100 44 92 Z" fill="url(#cupGlowWB)" opacity="0.4"/>
                   <path d="M50 35 L110 35 L103 88 Q98 108 80 110 Q62 108 57 88 Z" fill="none" stroke="rgba(148,163,184,0.3)" strokeWidth="1"/>
-                  <path d="M36 38 Q16 38 16 58 Q16 76 36 76" stroke="url(#trophyGradB360)" strokeWidth="12" fill="none" strokeLinecap="round" filter="url(#glowB360)"/>
-                  <path d="M36 44 Q22 44 22 58 Q22 72 36 70" stroke="url(#trophyShineB360)" strokeWidth="4" fill="none" strokeLinecap="round" opacity="0.5"/>
-                  <path d="M124 38 Q144 38 144 58 Q144 76 124 76" stroke="url(#trophyGradB360)" strokeWidth="12" fill="none" strokeLinecap="round" filter="url(#glowB360)"/>
-                  <path d="M124 44 Q138 44 138 58 Q138 72 124 70" stroke="url(#trophyShineB360)" strokeWidth="4" fill="none" strokeLinecap="round" opacity="0.5"/>
+                  <path d="M36 38 Q16 38 16 58 Q16 76 36 76" stroke="url(#trophyGradWB)" strokeWidth="12" fill="none" strokeLinecap="round" filter="url(#glowWB)"/>
+                  <path d="M36 44 Q22 44 22 58 Q22 72 36 70" stroke="url(#trophyShineWB)" strokeWidth="4" fill="none" strokeLinecap="round" opacity="0.5"/>
+                  <path d="M124 38 Q144 38 144 58 Q144 76 124 76" stroke="url(#trophyGradWB)" strokeWidth="12" fill="none" strokeLinecap="round" filter="url(#glowWB)"/>
+                  <path d="M124 44 Q138 44 138 58 Q138 72 124 70" stroke="url(#trophyShineWB)" strokeWidth="4" fill="none" strokeLinecap="round" opacity="0.5"/>
                   <text x="80" y="82" textAnchor="middle" fontSize="28" fill="#e2e8f0" opacity="0.7">★</text>
-                  <text x="80" y="58" textAnchor="middle" fontSize="8" fontWeight="900" fill="#475569" letterSpacing="1" opacity="0.9">BET</text>
-                  <text x="80" y="70" textAnchor="middle" fontSize="8" fontWeight="900" fill="#dc2626" letterSpacing="1" opacity="0.9">360</text>
+                  <text x="80" y="58" textAnchor="middle" fontSize="7" fontWeight="900" fill="#475569" letterSpacing="1" opacity="0.9">WINNING</text>
+                  <text x="80" y="70" textAnchor="middle" fontSize="8" fontWeight="900" fill="#dc2626" letterSpacing="1" opacity="0.9">BET</text>
                   <rect x="48" y="120" width="64" height="16" rx="3" fill="#dc2626"/>
                   <text x="80" y="131" textAnchor="middle" fontSize="8" fontWeight="900" fill="#ffffff" letterSpacing="2">WINNER</text>
                 </svg>
@@ -618,7 +617,7 @@ function WinModal({ bet, currency, onClose }: { bet: Bet; currency: CurrencyInfo
 
             <div className="grid grid-cols-3 gap-0 mx-4 mt-4 rounded-xl overflow-hidden border" style={{ borderColor: 'rgba(220,38,38,0.2)' }}>
               {[
-                { icon: '🎫', label: 'TICKET ID', value: `B3${bet.id.slice(-8).toUpperCase()}` },
+                { icon: '🎫', label: 'TICKET ID', value: `WB${bet.id.slice(-8).toUpperCase()}` },
                 { icon: '📅', label: 'DATE', value: placedDate },
                 { icon: '🏆', label: 'BET TYPE', value: bet.selections.length > 1 ? 'MULTIPLE' : 'SINGLE' },
               ].map((item, i) => (
@@ -693,7 +692,7 @@ function WinModal({ bet, currency, onClose }: { bet: Bet; currency: CurrencyInfo
             {/* Dashed separator */}
             <div className="mx-4 my-3 relative flex items-center">
               <div style={{ flex: 1, borderTop: '1.5px dashed rgba(220,38,38,0.25)' }} />
-              <div className="mx-2"><Bet360LogoSvg size={14} /></div>
+              <div className="mx-2"><WinningBetLogoSvg size={14} /></div>
               <div style={{ flex: 1, borderTop: '1.5px dashed rgba(220,38,38,0.25)' }} />
             </div>
 
@@ -839,12 +838,12 @@ function LossModal({ bet, currency, onClose }: { bet: Bet; currency: CurrencyInf
               );
             })}
 
-            {/* Bet360 divider */}
+            {/* WinningBet divider */}
             <div className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
               <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
               <div className="flex items-center gap-1.5">
-                <Bet360LogoSvg size={14} />
-                <Bet360WordmarkDark size={13} />
+                <WinningBetLogoSvg size={14} />
+                <WinningBetWordmarkDark size={13} />
               </div>
               <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.1)' }} />
             </div>
@@ -1564,8 +1563,8 @@ export default function BetSlipPage() {
         <div className="max-w-lg mx-auto">
           {/* Header branding strip */}
           <div className="flex items-center justify-center gap-2 pt-3 pb-1">
-            <Bet360LogoSvg size={18} />
-            <Bet360WordmarkDark size={13} />
+            <WinningBetLogoSvg size={18} />
+            <WinningBetWordmarkDark size={13} />
           </div>
           <div className="flex">
             <button

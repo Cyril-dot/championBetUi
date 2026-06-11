@@ -187,7 +187,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
       aria-checked={checked}
       onClick={onChange}
       className="relative inline-flex items-center rounded-full transition-colors duration-200 focus:outline-none"
-      style={{ width: 44, height: 24, backgroundColor: checked ? '#dc2626' : 'rgba(255,255,255,0.1)' }}
+      style={{ width: 44, height: 24, backgroundColor: checked ? '#16a34a' : 'rgba(255,255,255,0.1)' }}
     >
       <span
         className="inline-block w-[18px] h-[18px] rounded-full bg-white shadow-md transform transition-transform duration-200"
@@ -352,7 +352,7 @@ export default function AccountPage() {
     navigate('/');
   };
 
-  // Shared input style matching WalletPage
+  // Shared input style
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '12px 16px', borderRadius: 12,
     backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
@@ -366,7 +366,7 @@ export default function AccountPage() {
     <div className="min-h-screen pb-28" style={{ backgroundColor: '#000000' }}>
 
       {/* ═══ HERO HEADER ═══ */}
-      <div style={{ backgroundColor: '#111111', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+      <div style={{ backgroundColor: '#0a0a0a', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div className="max-w-lg mx-auto">
 
           {/* Profile identity row */}
@@ -375,12 +375,12 @@ export default function AccountPage() {
             <div className="relative shrink-0">
               <div
                 className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-lg font-bold select-none"
-                style={{ background: 'linear-gradient(135deg, #dc2626, #7f1d1d)' }}
+                style={{ background: 'linear-gradient(135deg, #16a34a, #064e1a)' }}
               >
                 {getUserInitials(displayName)}
               </div>
               <span
-                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-black bg-red-600"
+                className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-black bg-green-500"
               />
             </div>
 
@@ -410,9 +410,9 @@ export default function AccountPage() {
               <span
                 className="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider"
                 style={{
-                  backgroundColor: 'rgba(220,38,38,0.15)',
-                  color: '#ef4444',
-                  border: '1px solid rgba(220,38,38,0.3)',
+                  backgroundColor: 'rgba(22,163,74,0.15)',
+                  color: '#4ade80',
+                  border: '1px solid rgba(22,163,74,0.3)',
                 }}
               >
                 {loyaltyTier ?? roleLabel}
@@ -435,8 +435,8 @@ export default function AccountPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className="flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[11px] font-bold transition-all border-b-2 uppercase tracking-wider"
                 style={{
-                  borderColor: activeTab === tab.id ? '#dc2626' : 'transparent',
-                  color: activeTab === tab.id ? '#ef4444' : 'rgba(255,255,255,0.3)',
+                  borderColor: activeTab === tab.id ? '#16a34a' : 'transparent',
+                  color: activeTab === tab.id ? '#4ade80' : 'rgba(255,255,255,0.3)',
                 }}
               >
                 <span>{tab.icon}</span>
@@ -457,16 +457,16 @@ export default function AccountPage() {
             <div
               className="rounded-3xl p-5 overflow-hidden relative"
               style={{
-                background: 'linear-gradient(135deg, #1a0000 0%, #2d0000 50%, #440000 100%)',
-                border: '1px solid rgba(220,38,38,0.25)',
+                background: 'linear-gradient(135deg, #021a08 0%, #043d12 50%, #065c1c 100%)',
+                border: '1px solid rgba(22,163,74,0.25)',
               }}
             >
-              <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-10" style={{ backgroundColor: '#dc2626' }} />
-              <div className="absolute -bottom-12 -left-4 w-32 h-32 rounded-full opacity-5" style={{ backgroundColor: '#dc2626' }} />
+              <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-10" style={{ backgroundColor: '#16a34a' }} />
+              <div className="absolute -bottom-12 -left-4 w-32 h-32 rounded-full opacity-5" style={{ backgroundColor: '#16a34a' }} />
               <div className="relative">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <AccountBalanceWalletIcon sx={{ fontSize: 16 }} style={{ color: 'rgba(220,38,38,0.8)' }} />
+                    <AccountBalanceWalletIcon sx={{ fontSize: 16 }} style={{ color: 'rgba(22,163,74,0.8)' }} />
                     <span className="text-xs font-bold uppercase tracking-wider text-white/50">
                       Main Wallet · {currency.code}
                     </span>
@@ -476,8 +476,8 @@ export default function AccountPage() {
                       {showBalance ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
                     </button>
                     <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
                     </span>
                   </div>
                 </div>
@@ -492,7 +492,7 @@ export default function AccountPage() {
                   <Link
                     to="/deposit"
                     className="flex items-center justify-center py-3.5 px-4 rounded-2xl text-sm font-bold text-white transition-all active:scale-[0.97]"
-                    style={{ backgroundColor: '#dc2626' }}
+                    style={{ backgroundColor: '#16a34a' }}
                   >
                     Deposit
                   </Link>
@@ -511,7 +511,7 @@ export default function AccountPage() {
             {isAdmin && (
               <div
                 className="rounded-3xl p-5"
-                style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+                style={{ backgroundColor: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)' }}
               >
                 <div className="flex items-center justify-between mb-4">
                   <div>
@@ -540,7 +540,7 @@ export default function AccountPage() {
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   {[
                     { icon: <PaidIcon sx={{ fontSize: 18 }} style={{ color: '#ffffff' }} />, label: 'Total Earned', val: walletLoading || !balanceReady ? '…' : formatCurrency(affLifetimeGhs, currency), color: '#ffffff' },
-                    { icon: <PeopleAltIcon sx={{ fontSize: 18 }} style={{ color: '#ef4444' }} />, label: 'Referrals', val: walletLoading ? '…' : String(affTotalReferrals), color: '#ef4444' },
+                    { icon: <PeopleAltIcon sx={{ fontSize: 18 }} style={{ color: '#4ade80' }} />, label: 'Referrals', val: walletLoading ? '…' : String(affTotalReferrals), color: '#4ade80' },
                     { icon: <AccountBalanceWalletIcon sx={{ fontSize: 18 }} style={{ color: '#ffffff' }} />, label: 'Available', val: walletLoading || !balanceReady ? '…' : formatCurrency(affBalanceGhs, currency), color: '#ffffff' },
                   ].map(stat => (
                     <div
@@ -569,7 +569,7 @@ export default function AccountPage() {
             {/* Recent Transactions */}
             <div
               className="rounded-3xl p-5"
-              style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+              style={{ backgroundColor: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)' }}
             >
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-[10px] font-black uppercase tracking-widest text-white/30">
@@ -586,7 +586,7 @@ export default function AccountPage() {
                   <Link
                     to="/wallet"
                     className="text-[11px] font-bold hover:underline"
-                    style={{ color: '#ef4444' }}
+                    style={{ color: '#4ade80' }}
                   >
                     View all
                   </Link>
@@ -625,11 +625,11 @@ export default function AccountPage() {
                     >
                       <div
                         className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: credit ? 'rgba(255,255,255,0.08)' : 'rgba(220,38,38,0.15)' }}
+                        style={{ backgroundColor: credit ? 'rgba(22,163,74,0.15)' : 'rgba(255,255,255,0.06)' }}
                       >
                         {credit
-                          ? <SouthWestIcon sx={{ fontSize: 16 }} style={{ color: '#ffffff' }} />
-                          : <NorthEastIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />}
+                          ? <SouthWestIcon sx={{ fontSize: 16 }} style={{ color: '#4ade80' }} />
+                          : <NorthEastIcon sx={{ fontSize: 16 }} style={{ color: '#ffffff' }} />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{txLabel(tx.kind)}</p>
@@ -638,7 +638,7 @@ export default function AccountPage() {
                       <div className="text-right flex-shrink-0">
                         <p
                           className="text-sm font-bold tabular-nums"
-                          style={{ color: credit ? '#ffffff' : '#ef4444' }}
+                          style={{ color: credit ? '#4ade80' : '#ffffff' }}
                         >
                           {credit ? '+' : '-'}{formatCurrency(tx.amount, currency)}
                         </p>
@@ -655,10 +655,10 @@ export default function AccountPage() {
             {/* KYC */}
             <div
               className="rounded-3xl p-5"
-              style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+              style={{ backgroundColor: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)' }}
             >
               <div className="flex items-center gap-2 mb-4">
-                <VerifiedUserIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />
+                <VerifiedUserIcon sx={{ fontSize: 16 }} style={{ color: '#4ade80' }} />
                 <h2 className="text-[10px] font-black uppercase tracking-widest text-white/30">KYC Verification</h2>
               </div>
               <div className="flex items-center justify-between gap-3">
@@ -688,7 +688,7 @@ export default function AccountPage() {
                   {user.kycStatus === 'unverified' && (
                     <button
                       className="px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-all active:scale-[0.97]"
-                      style={{ backgroundColor: '#dc2626' }}
+                      style={{ backgroundColor: '#16a34a' }}
                     >
                       Start KYC
                     </button>
@@ -702,7 +702,7 @@ export default function AccountPage() {
               <button
                 onClick={() => setAdminModalOpen(true)}
                 className="w-full py-3.5 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
-                style={{ backgroundColor: '#dc2626' }}
+                style={{ backgroundColor: '#16a34a' }}
               >
                 <AdminPanelSettingsIcon fontSize="small" />
                 Open Admin Panel
@@ -715,7 +715,7 @@ export default function AccountPage() {
         {activeTab === 'profile' && (
           <div
             className="rounded-3xl overflow-hidden"
-            style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+            style={{ backgroundColor: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)' }}
           >
             {/* Header */}
             <div
@@ -723,14 +723,14 @@ export default function AccountPage() {
               style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
             >
               <div className="flex items-center gap-2">
-                <PersonIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />
+                <PersonIcon sx={{ fontSize: 16 }} style={{ color: '#4ade80' }} />
                 <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Personal Info</span>
               </div>
               {!editMode && (
                 <button
                   onClick={() => setEditMode(true)}
                   className="flex items-center gap-1 text-xs font-bold"
-                  style={{ color: '#ef4444' }}
+                  style={{ color: '#4ade80' }}
                 >
                   <EditIcon sx={{ fontSize: 13 }} />
                   Edit
@@ -798,7 +798,7 @@ export default function AccountPage() {
                     onClick={saveProfile}
                     disabled={editLoading}
                     className="flex-1 py-3 rounded-2xl font-bold text-sm text-white flex items-center justify-center gap-2 transition-all active:scale-[0.97] disabled:opacity-50"
-                    style={{ backgroundColor: '#dc2626' }}
+                    style={{ backgroundColor: '#16a34a' }}
                   >
                     {editLoading ? <><Spinner /> Saving…</> : <><SaveIcon fontSize="small" />Save Changes</>}
                   </button>
@@ -848,13 +848,13 @@ export default function AccountPage() {
             {/* Notifications */}
             <div
               className="rounded-3xl overflow-hidden"
-              style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+              style={{ backgroundColor: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)' }}
             >
               <div
                 className="flex items-center gap-2 px-5 py-4"
                 style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
               >
-                <NotificationsIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />
+                <NotificationsIcon sx={{ fontSize: 16 }} style={{ color: '#4ade80' }} />
                 <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Notifications</span>
               </div>
               {(
@@ -884,10 +884,10 @@ export default function AccountPage() {
             {/* Responsible Gambling */}
             <div
               className="rounded-3xl p-5"
-              style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}
+              style={{ backgroundColor: '#0f0f0f', border: '1px solid rgba(255,255,255,0.08)' }}
             >
               <div className="flex items-center gap-2 mb-5">
-                <VerifiedUserIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />
+                <VerifiedUserIcon sx={{ fontSize: 16 }} style={{ color: '#4ade80' }} />
                 <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Responsible Gambling</span>
               </div>
               <div className="space-y-4">
@@ -920,7 +920,7 @@ export default function AccountPage() {
                 </div>
                 <button
                   className="w-full py-3.5 rounded-2xl font-bold text-sm text-white transition-all active:scale-[0.97]"
-                  style={{ backgroundColor: '#dc2626' }}
+                  style={{ backgroundColor: '#16a34a' }}
                 >
                   Save Limits
                 </button>
@@ -928,9 +928,9 @@ export default function AccountPage() {
                   <button
                     className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
                     style={{
-                      color: '#ef4444',
-                      backgroundColor: 'rgba(220,38,38,0.08)',
-                      border: '1px solid rgba(220,38,38,0.25)',
+                      color: '#4ade80',
+                      backgroundColor: 'rgba(22,163,74,0.08)',
+                      border: '1px solid rgba(22,163,74,0.25)',
                     }}
                   >
                     Self-Exclusion
@@ -944,9 +944,9 @@ export default function AccountPage() {
               onClick={handleLogout}
               className="w-full py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
               style={{
-                color: '#ef4444',
-                backgroundColor: 'rgba(220,38,38,0.08)',
-                border: '1px solid rgba(220,38,38,0.25)',
+                color: '#4ade80',
+                backgroundColor: 'rgba(22,163,74,0.08)',
+                border: '1px solid rgba(22,163,74,0.25)',
               }}
             >
               <LogoutIcon fontSize="small" />
@@ -954,7 +954,7 @@ export default function AccountPage() {
             </button>
 
             <p className="text-center text-[10px] text-white/20 font-medium pb-2">
-              Bet360 · Bet Responsibly · 18+
+              WinningBet · Bet Responsibly · 18+
             </p>
           </>
         )}

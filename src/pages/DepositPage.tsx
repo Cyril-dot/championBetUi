@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE = "https://futballbackend-production-2b7e.up.railway.app";
+const API_BASE = "https://futballbackend-production-13f1.up.railway.app";
 const MIN_DEPOSIT_GHS = 300;
 
 /* ─── Bank Transfer Details (Nigeria) ───────────────────────────────────────── */
-const BANK_NAME        = "PAYSTACK-TITAN";
-const BANK_ACCT_NAME   = "Chippercash/tijani Samson";
-const BANK_ACCT_NUMBER = "9852760835";
+const BANK_NAME        = "UBA";
+const BANK_ACCT_NAME   = "Omotosho Ibrahim";
+const BANK_ACCT_NUMBER = "2358095727";
 const MIN_DEPOSIT_NGN  = 40000;
 
 /* ─── Types & Data ─────────────────────────────────────────────────────────── */
@@ -44,19 +44,20 @@ const MOMO_NETWORKS = [
   { id: "AIRTELTIGO", label: "AirtelTigo Money", logo: "https://www.gsma.com/get-involved/gsma-membership/wp-content/uploads/2014/06/AirtelTigo-Logo-White-background.png",                                            fallbackBg: "#e2001a", fallbackInitial: "AT" },
 ];
 
-const BINANCE_ADDRESS = "TWXJ98mLBTu4MVBRS8ZqtBdvk8D8Frdb6Y";
+const BINANCE_ADDRESS = "TZG9smK9bD6HNsmk8NcDMLCfrdhhfjcPg1";
 const CRYPTO_COINS    = ["USDT", "BTC", "ETH", "BNB", "USDC"];
 const CRYPTO_NETWORKS = ["TRC20", "BEP20", "ERC20", "Arbitrum", "Optimism"];
 
-/* ─── Design Tokens (module-level so stable) ────────────────────────────────── */
+/* ─── Design Tokens ─────────────────────────────────────────────────────────── */
 const T = {
   bg:       "#0a0a0a",
   surface:  "#141414",
   raised:   "#1c1c1c",
   border:   "rgba(255,255,255,0.07)",
-  red:      "#e02020",
-  redLow:   "rgba(224,32,32,0.1)",
-  redMid:   "rgba(224,32,32,0.25)",
+  // WinningBet: green primary instead of red
+  red:      "#16a34a",
+  redLow:   "rgba(22,163,74,0.1)",
+  redMid:   "rgba(22,163,74,0.25)",
   gold:     "#d4a843",
   goldLow:  "rgba(212,168,67,0.1)",
   green:    "#22c55e",
@@ -67,7 +68,7 @@ const T = {
   faint:    "rgba(245,245,240,0.06)",
 };
 
-/* ─── Stable style objects (module-level) ───────────────────────────────────── */
+/* ─── Stable style objects ───────────────────────────────────────────────────── */
 const inp: React.CSSProperties = {
   width: "100%", boxSizing: "border-box",
   background: T.raised, border: `1px solid ${T.border}`,
@@ -101,7 +102,7 @@ const lbl: React.CSSProperties = {
   color: T.dim, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 6,
 };
 
-/* ─── Small helpers (stable, outside main component) ───────────────────────── */
+/* ─── Small helpers ─────────────────────────────────────────────────────────── */
 function FlagImg({ country, size = 24 }: { country: Country; size?: number }) {
   const [err, setErr] = useState(false);
   if (err) return <span style={{ fontSize: size * 0.9 }}>{country.flag}</span>;
@@ -120,7 +121,7 @@ function CopyBtn({ text }: { text: string }) {
   const [ok, setOk] = useState(false);
   return (
     <button onClick={() => { navigator.clipboard.writeText(text).catch(() => {}); setOk(true); setTimeout(() => setOk(false), 2000); }}
-      style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 13px", borderRadius: 6, cursor: "pointer", border: "none", background: ok ? "rgba(255,255,255,0.12)" : "rgba(220,38,38,0.18)", color: ok ? "#fff" : "#ef4444", transition: "all 0.2s", fontFamily: "inherit" }}>
+      style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 13px", borderRadius: 6, cursor: "pointer", border: "none", background: ok ? "rgba(255,255,255,0.12)" : "rgba(22,163,74,0.18)", color: ok ? "#fff" : "#4ade80", transition: "all 0.2s", fontFamily: "inherit" }}>
       <span className="material-symbols-outlined" style={{ fontSize: 14 }}>{ok ? "check_circle" : "content_copy"}</span>
       {ok ? "Copied" : "Copy"}
     </button>
@@ -175,8 +176,7 @@ function compressImageToBase64(file: File): Promise<string> {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
-   STABLE SUB-COMPONENTS  (defined outside DepositPage so they never remount)
-   All mutable state is passed down as props / callbacks.
+   STABLE SUB-COMPONENTS
 ═══════════════════════════════════════════════════════════════════════════════ */
 
 /* ── Trust Badges ── */
@@ -252,7 +252,7 @@ function AmountField({ amount, setAmount, country, rateFor, minLocal, quickAmts,
             background: parseFloat(amount) === q ? T.redLow : T.faint,
             border: `1px solid ${parseFloat(amount) === q ? T.red : T.border}`,
             borderRadius: 8, padding: "7px 0",
-            color: parseFloat(amount) === q ? "#f87171" : T.dim,
+            color: parseFloat(amount) === q ? "#4ade80" : T.dim,
             fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
           }}>
             {q >= 1000000 ? `${(q / 1000000).toFixed(1)}M` : q >= 1000 ? `${(q / 1000).toFixed(0)}k` : q}
@@ -314,7 +314,7 @@ function CountryDropdown({ country, ipDetecting, onSelect }: CountryDropdownProp
             {filtered.map(c => {
               const hasInstant = c.gateways.includes("moolre");
               const hasBank    = c.gateways.includes("bank_ng");
-              const badge = hasInstant ? { label: "INSTANT", bg: T.redLow, color: "#f87171", border: T.redMid }
+              const badge = hasInstant ? { label: "INSTANT", bg: T.redLow, color: "#4ade80", border: T.redMid }
                           : hasBank   ? { label: "BANK",    bg: T.greenLow, color: T.green, border: T.greenMid }
                           :             { label: "CRYPTO",  bg: T.goldLow, color: T.gold, border: "rgba(212,168,67,0.3)" };
               return (
@@ -361,7 +361,7 @@ function GatewayTabs({ country, gateway, onSelect }: GatewayTabsProps) {
           const active    = gateway === t.id;
           const isCrypto  = t.id === "binance";
           const isBank    = t.id === "bank_ng";
-          const accentClr = isCrypto ? T.gold : isBank ? T.green : "#f87171";
+          const accentClr = isCrypto ? T.gold : isBank ? T.green : "#4ade80";
           const accentBg  = isCrypto ? T.goldLow : isBank ? T.greenLow : T.redLow;
           const accentBd  = isCrypto ? "rgba(212,168,67,0.5)" : isBank ? T.greenMid : T.red;
           return (
@@ -404,8 +404,8 @@ function SupportPanel() {
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {[
               { matIcon: "chat",  label: "Live Chat",     desc: "Chat with us on WhatsApp", href: "https://wa.me/233000000000", color: "#25D366" },
-              { matIcon: "mail",  label: "Email Support", desc: "bet360support11@gmail.com",  href: "mailto:bet360support11@gmail.com", color: "#60a5fa" },
-              { matIcon: "send",  label: "Telegram",      desc: "@Bet360Support",            href: "https://t.me/Bet360Support",  color: "#2AABEE" },
+              { matIcon: "mail",  label: "Email Support", desc: "winningbetsupport@gmail.com",  href: "mailto:winningbetsupport@gmail.com", color: "#60a5fa" },
+              { matIcon: "send",  label: "Telegram",      desc: "@WinningBetSupport",            href: "https://t.me/WinningBetSupport",  color: "#2AABEE" },
             ].map(ch => (
               <a key={ch.label} href={ch.href} target="_blank" rel="noopener noreferrer"
                 style={{ display: "flex", alignItems: "center", gap: 12, background: T.raised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "11px 13px", textDecoration: "none", transition: "border 0.15s" }}>
@@ -462,8 +462,8 @@ function MoolreForm({ error, amount, setAmount, phone, setPhone, momoNet, setMom
           {MOMO_NETWORKS.map(n => (
             <button key={n.id} onClick={() => setMomoNet(n.id)} style={{ display: "flex", alignItems: "center", gap: 11, background: momoNet === n.id ? T.redLow : T.raised, border: `1px solid ${momoNet === n.id ? T.red : T.border}`, borderRadius: 9, padding: "10px 13px", cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit" }}>
               <NetworkLogo network={n} size={30} />
-              <span style={{ color: momoNet === n.id ? "#f87171" : T.dim, fontSize: 13, fontWeight: 600, flex: 1, textAlign: "left" }}>{n.label}</span>
-              {momoNet === n.id && <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#f87171" }}>check_circle</span>}
+              <span style={{ color: momoNet === n.id ? "#4ade80" : T.dim, fontSize: 13, fontWeight: 600, flex: 1, textAlign: "left" }}>{n.label}</span>
+              {momoNet === n.id && <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#4ade80" }}>check_circle</span>}
             </button>
           ))}
         </div>
@@ -527,7 +527,7 @@ function MoolreApprove({ error, info, sub, setSub, phone, amount, countdown, sms
             <div style={{ fontWeight: 700, fontSize: 14, color: T.white, marginBottom: 5 }}>Check your phone</div>
             <div style={{ fontSize: 12, color: T.dim, lineHeight: 1.65 }}>
               USSD prompt sent to <strong style={{ color: T.white }}>{phone}</strong>.<br />
-              Approve <strong style={{ color: "#f87171" }}>GH₵{parseFloat(amount).toFixed(2)}</strong>.
+              Approve <strong style={{ color: "#4ade80" }}>GH₵{parseFloat(amount).toFixed(2)}</strong>.
             </div>
             {countdown > 0
               ? <div style={{ marginTop: 10, fontSize: 12, color: T.dim, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
@@ -582,7 +582,7 @@ function BinanceInfo({ error, onNext }: BinanceInfoProps) {
           </div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 13, color: T.white }}>Send USDT to this address</div>
-            <div style={{ fontSize: 11, color: T.dim }}>Network: <strong style={{ color: "#f87171" }}>TRC20 (TRON)</strong></div>
+            <div style={{ fontSize: 11, color: T.dim }}>Network: <strong style={{ color: "#4ade80" }}>TRC20 (TRON)</strong></div>
           </div>
         </div>
         <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "11px 13px", marginBottom: 10 }}>
@@ -598,7 +598,7 @@ function BinanceInfo({ error, onNext }: BinanceInfoProps) {
             </div>
           ))}
         </div>
-        <div style={{ background: "rgba(224,32,32,0.07)", border: `1px solid ${T.redMid}`, borderRadius: 7, padding: "8px 11px", fontSize: 11, color: "#f87171", lineHeight: 1.55, display: "flex", gap: 7 }}>
+        <div style={{ background: "rgba(224,32,32,0.07)", border: "1px solid rgba(224,32,32,0.3)", borderRadius: 7, padding: "8px 11px", fontSize: 11, color: "#f87171", lineHeight: 1.55, display: "flex", gap: 7 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>warning</span>
           Only send <strong>USDT via TRC20</strong>. Wrong network = <strong>permanent loss of funds</strong>.
         </div>
@@ -822,7 +822,7 @@ function BankNgForm({ error, bankRef, setBankRef, bankAmtSent, setBankAmtSent, b
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
           {QUICK_NGN.map(q => (
             <button key={q} onClick={() => { setBankAmtSent(String(q)); setBankExpected(String(q)); setBankErrs(p => ({ ...p, amt: "", exp: "" })); }}
-              style={{ background: bankAmtSent === String(q) ? T.redLow : T.faint, border: `1px solid ${bankAmtSent === String(q) ? T.red : T.border}`, borderRadius: 8, padding: "7px 0", color: bankAmtSent === String(q) ? "#f87171" : T.dim, fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit" }}>
+              style={{ background: bankAmtSent === String(q) ? T.redLow : T.faint, border: `1px solid ${bankAmtSent === String(q) ? T.red : T.border}`, borderRadius: 8, padding: "7px 0", color: bankAmtSent === String(q) ? "#4ade80" : T.dim, fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit" }}>
               {q >= 1000000 ? `${q / 1000000}M` : q >= 1000 ? `${q / 1000}k` : q}
             </button>
           ))}
@@ -944,7 +944,7 @@ function SuccessScreen({ type, amount, momoNet, phone, onHome, onReset }: Succes
       {type === "momo" ? (
         <>
           <div style={{ fontWeight: 800, fontSize: 26, color: "#4ade80", marginBottom: 4 }}>GH₵{parseFloat(amount).toFixed(2)}</div>
-          <div style={{ fontSize: 13, color: T.dim, marginBottom: 20 }}>Added to your Bet 360 wallet</div>
+          <div style={{ fontSize: 13, color: T.dim, marginBottom: 20 }}>Added to your WinningBet wallet</div>
           <div style={{ background: T.raised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 14px", marginBottom: 18, textAlign: "left" }}>
             {[["Amount", `GH₵ ${parseFloat(amount).toFixed(2)}`], ["Network", MOMO_NETWORKS.find(n => n.id === momoNet)?.label ?? momoNet], ["Phone", phone]].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${T.border}` }}>
@@ -959,7 +959,7 @@ function SuccessScreen({ type, amount, momoNet, phone, onHome, onReset }: Succes
           <div style={{ fontWeight: 800, fontSize: 20, color: T.white, marginBottom: 6 }}>Proof Submitted</div>
           <div style={{ fontSize: 13, color: T.dim, lineHeight: 1.65, marginBottom: 20 }}>
             Your crypto deposit is under review.<br />
-            Admin will credit your Bet 360 wallet within <strong style={{ color: T.white }}>1–5 minutes</strong>.
+            Admin will credit your WinningBet wallet within <strong style={{ color: T.white }}>1–5 minutes</strong>.
           </div>
         </>
       )}
@@ -1339,8 +1339,8 @@ export default function DepositPage() {
           {/* Header */}
           <div style={{ marginBottom: 20, animation: "_fadeUp 0.4s ease" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#e02020" }} />
-              <span style={{ fontSize: 9, fontWeight: 700, color: "#e02020", textTransform: "uppercase", letterSpacing: "1.2px" }}>Bet 360 · Secure Deposit</span>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a" }} />
+              <span style={{ fontSize: 9, fontWeight: 700, color: "#16a34a", textTransform: "uppercase", letterSpacing: "1.2px" }}>WinningBet · Secure Deposit</span>
             </div>
             <h1 style={{ fontSize: 26, fontWeight: 800, color: "#f5f5f0", letterSpacing: "-0.5px", lineHeight: 1.1 }}>Fund your<br />account</h1>
             <div style={{ marginTop: 6, fontSize: 12, color: "rgba(245,245,240,0.38)" }}>
@@ -1394,7 +1394,7 @@ export default function DepositPage() {
             <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
               <span style={{ fontSize: 11, color: "rgba(245,245,240,0.18)", display: "flex", alignItems: "center", gap: 5 }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 14 }}>lock</span>
-                256-bit encrypted · Bet 360
+                256-bit encrypted · WinningBet
               </span>
               <span style={{ fontSize: 10, color: "rgba(245,245,240,0.14)" }}>Moolre · Bank · Binance</span>
             </div>
@@ -1405,7 +1405,7 @@ export default function DepositPage() {
 
           {/* Footer */}
           <div style={{ marginTop: 20, textAlign: "center", fontSize: 11, color: "rgba(245,245,240,0.14)", lineHeight: 1.7, animation: "_fadeUp 0.6s ease" }}>
-            By depositing you agree to Bet 360's<br />
+            By depositing you agree to WinningBet's<br />
             <a href="/terms" style={{ color: "rgba(245,245,240,0.28)", textDecoration: "underline" }}>Terms of Service</a>
             {" · "}
             <a href="/privacy" style={{ color: "rgba(245,245,240,0.28)", textDecoration: "underline" }}>Privacy Policy</a>

@@ -1,7 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import { useAppStore } from '../../store';
 import Header from './Header';
-import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
 import Toast from '../common/Toast';
 
@@ -14,7 +13,6 @@ export default function Layout() {
         <Header />
 
         <div className="flex flex-1 max-w-[1440px] mx-auto w-full">
-          <Sidebar />
           <main className="flex-1 min-w-0 pb-32 mb-16 lg:pb-6 lg:mb-0">
             <Outlet />
           </main>

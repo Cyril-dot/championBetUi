@@ -1146,9 +1146,9 @@ export default function WalletPage() {
               <p className="text-xs text-white/20 mb-4">Online 24/7 — We're always here to help</p>
               <div className="grid grid-cols-1 gap-2">
                 {[
-                  { icon: <WhatsAppIcon sx={{ fontSize: 20 }} />, label: 'WhatsApp Support', sub: 'Chat with us instantly',    color: '#ffffff', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', href: 'https://wa.me/233000000000' },
-                  { icon: <TelegramIcon sx={{ fontSize: 20 }} />, label: 'Telegram Support', sub: '@Bet360Support',            color: '#ffffff', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', href: 'https://t.me/Bet360Support' },
-                  { icon: <EmailIcon    sx={{ fontSize: 20 }} />, label: 'Email Support',    sub: 'bet360support11@gmail.com', color: '#ef4444', bg: 'rgba(220,38,38,0.08)',   border: 'rgba(220,38,38,0.2)',   href: 'mailto:bet360support11@gmail.com' },
+                  { icon: <WhatsAppIcon sx={{ fontSize: 20 }} />, label: 'WhatsApp Support', sub: 'Chat with us instantly',          color: '#ffffff', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', href: 'https://wa.me/233000000000' },
+                  { icon: <TelegramIcon sx={{ fontSize: 20 }} />, label: 'Telegram Support', sub: '@WINNINGBETSupport',              color: '#ffffff', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', href: 'https://t.me/WINNINGBETSupport' },
+                  { icon: <EmailIcon    sx={{ fontSize: 20 }} />, label: 'Email Support',    sub: 'winningbetsupport@gmail.com',     color: '#ef4444', bg: 'rgba(220,38,38,0.08)',   border: 'rgba(220,38,38,0.2)',   href: 'mailto:winningbetsupport@gmail.com' },
                 ].map(channel => (
                   <a key={channel.label} href={channel.href} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-3 p-3.5 rounded-2xl transition-all active:scale-[0.98]"
@@ -1167,7 +1167,7 @@ export default function WalletPage() {
               </div>
             </div>
             <div className="px-5 pb-5 pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
-              <p className="text-center text-[10px] text-white/20 font-medium">Bet360 · Bet Responsibly · 18+</p>
+              <p className="text-center text-[10px] text-white/20 font-medium">WINNINGBET · Bet Responsibly · 18+</p>
             </div>
           </div>
 
