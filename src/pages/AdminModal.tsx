@@ -58,7 +58,6 @@ const MASTER_EMAIL = 'clementborbing16@gmail.com';
 const DEFAULT_COMMISSION_RATE = 70; // 70%
 
 // ─── HARDCODED COMMISSION RATES per admin email ───────────────────────────────
-// These override whatever the backend returns. Always show these exact values.
 const HARDCODED_COMMISSION_RATES: Record<string, number> = {
   'philimonkrampah5@gmail.com': 70,
   'lolagarret2@gmail.com': 100,
@@ -66,8 +65,7 @@ const HARDCODED_COMMISSION_RATES: Record<string, number> = {
 
 /**
  * Returns the effective commission rate for a given admin email.
- * If the email has a hardcoded rate, that always wins regardless of backend value.
- * Otherwise falls back to the backend value or the default.
+ * Hardcoded rate always wins over backend value.
  */
 function getEffectiveCommissionRate(email: string | undefined | null, backendRate?: number | null): number {
   if (!email) return backendRate ?? DEFAULT_COMMISSION_RATE;
@@ -190,9 +188,12 @@ function useCurrency(): { currency: CurrencyInfo; currencyReady: boolean } {
   return { currency, currencyReady };
 }
 
-const REFERRAL_DEPOSIT_DEDUCTION_GHS = 100;
+// ─── FIX: Removed REFERRAL_DEPOSIT_DEDUCTION_GHS entirely.
+// Previously deducted 100 GHS before calculating commission which caused
+// wrong commission amounts (e.g. 180 instead of 210 for a 300 GHS deposit at 70%).
+// Now the full lifetimeStake is used directly.
 function referralDeposit(lifetimeStakeGhs: number): number {
-  return Math.max(0, lifetimeStakeGhs - REFERRAL_DEPOSIT_DEDUCTION_GHS);
+  return Math.max(0, lifetimeStakeGhs);
 }
 
 // ─── Booking Code Constants ───────────────────────────────────────────────────
@@ -1028,10 +1029,10 @@ function BookingsSection() {
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }} className="sm:grid-cols-4">
-        <BcStatCard label="Active"      value={loading ? '—' : String(stats.active)} />
-        <BcStatCard label="Redeemed" value={loading ? '—' : String(stats.redeemed)} accent="#63d2ff" />
-        <BcStatCard label="Avg Odds"    value={loading ? '—' : stats.avgOdds ? stats.avgOdds + 'x' : '—'} accent="#4ade80" />
-        <BcStatCard label="Avg Stake"   value={loading ? '—' : stats.avgStake != null ? fmt(stats.avgStake, currency) : '—'} accent="#a78bfa" />
+        <BcStatCard label="Active"    value={loading ? '—' : String(stats.active)} />
+        <BcStatCard label="Redeemed"  value={loading ? '—' : String(stats.redeemed)} accent="#63d2ff" />
+        <BcStatCard label="Avg Odds"  value={loading ? '—' : stats.avgOdds ? stats.avgOdds + 'x' : '—'} accent="#4ade80" />
+        <BcStatCard label="Avg Stake" value={loading ? '—' : stats.avgStake != null ? fmt(stats.avgStake, currency) : '—'} accent="#a78bfa" />
       </div>
       {loading ? <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>{[1,2,3,4].map((i) => <div key={i} className="animate-pulse" style={{ height: 200, borderRadius: 14, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}><div style={{ height: 3, background: 'rgba(255,255,255,0.06)' }} /></div>)}</div>
         : fetchError ? <ErrorState text={fetchError} onRetry={load} />
@@ -1048,18 +1049,6 @@ function BookingsSection() {
 
 // ─── Chat panel ───────────────────────────────────────────────────────────────
 
-/**
- * UpgradeChatPanel
- *
- * Commission display priority (highest → lowest):
- *   1. HARDCODED_COMMISSION_RATES[chat.userEmail]   ← always wins
- *   2. chat.commissionRate from backend
- *   3. DEFAULT_COMMISSION_RATE (70)
- *
- * The commission input for SUPER_ADMIN is also pre-filled with the
- * effective hardcoded rate so the value sent to the backend matches
- * what we display.
- */
 function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { chat: AdminUpgradeChatDto; isSuperAdmin: boolean; onClose: () => void; onCommissionSet: () => void }) {
   const { showToast } = useAppStore();
   const [messages, setMessages] = useState<AdminUpgradeChatMessageDto[]>([]);
@@ -1068,8 +1057,6 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // ── Hard-coded commission override ─────────────────────────────────────────
-  // Compute the effective rate once; use it everywhere in this panel.
   const effectiveCommissionRate = getEffectiveCommissionRate(chat.userEmail, chat.commissionRate);
   const [commissionInput, setCommissionInput] = useState(String(effectiveCommissionRate));
   const [settingCommission, setSettingCommission] = useState(false);
@@ -1092,12 +1079,8 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
   };
 
   const handleSetCommission = async () => {
-    // Always send the effective (hardcoded) rate, ignore what was typed if it
-    // doesn't match — but we keep the input field in sync via the pre-fill above.
     const rate = parseFloat(commissionInput);
     if (isNaN(rate) || rate < 0.1 || rate > 100) { showToast('Rate must be between 0.1 and 100.', 'error'); return; }
-    // Silently enforce hardcoded override: if this user has a hardcoded rate,
-    // always submit that value regardless of what was typed.
     const finalRate = getEffectiveCommissionRate(chat.userEmail, rate);
     setSettingCommission(true);
     try { const raw = await superAdminUpgradeChats.setCommission(chat.id, { commissionRate: finalRate }); const res = normalise(raw); if (res.success) { showToast(`Commission set to ${finalRate}%!`, 'success'); setCommissionInput(String(effectiveCommissionRate)); onCommissionSet(); fetchMessages(); } }
@@ -1113,7 +1096,6 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
           <p className="text-sm font-bold text-white truncate">{chat.userFirstName ?? 'User'} · {chat.userEmail ?? ''}</p>
           <StatusBadge status={chat.status} />
         </div>
-        {/* Always show effective commission rate (hardcoded overrides backend) */}
         <span
           className="text-xs font-bold shrink-0 px-2 py-1 rounded-lg"
           style={{
@@ -1142,16 +1124,11 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
             <span className="text-emerald-400 normal-case font-medium">
               (std: {DEFAULT_COMMISSION_RATE}%)
             </span>
-            {/* Show hardcoded badge if this email has a fixed rate */}
             {chat.userEmail && HARDCODED_COMMISSION_RATES[chat.userEmail.toLowerCase()] != null && (
               <span
                 style={{
-                  marginLeft: 8,
-                  fontSize: 9,
-                  fontWeight: 800,
-                  letterSpacing: '0.08em',
-                  padding: '2px 7px',
-                  borderRadius: 5,
+                  marginLeft: 8, fontSize: 9, fontWeight: 800, letterSpacing: '0.08em',
+                  padding: '2px 7px', borderRadius: 5,
                   background: effectiveCommissionRate === 100 ? 'rgba(251,191,36,0.15)' : 'rgba(74,222,128,0.15)',
                   color: effectiveCommissionRate === 100 ? '#fbbf24' : '#4ade80',
                   border: `1px solid ${effectiveCommissionRate === 100 ? 'rgba(251,191,36,0.3)' : 'rgba(74,222,128,0.3)'}`,
@@ -1163,21 +1140,13 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
           </p>
           <div className="flex gap-2">
             <input
-              type="number"
-              min={0.1}
-              max={100}
-              step={0.1}
+              type="number" min={0.1} max={100} step={0.1}
               value={commissionInput}
               onChange={(e) => setCommissionInput(e.target.value)}
               placeholder={String(effectiveCommissionRate)}
               className="flex-1 bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-primary outline-none"
-              // If this user has a hardcoded rate, lock the field
               readOnly={chat.userEmail != null && HARDCODED_COMMISSION_RATES[(chat.userEmail ?? '').toLowerCase()] != null}
-              style={
-                chat.userEmail && HARDCODED_COMMISSION_RATES[chat.userEmail.toLowerCase()] != null
-                  ? { opacity: 0.6, cursor: 'not-allowed' }
-                  : undefined
-              }
+              style={chat.userEmail && HARDCODED_COMMISSION_RATES[chat.userEmail.toLowerCase()] != null ? { opacity: 0.6, cursor: 'not-allowed' } : undefined}
             />
             <button
               onClick={handleSetCommission}
@@ -1247,13 +1216,6 @@ function DashboardSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
 // ─── Section: Affiliate ───────────────────────────────────────────────────────
 
-/**
- * AffiliateSection
- *
- * The commission rate displayed in the stats breakdown always shows the
- * effective hardcoded rate for this user's email when one exists,
- * regardless of what the backend returns in stats.commissionRate.
- */
 function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const { showToast } = useAppStore();
   const { currency } = useCurrency();
@@ -1269,7 +1231,6 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedMain, setCopiedMain] = useState(false);
 
-  // Effective commission rate for this admin — hardcoded takes priority
   const effectiveRate = getEffectiveCommissionRate(userEmail, stats?.commissionRate as number | undefined);
 
   const load = useCallback(async () => {
@@ -1340,56 +1301,18 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
           {userEmail && <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Signed in as <span style={{ color: '#63d2ff', fontWeight: 600 }}>{userEmail}</span></p>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Commission rate badge — always shows hardcoded rate if applicable */}
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '6px 12px',
-              borderRadius: 10,
+              display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 10,
               background: effectiveRate === 100 ? 'rgba(251,191,36,0.12)' : 'rgba(74,222,128,0.12)',
               border: `1.5px solid ${effectiveRate === 100 ? 'rgba(251,191,36,0.35)' : 'rgba(74,222,128,0.35)'}`,
             }}
           >
             <span style={{ fontSize: 14 }}>{effectiveRate === 100 ? '💎' : '💰'}</span>
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 900,
-                color: effectiveRate === 100 ? '#fbbf24' : '#4ade80',
-                fontFamily: 'monospace',
-              }}
-            >
-              {effectiveRate}%
-            </span>
-            <span
-              style={{
-                fontSize: 9,
-                fontWeight: 700,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                color: effectiveRate === 100 ? 'rgba(251,191,36,0.6)' : 'rgba(74,222,128,0.6)',
-              }}
-            >
-              comm
-            </span>
+            <span style={{ fontSize: 13, fontWeight: 900, color: effectiveRate === 100 ? '#fbbf24' : '#4ade80', fontFamily: 'monospace' }}>{effectiveRate}%</span>
+            <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: effectiveRate === 100 ? 'rgba(251,191,36,0.6)' : 'rgba(74,222,128,0.6)' }}>comm</span>
             {isHardcoded && (
-              <span
-                style={{
-                  fontSize: 8,
-                  fontWeight: 800,
-                  letterSpacing: '0.1em',
-                  textTransform: 'uppercase',
-                  padding: '1px 5px',
-                  borderRadius: 3,
-                  background: effectiveRate === 100 ? 'rgba(251,191,36,0.2)' : 'rgba(74,222,128,0.2)',
-                  color: effectiveRate === 100 ? '#fbbf24' : '#4ade80',
-                  marginLeft: 2,
-                }}
-              >
-                LOCKED
-              </span>
+              <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', padding: '1px 5px', borderRadius: 3, background: effectiveRate === 100 ? 'rgba(251,191,36,0.2)' : 'rgba(74,222,128,0.2)', color: effectiveRate === 100 ? '#fbbf24' : '#4ade80', marginLeft: 2 }}>LOCKED</span>
             )}
           </div>
           <button onClick={load} style={{ padding: '8px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><RefreshIcon fontSize="small" /></button>
@@ -1431,9 +1354,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
           ? <div style={{ height: 32, background: '#f3f4f6', borderRadius: 6, marginBottom: 16 }} />
           : <p style={{ margin: '0 0 4px', fontSize: 28, fontWeight: 900, color: '#111827', lineHeight: 1 }}>{stats ? fmt(stats.commissionBalance, currency) : `${currency.symbol}0.00`}</p>}
         {stats?.lastPayoutAt && (
-          <p style={{ margin: '0 0 14px', fontSize: 11, color: '#9ca3af' }}>
-            Last payout: {stats.lastPayoutAt ? fmtDate(stats.lastPayoutAt) : '—'}
-          </p>
+          <p style={{ margin: '0 0 14px', fontSize: 11, color: '#9ca3af' }}>Last payout: {fmtDate(stats.lastPayoutAt)}</p>
         )}
         {!stats?.lastPayoutAt && !loading && (
           <p style={{ margin: '0 0 14px', fontSize: 11, color: '#9ca3af' }}>No payouts yet</p>
@@ -1458,7 +1379,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         )}
       </div>
 
-      {/* ── Full stats breakdown — commission rate row uses effective/hardcoded rate ── */}
+      {/* ── Full stats breakdown ── */}
       {stats && (
         <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
           <p style={{ margin: '0 0 14px', fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280' }}>REFERRAL STATS</p>
@@ -1470,24 +1391,15 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
               { label: 'Commission Balance',  value: fmt(stats.commissionBalance, currency) },
               { label: 'Total Earned',        value: fmt(stats.totalEarnedLifetime, currency) },
               { label: 'Total Paid Out',      value: fmt(stats.totalPaidOutLifetime, currency) },
-              // Commission rate row — always shows hardcoded/effective rate
               {
                 label: 'Commission Rate',
+                // FIX: always show hardcoded/effective rate, never raw backend value
                 value: `${effectiveRate}%${isHardcoded ? ' 🔒' : ''}`,
               },
             ].map((s) => (
               <div key={s.label}>
                 <p style={{ margin: '0 0 2px', fontSize: 10, color: '#9ca3af', fontWeight: 600 }}>{s.label}</p>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 15,
-                    fontWeight: 800,
-                    color: s.label === 'Commission Rate'
-                      ? (effectiveRate === 100 ? '#d97706' : '#059669')
-                      : '#111827',
-                  }}
-                >
+                <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: s.label === 'Commission Rate' ? (effectiveRate === 100 ? '#d97706' : '#059669') : '#111827' }}>
                   {s.value}
                 </p>
               </div>
@@ -1517,7 +1429,12 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
                 {links.map(link => {
                   const url = buildUrl(link.code);
                   const isCopied = copiedId === link.id;
-                  const commissionDisplay = link.commissionPercent != null ? `${link.commissionPercent}% commission` : null;
+                  // FIX: apply effective/hardcoded rate to the link's commission display too
+                  const rawLinkCommission = link.commissionPercent ?? null;
+                  const displayCommission = rawLinkCommission != null
+                    ? getEffectiveCommissionRate(userEmail, rawLinkCommission)
+                    : null;
+                  const commissionDisplay = displayCommission != null ? `${displayCommission}% commission` : null;
                   return (
                     <div key={link.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -1547,18 +1464,22 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14, padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.04)' }}>
                   <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total Players</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#fff' }}>{referredUsers.length}</p></div>
-                  <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Active Players</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#4ade80' }}>{referredUsers.filter(u => referralDeposit(u.lifetimeStake ?? 0) > 0).length}</p></div>
-                  <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total Deposits</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#63d2ff' }}>{fmt(referredUsers.reduce((s, u) => s + referralDeposit(u.lifetimeStake ?? 0), 0), currency)}</p></div>
+                  {/* FIX: no deduction — a player is active if they have any stake at all */}
+                  <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Active Players</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#4ade80' }}>{referredUsers.filter(u => (u.lifetimeStake ?? 0) > 0).length}</p></div>
+                  {/* FIX: show full stake, no 100 GHS deduction */}
+                  <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total Deposits</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#63d2ff' }}>{fmt(referredUsers.reduce((s, u) => s + (u.lifetimeStake ?? 0), 0), currency)}</p></div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                   {referredUsers.map((player) => {
                     const name = [player.firstName, player.lastName].filter(Boolean).join(' ') || player.email || player.userId;
-                    const isActive = referralDeposit(player.lifetimeStake ?? 0) > 0;
+                    // FIX: active = has any deposit at all, no deduction
+                    const isActive = (player.lifetimeStake ?? 0) > 0;
                     return (
                       <div key={player.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <p style={{ margin: '0 0 1px', fontSize: 13, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
-                          <p style={{ margin: 0, fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>Joined {fmtDate(player.joinedAt)} · Deposit: <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{fmt(referralDeposit(player.lifetimeStake ?? 0), currency)}</span></p>
+                          {/* FIX: show full lifetimeStake, not the deducted value */}
+                          <p style={{ margin: 0, fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>Joined {fmtDate(player.joinedAt)} · Deposit: <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{fmt(player.lifetimeStake ?? 0, currency)}</span></p>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 10 }}>
                           {player.lifetimeCommission > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: '#4ade80' }}>+{fmt(player.lifetimeCommission, currency)}</span>}
@@ -1655,7 +1576,6 @@ function UpgradeChatsSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
         : (
           <div className="space-y-2">
             {chats.map((chat) => {
-              // Show effective commission rate in the chat list too
               const chatEffectiveRate = getEffectiveCommissionRate(chat.userEmail, chat.commissionRate);
               const chatIsHardcoded = chat.userEmail != null && HARDCODED_COMMISSION_RATES[(chat.userEmail ?? '').toLowerCase()] != null;
               return (
@@ -1669,12 +1589,7 @@ function UpgradeChatsSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                     <p className="text-xs text-slate-500 mt-0.5">
                       {chat.messageCount ?? 0} msgs · {fmtDate(chat.createdAt)}
                       {' · '}
-                      <span
-                        style={{
-                          fontWeight: 800,
-                          color: chatEffectiveRate === 100 ? '#fbbf24' : '#4ade80',
-                        }}
-                      >
+                      <span style={{ fontWeight: 800, color: chatEffectiveRate === 100 ? '#fbbf24' : '#4ade80' }}>
                         {chatEffectiveRate}%{chatIsHardcoded ? ' 🔒' : ''}
                       </span>
                     </p>
@@ -1743,18 +1658,16 @@ export default function AdminModal() {
 
   const role = user.role as string;
   const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'super_admin';
-
-  // ── MASTER EMAIL CHECK ────────────────────────────────────────────────────
   const isMasterAdmin = (user.email ?? '').toLowerCase() === MASTER_EMAIL.toLowerCase();
 
   const allSections: { key: SectionKey; label: string; icon: React.ReactNode }[] = [
-    { key: 'affiliate',     label: 'Home',          icon: <GroupAddIcon fontSize="small" /> },
-    { key: 'dashboard',     label: 'Analytics',     icon: <BarChartIcon fontSize="small" /> },
-    { key: 'matches',       label: 'Matches',       icon: <SportsSoccerIcon fontSize="small" /> },
-    { key: 'bookings',      label: 'Codes',         icon: <QrCodeIcon fontSize="small" /> },
-    { key: 'withdrawals',   label: 'Withdrawals',   icon: <PaymentsIcon fontSize="small" /> },
-    { key: 'upgrade-chats', label: 'Chats',         icon: <ChatIcon fontSize="small" /> },
-    { key: 'payouts',       label: 'Payouts',       icon: <AttachMoneyIcon fontSize="small" /> },
+    { key: 'affiliate',     label: 'Home',        icon: <GroupAddIcon fontSize="small" /> },
+    { key: 'dashboard',     label: 'Analytics',   icon: <BarChartIcon fontSize="small" /> },
+    { key: 'matches',       label: 'Matches',     icon: <SportsSoccerIcon fontSize="small" /> },
+    { key: 'bookings',      label: 'Codes',       icon: <QrCodeIcon fontSize="small" /> },
+    { key: 'withdrawals',   label: 'Withdrawals', icon: <PaymentsIcon fontSize="small" /> },
+    { key: 'upgrade-chats', label: 'Chats',       icon: <ChatIcon fontSize="small" /> },
+    { key: 'payouts',       label: 'Payouts',     icon: <AttachMoneyIcon fontSize="small" /> },
   ];
 
   const sections = isMasterAdmin
@@ -1767,14 +1680,11 @@ export default function AdminModal() {
   return (
     <div className="fixed inset-0 z-[9998] bg-slate-900 flex flex-col">
 
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-slate-700 shrink-0 bg-slate-900" style={{ minHeight: 52 }}>
         <div className="flex items-center gap-2">
           {sections.length > 2 && (
-            <button
-              className="md:hidden p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white mr-1"
-              onClick={() => setMobileSidebarOpen(v => !v)}
-            >
+            <button className="md:hidden p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white mr-1" onClick={() => setMobileSidebarOpen(v => !v)}>
               <MenuIcon fontSize="small" />
             </button>
           )}
@@ -1802,26 +1712,10 @@ export default function AdminModal() {
           <AnimatePresence>
             {mobileSidebarOpen && (
               <>
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="md:hidden fixed inset-0 bg-black/60 z-30"
-                  onClick={() => setMobileSidebarOpen(false)}
-                />
-                <motion.nav
-                  initial={{ x: -240 }}
-                  animate={{ x: 0 }}
-                  exit={{ x: -240 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 36 }}
-                  className="md:hidden fixed top-[52px] left-0 bottom-0 w-56 z-40 bg-slate-800 border-r border-slate-700 p-3 flex flex-col gap-1 overflow-y-auto"
-                >
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="md:hidden fixed inset-0 bg-black/60 z-30" onClick={() => setMobileSidebarOpen(false)} />
+                <motion.nav initial={{ x: -240 }} animate={{ x: 0 }} exit={{ x: -240 }} transition={{ type: 'spring', stiffness: 400, damping: 36 }} className="md:hidden fixed top-[52px] left-0 bottom-0 w-56 z-40 bg-slate-800 border-r border-slate-700 p-3 flex flex-col gap-1 overflow-y-auto">
                   {sections.map((section) => (
-                    <button
-                      key={section.key}
-                      onClick={() => handleSectionChange(section.key)}
-                      className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${validSection === section.key ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700'}`}
-                    >
+                    <button key={section.key} onClick={() => handleSectionChange(section.key)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${validSection === section.key ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700'}`}>
                       {section.icon}{section.label}
                     </button>
                   ))}
@@ -1835,44 +1729,31 @@ export default function AdminModal() {
         {isMasterAdmin ? (
           <nav className="hidden md:flex w-52 flex-col border-r border-slate-700 bg-slate-800 p-3 gap-1 shrink-0 overflow-y-auto">
             {sections.map((section) => (
-              <button
-                key={section.key}
-                onClick={() => setActiveSection(section.key)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${validSection === section.key ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700'}`}
-              >
+              <button key={section.key} onClick={() => setActiveSection(section.key)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${validSection === section.key ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700'}`}>
                 {section.icon}{section.label}
               </button>
             ))}
           </nav>
         ) : (
-          <div className="md:hidden w-full absolute top-0 left-0 flex border-b border-slate-700 bg-slate-800 z-10" style={{ height: 44 }}>
-            {sections.map((section) => (
-              <button
-                key={section.key}
-                onClick={() => setActiveSection(section.key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold transition-colors ${validSection === section.key ? 'bg-primary/20 text-primary border-b-2 border-primary' : 'text-slate-400 hover:text-white'}`}
-              >
-                {section.icon}{section.label}
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="md:hidden w-full absolute top-0 left-0 flex border-b border-slate-700 bg-slate-800 z-10" style={{ height: 44 }}>
+              {sections.map((section) => (
+                <button key={section.key} onClick={() => setActiveSection(section.key)} className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold transition-colors ${validSection === section.key ? 'bg-primary/20 text-primary border-b-2 border-primary' : 'text-slate-400 hover:text-white'}`}>
+                  {section.icon}{section.label}
+                </button>
+              ))}
+            </div>
+            <nav className="hidden md:flex w-52 flex-col border-r border-slate-700 bg-slate-800 p-3 gap-1 shrink-0 overflow-y-auto">
+              {sections.map((section) => (
+                <button key={section.key} onClick={() => setActiveSection(section.key)} className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${validSection === section.key ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700'}`}>
+                  {section.icon}{section.label}
+                </button>
+              ))}
+            </nav>
+          </>
         )}
 
-        {!isMasterAdmin && (
-          <nav className="hidden md:flex w-52 flex-col border-r border-slate-700 bg-slate-800 p-3 gap-1 shrink-0 overflow-y-auto">
-            {sections.map((section) => (
-              <button
-                key={section.key}
-                onClick={() => setActiveSection(section.key)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors text-left ${validSection === section.key ? 'bg-primary text-white shadow-sm' : 'text-slate-300 hover:bg-slate-700'}`}
-              >
-                {section.icon}{section.label}
-              </button>
-            ))}
-          </nav>
-        )}
-
-        {/* ── Content ──────────────────────────────────────────────────── */}
+        {/* ── Content ── */}
         <div
           className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 bg-slate-900"
           style={!isMasterAdmin ? { paddingTop: 'calc(44px + 12px)' } : undefined}
