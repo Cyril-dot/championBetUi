@@ -188,14 +188,6 @@ function useCurrency(): { currency: CurrencyInfo; currencyReady: boolean } {
   return { currency, currencyReady };
 }
 
-// ─── FIX: Removed REFERRAL_DEPOSIT_DEDUCTION_GHS entirely.
-// Previously deducted 100 GHS before calculating commission which caused
-// wrong commission amounts (e.g. 180 instead of 210 for a 300 GHS deposit at 70%).
-// Now the full lifetimeStake is used directly.
-function referralDeposit(lifetimeStakeGhs: number): number {
-  return Math.max(0, lifetimeStakeGhs);
-}
-
 // ─── Booking Code Constants ───────────────────────────────────────────────────
 
 const MARKETS = [
@@ -1231,7 +1223,17 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedMain, setCopiedMain] = useState(false);
 
+  // ── FIX: Always use the effective/hardcoded commission rate, never raw backend ──
   const effectiveRate = getEffectiveCommissionRate(userEmail, stats?.commissionRate as number | undefined);
+  const isHardcoded = userEmail != null && HARDCODED_COMMISSION_RATES[(userEmail ?? '').toLowerCase()] != null;
+
+  // ── FIX: Recalculate all commission values using effective rate ──
+  // This overrides whatever the backend sends (which was calculated at wrong 60% rate)
+  const totalStake = stats?.lifetimeStake ?? 0;
+  const totalPaidOut = stats?.totalPaidOutLifetime ?? 0;
+  const correctedLifetimeCommission = (totalStake * effectiveRate) / 100;
+  const correctedCommissionBalance = Math.max(0, correctedLifetimeCommission - totalPaidOut);
+  const correctedTotalEarned = correctedLifetimeCommission;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1255,7 +1257,8 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const payoutEnabled = (stats?.commissionBalance ?? 0) > 0;
+  // ── FIX: Payout enabled based on corrected balance ──
+  const payoutEnabled = correctedCommissionBalance > 0;
 
   const requestPayout = async () => {
     setRequesting(true);
@@ -1284,14 +1287,18 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const primaryCode = primaryLink?.code ?? '—';
   const copyMainLink = () => { if (!primaryUrl) return; navigator.clipboard.writeText(primaryUrl); setCopiedMain(true); setTimeout(() => setCopiedMain(false), 2000); showToast('Link copied!', 'success'); };
 
-  const isHardcoded = userEmail != null && HARDCODED_COMMISSION_RATES[(userEmail ?? '').toLowerCase()] != null;
-
+  // ── FIX: Top stat cards use corrected values ──
   const statCards = [
-    { label: 'LIFETIME EARNED',  value: stats ? fmt(stats.totalEarnedLifetime, currency)  : `${currency.symbol}0.00`, icon: '↗' },
-    { label: 'TOTAL PAID OUT',   value: stats ? fmt(stats.totalPaidOutLifetime, currency)  : `${currency.symbol}0.00`, icon: '📋' },
-    { label: 'COMMISSION OWED',  value: stats ? fmt(stats.commissionBalance, currency)     : `${currency.symbol}0.00`, icon: '%' },
-    { label: 'USERS BROUGHT',    value: stats ? String(stats.totalReferrals)               : '0',                      icon: '👤' },
+    { label: 'LIFETIME EARNED',  value: loading ? `${currency.symbol}0.00` : fmt(correctedTotalEarned, currency),      icon: '↗' },
+    { label: 'TOTAL PAID OUT',   value: loading ? `${currency.symbol}0.00` : fmt(totalPaidOut, currency),               icon: '📋' },
+    { label: 'COMMISSION OWED',  value: loading ? `${currency.symbol}0.00` : fmt(correctedCommissionBalance, currency),  icon: '%' },
+    { label: 'USERS BROUGHT',    value: loading ? '0'                      : String(stats?.totalReferrals ?? 0),         icon: '👤' },
   ];
+
+  // ── FIX: Total deposits sums ALL player stakes (no deduction) ──
+  const totalDeposits = referredUsers.reduce((s, u) => s + (u.lifetimeStake ?? 0), 0);
+  // ── FIX: Active = has any deposit at all ──
+  const activePlayers = referredUsers.filter(u => (u.lifetimeStake ?? 0) > 0).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1332,7 +1339,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         </button>
       </div>
 
-      {/* ── Stat cards ── */}
+      {/* ── Stat cards (FIX: all use corrected values) ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {statCards.map((card) => (
           <div key={card.label} style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
@@ -1347,12 +1354,12 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         ))}
       </div>
 
-      {/* ── Commission balance + payout ── */}
+      {/* ── Commission balance + payout (FIX: uses corrected balance) ── */}
       <div style={{ background: '#fff', borderRadius: 16, padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
         <p style={{ margin: '0 0 6px', fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280' }}>COMMISSION BALANCE (AVAILABLE TO WITHDRAW)</p>
         {loading
           ? <div style={{ height: 32, background: '#f3f4f6', borderRadius: 6, marginBottom: 16 }} />
-          : <p style={{ margin: '0 0 4px', fontSize: 28, fontWeight: 900, color: '#111827', lineHeight: 1 }}>{stats ? fmt(stats.commissionBalance, currency) : `${currency.symbol}0.00`}</p>}
+          : <p style={{ margin: '0 0 4px', fontSize: 28, fontWeight: 900, color: '#111827', lineHeight: 1 }}>{fmt(correctedCommissionBalance, currency)}</p>}
         {stats?.lastPayoutAt && (
           <p style={{ margin: '0 0 14px', fontSize: 11, color: '#9ca3af' }}>Last payout: {fmtDate(stats.lastPayoutAt)}</p>
         )}
@@ -1379,21 +1386,25 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         )}
       </div>
 
-      {/* ── Full stats breakdown ── */}
+      {/* ── Full stats breakdown (FIX: all corrected values) ── */}
       {stats && (
         <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
           <p style={{ margin: '0 0 14px', fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280' }}>REFERRAL STATS</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {[
               { label: 'Total Referrals',     value: String(stats.totalReferrals) },
-              { label: 'Users Total Stake',   value: fmt(stats.lifetimeStake, currency) },
-              { label: 'Lifetime Commission', value: fmt(stats.lifetimeCommission, currency) },
-              { label: 'Commission Balance',  value: fmt(stats.commissionBalance, currency) },
-              { label: 'Total Earned',        value: fmt(stats.totalEarnedLifetime, currency) },
-              { label: 'Total Paid Out',      value: fmt(stats.totalPaidOutLifetime, currency) },
+              // FIX: Show actual total deposits from all referred users (full sum, no deduction)
+              { label: 'Users Total Stake',   value: fmt(totalStake, currency) },
+              // FIX: corrected lifetime commission = totalStake * effectiveRate / 100
+              { label: 'Lifetime Commission', value: fmt(correctedLifetimeCommission, currency) },
+              // FIX: corrected balance = correctedLifetimeCommission - totalPaidOut
+              { label: 'Commission Balance',  value: fmt(correctedCommissionBalance, currency) },
+              // FIX: corrected total earned = correctedLifetimeCommission
+              { label: 'Total Earned',        value: fmt(correctedTotalEarned, currency) },
+              { label: 'Total Paid Out',      value: fmt(totalPaidOut, currency) },
               {
                 label: 'Commission Rate',
-                // FIX: always show hardcoded/effective rate, never raw backend value
+                // FIX: always show effective/hardcoded rate
                 value: `${effectiveRate}%${isHardcoded ? ' 🔒' : ''}`,
               },
             ].map((s) => (
@@ -1408,7 +1419,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         </div>
       )}
 
-      {/* ── Referral links ── */}
+      {/* ── Referral links (FIX: always show effectiveRate, not per-link backend rate) ── */}
       <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <p style={{ margin: 0, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Referral Links <span style={{ color: '#63d2ff' }}>({links.length})</span></p>
@@ -1429,18 +1440,14 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
                 {links.map(link => {
                   const url = buildUrl(link.code);
                   const isCopied = copiedId === link.id;
-                  // FIX: apply effective/hardcoded rate to the link's commission display too
-                  const rawLinkCommission = link.commissionPercent ?? null;
-                  const displayCommission = rawLinkCommission != null
-                    ? getEffectiveCommissionRate(userEmail, rawLinkCommission)
-                    : null;
-                  const commissionDisplay = displayCommission != null ? `${displayCommission}% commission` : null;
+                  // FIX: always show effectiveRate for this admin, ignore per-link backend commission value
+                  const commissionDisplay = `${effectiveRate}% commission`;
                   return (
                     <div key={link.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {link.label && <p style={{ margin: '0 0 2px', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>{link.label}</p>}
                         <p style={{ margin: 0, fontSize: 11, fontFamily: 'monospace', color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</p>
-                        {commissionDisplay && <span style={{ fontSize: 10, fontWeight: 700, color: '#63d2ff' }}>{commissionDisplay}</span>}
+                        <span style={{ fontSize: 10, fontWeight: 700, color: effectiveRate === 100 ? '#fbbf24' : '#63d2ff' }}>{commissionDisplay}</span>
                       </div>
                       <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                         <button onClick={() => copyLink(link.id, url)} style={{ padding: 7, borderRadius: 7, background: isCopied ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.06)', border: 'none', cursor: 'pointer', color: isCopied ? '#4ade80' : 'rgba(255,255,255,0.5)', display: 'flex' }}>{isCopied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}</button>
@@ -1453,7 +1460,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
             )}
       </div>
 
-      {/* ── Referred players ── */}
+      {/* ── Referred players (FIX: correct total deposits & active count) ── */}
       <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.08)' }}>
         <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Referred Players <span style={{ color: '#63d2ff' }}>({referredUsers.length})</span></p>
         {loading
@@ -1464,25 +1471,28 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14, padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.04)' }}>
                   <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total Players</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#fff' }}>{referredUsers.length}</p></div>
-                  {/* FIX: no deduction — a player is active if they have any stake at all */}
-                  <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Active Players</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#4ade80' }}>{referredUsers.filter(u => (u.lifetimeStake ?? 0) > 0).length}</p></div>
-                  {/* FIX: show full stake, no 100 GHS deduction */}
-                  <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total Deposits</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#63d2ff' }}>{fmt(referredUsers.reduce((s, u) => s + (u.lifetimeStake ?? 0), 0), currency)}</p></div>
+                  {/* FIX: active = any stake > 0 (no deduction) */}
+                  <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Active Players</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#4ade80' }}>{activePlayers}</p></div>
+                  {/* FIX: full sum of all lifetimeStake values, no deduction */}
+                  <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total Deposits</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#63d2ff' }}>{fmt(totalDeposits, currency)}</p></div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                   {referredUsers.map((player) => {
                     const name = [player.firstName, player.lastName].filter(Boolean).join(' ') || player.email || player.userId;
                     // FIX: active = has any deposit at all, no deduction
                     const isActive = (player.lifetimeStake ?? 0) > 0;
+                    // FIX: per-player commission = player.lifetimeStake * effectiveRate / 100
+                    const playerCommission = ((player.lifetimeStake ?? 0) * effectiveRate) / 100;
                     return (
                       <div key={player.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <p style={{ margin: '0 0 1px', fontSize: 13, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
-                          {/* FIX: show full lifetimeStake, not the deducted value */}
+                          {/* FIX: show full lifetimeStake (no deduction) */}
                           <p style={{ margin: 0, fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>Joined {fmtDate(player.joinedAt)} · Deposit: <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{fmt(player.lifetimeStake ?? 0, currency)}</span></p>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 10 }}>
-                          {player.lifetimeCommission > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: '#4ade80' }}>+{fmt(player.lifetimeCommission, currency)}</span>}
+                          {/* FIX: show recalculated commission using effectiveRate */}
+                          {playerCommission > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: '#4ade80' }}>+{fmt(playerCommission, currency)}</span>}
                           <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: isActive ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.06)', color: isActive ? '#4ade80' : 'rgba(255,255,255,0.3)' }}>{isActive ? 'Active' : 'Inactive'}</span>
                         </div>
                       </div>
