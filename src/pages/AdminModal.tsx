@@ -57,6 +57,27 @@ const MASTER_EMAIL = 'clementborbing16@gmail.com';
 // ─── DEFAULT COMMISSION RATE ──────────────────────────────────────────────────
 const DEFAULT_COMMISSION_RATE = 70; // 70%
 
+// ─── HARDCODED COMMISSION RATES per admin email ───────────────────────────────
+// These override whatever the backend returns. Always show these exact values.
+const HARDCODED_COMMISSION_RATES: Record<string, number> = {
+  'philimonkrampah5@gmail.com': 70,
+  'lolagarret2@gmail.com': 100,
+};
+
+/**
+ * Returns the effective commission rate for a given admin email.
+ * If the email has a hardcoded rate, that always wins regardless of backend value.
+ * Otherwise falls back to the backend value or the default.
+ */
+function getEffectiveCommissionRate(email: string | undefined | null, backendRate?: number | null): number {
+  if (!email) return backendRate ?? DEFAULT_COMMISSION_RATE;
+  const lower = email.toLowerCase();
+  if (Object.prototype.hasOwnProperty.call(HARDCODED_COMMISSION_RATES, lower)) {
+    return HARDCODED_COMMISSION_RATES[lower];
+  }
+  return backendRate ?? DEFAULT_COMMISSION_RATE;
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type SectionKey =
@@ -1027,15 +1048,31 @@ function BookingsSection() {
 
 // ─── Chat panel ───────────────────────────────────────────────────────────────
 
+/**
+ * UpgradeChatPanel
+ *
+ * Commission display priority (highest → lowest):
+ *   1. HARDCODED_COMMISSION_RATES[chat.userEmail]   ← always wins
+ *   2. chat.commissionRate from backend
+ *   3. DEFAULT_COMMISSION_RATE (70)
+ *
+ * The commission input for SUPER_ADMIN is also pre-filled with the
+ * effective hardcoded rate so the value sent to the backend matches
+ * what we display.
+ */
 function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { chat: AdminUpgradeChatDto; isSuperAdmin: boolean; onClose: () => void; onCommissionSet: () => void }) {
   const { showToast } = useAppStore();
   const [messages, setMessages] = useState<AdminUpgradeChatMessageDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [msgInput, setMsgInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [commissionInput, setCommissionInput] = useState(String(DEFAULT_COMMISSION_RATE));
-  const [settingCommission, setSettingCommission] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // ── Hard-coded commission override ─────────────────────────────────────────
+  // Compute the effective rate once; use it everywhere in this panel.
+  const effectiveCommissionRate = getEffectiveCommissionRate(chat.userEmail, chat.commissionRate);
+  const [commissionInput, setCommissionInput] = useState(String(effectiveCommissionRate));
+  const [settingCommission, setSettingCommission] = useState(false);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -1055,10 +1092,15 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
   };
 
   const handleSetCommission = async () => {
+    // Always send the effective (hardcoded) rate, ignore what was typed if it
+    // doesn't match — but we keep the input field in sync via the pre-fill above.
     const rate = parseFloat(commissionInput);
     if (isNaN(rate) || rate < 0.1 || rate > 100) { showToast('Rate must be between 0.1 and 100.', 'error'); return; }
+    // Silently enforce hardcoded override: if this user has a hardcoded rate,
+    // always submit that value regardless of what was typed.
+    const finalRate = getEffectiveCommissionRate(chat.userEmail, rate);
     setSettingCommission(true);
-    try { const raw = await superAdminUpgradeChats.setCommission(chat.id, { commissionRate: rate }); const res = normalise(raw); if (res.success) { showToast('Commission set!', 'success'); setCommissionInput(String(DEFAULT_COMMISSION_RATE)); onCommissionSet(); fetchMessages(); } }
+    try { const raw = await superAdminUpgradeChats.setCommission(chat.id, { commissionRate: finalRate }); const res = normalise(raw); if (res.success) { showToast(`Commission set to ${finalRate}%!`, 'success'); setCommissionInput(String(effectiveCommissionRate)); onCommissionSet(); fetchMessages(); } }
     catch (err: unknown) { showToast(err instanceof Error ? err.message : 'Failed.', 'error'); }
     finally { setSettingCommission(false); }
   };
@@ -1067,8 +1109,21 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700 bg-slate-800 shrink-0">
         <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-700 text-slate-400"><CloseIcon fontSize="small" /></button>
-        <div className="flex-1 min-w-0"><p className="text-sm font-bold text-white truncate">{chat.userFirstName ?? 'User'} · {chat.userEmail ?? ''}</p><StatusBadge status={chat.status} /></div>
-        {chat.commissionRate != null && <span className="text-xs text-emerald-400 font-bold shrink-0">{chat.commissionRate}%</span>}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-white truncate">{chat.userFirstName ?? 'User'} · {chat.userEmail ?? ''}</p>
+          <StatusBadge status={chat.status} />
+        </div>
+        {/* Always show effective commission rate (hardcoded overrides backend) */}
+        <span
+          className="text-xs font-bold shrink-0 px-2 py-1 rounded-lg"
+          style={{
+            background: effectiveCommissionRate === 100 ? 'rgba(251,191,36,0.15)' : 'rgba(74,222,128,0.15)',
+            color: effectiveCommissionRate === 100 ? '#fbbf24' : '#4ade80',
+            border: `1px solid ${effectiveCommissionRate === 100 ? 'rgba(251,191,36,0.3)' : 'rgba(74,222,128,0.3)'}`,
+          }}
+        >
+          {effectiveCommissionRate}%
+        </span>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-900">
         {loading ? <div className="flex justify-center py-8"><Spinner /></div>
@@ -1082,10 +1137,55 @@ function UpgradeChatPanel({ chat, isSuperAdmin, onClose, onCommissionSet }: { ch
       </div>
       {isSuperAdmin && chat.status === 'PENDING_COMMISSION' && (
         <div className="px-4 py-3 border-t border-slate-700 bg-slate-800 shrink-0">
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Set Commission <span className="text-emerald-400 normal-case font-medium">(std: {DEFAULT_COMMISSION_RATE}%)</span></p>
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+            Set Commission{' '}
+            <span className="text-emerald-400 normal-case font-medium">
+              (std: {DEFAULT_COMMISSION_RATE}%)
+            </span>
+            {/* Show hardcoded badge if this email has a fixed rate */}
+            {chat.userEmail && HARDCODED_COMMISSION_RATES[chat.userEmail.toLowerCase()] != null && (
+              <span
+                style={{
+                  marginLeft: 8,
+                  fontSize: 9,
+                  fontWeight: 800,
+                  letterSpacing: '0.08em',
+                  padding: '2px 7px',
+                  borderRadius: 5,
+                  background: effectiveCommissionRate === 100 ? 'rgba(251,191,36,0.15)' : 'rgba(74,222,128,0.15)',
+                  color: effectiveCommissionRate === 100 ? '#fbbf24' : '#4ade80',
+                  border: `1px solid ${effectiveCommissionRate === 100 ? 'rgba(251,191,36,0.3)' : 'rgba(74,222,128,0.3)'}`,
+                }}
+              >
+                LOCKED {effectiveCommissionRate}%
+              </span>
+            )}
+          </p>
           <div className="flex gap-2">
-            <input type="number" min={0.1} max={100} step={0.1} value={commissionInput} onChange={(e) => setCommissionInput(e.target.value)} placeholder={`${DEFAULT_COMMISSION_RATE}`} className="flex-1 bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-primary outline-none" />
-            <button onClick={handleSetCommission} disabled={settingCommission || !commissionInput} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold flex items-center gap-1.5">{settingCommission ? <Spinner /> : <><CheckIcon fontSize="small" /> Set</>}</button>
+            <input
+              type="number"
+              min={0.1}
+              max={100}
+              step={0.1}
+              value={commissionInput}
+              onChange={(e) => setCommissionInput(e.target.value)}
+              placeholder={String(effectiveCommissionRate)}
+              className="flex-1 bg-slate-700 border border-slate-600 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-primary outline-none"
+              // If this user has a hardcoded rate, lock the field
+              readOnly={chat.userEmail != null && HARDCODED_COMMISSION_RATES[(chat.userEmail ?? '').toLowerCase()] != null}
+              style={
+                chat.userEmail && HARDCODED_COMMISSION_RATES[chat.userEmail.toLowerCase()] != null
+                  ? { opacity: 0.6, cursor: 'not-allowed' }
+                  : undefined
+              }
+            />
+            <button
+              onClick={handleSetCommission}
+              disabled={settingCommission || !commissionInput}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-sm font-bold flex items-center gap-1.5"
+            >
+              {settingCommission ? <Spinner /> : <><CheckIcon fontSize="small" /> Set</>}
+            </button>
           </div>
         </div>
       )}
@@ -1147,6 +1247,13 @@ function DashboardSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
 // ─── Section: Affiliate ───────────────────────────────────────────────────────
 
+/**
+ * AffiliateSection
+ *
+ * The commission rate displayed in the stats breakdown always shows the
+ * effective hardcoded rate for this user's email when one exists,
+ * regardless of what the backend returns in stats.commissionRate.
+ */
 function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const { showToast } = useAppStore();
   const { currency } = useCurrency();
@@ -1161,6 +1268,9 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const [showLinkForm, setShowLinkForm] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedMain, setCopiedMain] = useState(false);
+
+  // Effective commission rate for this admin — hardcoded takes priority
+  const effectiveRate = getEffectiveCommissionRate(userEmail, stats?.commissionRate as number | undefined);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1213,7 +1323,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const primaryCode = primaryLink?.code ?? '—';
   const copyMainLink = () => { if (!primaryUrl) return; navigator.clipboard.writeText(primaryUrl); setCopiedMain(true); setTimeout(() => setCopiedMain(false), 2000); showToast('Link copied!', 'success'); };
 
-  const totalPaid = payoutHistory.reduce((s, p) => s + (p.status === 'PAID' ? +p.amount : 0), 0);
+  const isHardcoded = userEmail != null && HARDCODED_COMMISSION_RATES[(userEmail ?? '').toLowerCase()] != null;
 
   const statCards = [
     { label: 'LIFETIME EARNED',  value: stats ? fmt(stats.totalEarnedLifetime, currency)  : `${currency.symbol}0.00`, icon: '↗' },
@@ -1229,7 +1339,61 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
           <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>DASHBOARD</h2>
           {userEmail && <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Signed in as <span style={{ color: '#63d2ff', fontWeight: 600 }}>{userEmail}</span></p>}
         </div>
-        <button onClick={load} style={{ padding: '8px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><RefreshIcon fontSize="small" /></button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Commission rate badge — always shows hardcoded rate if applicable */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '6px 12px',
+              borderRadius: 10,
+              background: effectiveRate === 100 ? 'rgba(251,191,36,0.12)' : 'rgba(74,222,128,0.12)',
+              border: `1.5px solid ${effectiveRate === 100 ? 'rgba(251,191,36,0.35)' : 'rgba(74,222,128,0.35)'}`,
+            }}
+          >
+            <span style={{ fontSize: 14 }}>{effectiveRate === 100 ? '💎' : '💰'}</span>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 900,
+                color: effectiveRate === 100 ? '#fbbf24' : '#4ade80',
+                fontFamily: 'monospace',
+              }}
+            >
+              {effectiveRate}%
+            </span>
+            <span
+              style={{
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: effectiveRate === 100 ? 'rgba(251,191,36,0.6)' : 'rgba(74,222,128,0.6)',
+              }}
+            >
+              comm
+            </span>
+            {isHardcoded && (
+              <span
+                style={{
+                  fontSize: 8,
+                  fontWeight: 800,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  padding: '1px 5px',
+                  borderRadius: 3,
+                  background: effectiveRate === 100 ? 'rgba(251,191,36,0.2)' : 'rgba(74,222,128,0.2)',
+                  color: effectiveRate === 100 ? '#fbbf24' : '#4ade80',
+                  marginLeft: 2,
+                }}
+              >
+                LOCKED
+              </span>
+            )}
+          </div>
+          <button onClick={load} style={{ padding: '8px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><RefreshIcon fontSize="small" /></button>
+        </div>
       </div>
 
       {/* ── Referral link card ── */}
@@ -1294,7 +1458,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         )}
       </div>
 
-      {/* ── Full stats breakdown ── */}
+      {/* ── Full stats breakdown — commission rate row uses effective/hardcoded rate ── */}
       {stats && (
         <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
           <p style={{ margin: '0 0 14px', fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280' }}>REFERRAL STATS</p>
@@ -1306,10 +1470,26 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
               { label: 'Commission Balance',  value: fmt(stats.commissionBalance, currency) },
               { label: 'Total Earned',        value: fmt(stats.totalEarnedLifetime, currency) },
               { label: 'Total Paid Out',      value: fmt(stats.totalPaidOutLifetime, currency) },
+              // Commission rate row — always shows hardcoded/effective rate
+              {
+                label: 'Commission Rate',
+                value: `${effectiveRate}%${isHardcoded ? ' 🔒' : ''}`,
+              },
             ].map((s) => (
               <div key={s.label}>
                 <p style={{ margin: '0 0 2px', fontSize: 10, color: '#9ca3af', fontWeight: 600 }}>{s.label}</p>
-                <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#111827' }}>{s.value}</p>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 15,
+                    fontWeight: 800,
+                    color: s.label === 'Commission Rate'
+                      ? (effectiveRate === 100 ? '#d97706' : '#059669')
+                      : '#111827',
+                  }}
+                >
+                  {s.value}
+                </p>
               </div>
             ))}
           </div>
@@ -1472,7 +1652,39 @@ function UpgradeChatsSection({ isSuperAdmin }: { isSuperAdmin: boolean }) {
       <div className="flex gap-2">{(['pending','all'] as const).map((f) => <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-colors ${filter === f ? 'bg-primary text-white' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>{f === 'pending' ? 'Pending' : 'All'}</button>)}</div>
       {loading ? <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="h-20 bg-slate-800 rounded-2xl animate-pulse" />)}</div>
         : chats.length === 0 ? <EmptyState icon={<MarkChatReadIcon sx={{ fontSize: 40 }} />} text={filter === 'pending' ? 'No pending chats.' : 'No upgrade chats.'} />
-        : <div className="space-y-2">{chats.map((chat) => <button key={chat.id} onClick={() => setActiveChat(chat)} className="w-full bg-slate-800 rounded-2xl p-3 border border-slate-700 hover:border-primary/40 text-left flex items-center justify-between gap-3"><div className="flex-1 min-w-0"><div className="flex items-center gap-2 mb-1"><p className="text-sm font-bold text-white truncate">{chat.userFirstName ?? 'User'}</p><StatusBadge status={chat.status} /></div><p className="text-xs text-slate-400 truncate">{chat.userEmail ?? '—'}</p><p className="text-xs text-slate-500 mt-0.5">{chat.messageCount ?? 0} msgs · {fmtDate(chat.createdAt)}{chat.commissionRate != null && ` · ${chat.commissionRate}%`}</p></div><ChatIcon fontSize="small" className="text-slate-500 shrink-0" /></button>)}</div>}
+        : (
+          <div className="space-y-2">
+            {chats.map((chat) => {
+              // Show effective commission rate in the chat list too
+              const chatEffectiveRate = getEffectiveCommissionRate(chat.userEmail, chat.commissionRate);
+              const chatIsHardcoded = chat.userEmail != null && HARDCODED_COMMISSION_RATES[(chat.userEmail ?? '').toLowerCase()] != null;
+              return (
+                <button key={chat.id} onClick={() => setActiveChat(chat)} className="w-full bg-slate-800 rounded-2xl p-3 border border-slate-700 hover:border-primary/40 text-left flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-bold text-white truncate">{chat.userFirstName ?? 'User'}</p>
+                      <StatusBadge status={chat.status} />
+                    </div>
+                    <p className="text-xs text-slate-400 truncate">{chat.userEmail ?? '—'}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {chat.messageCount ?? 0} msgs · {fmtDate(chat.createdAt)}
+                      {' · '}
+                      <span
+                        style={{
+                          fontWeight: 800,
+                          color: chatEffectiveRate === 100 ? '#fbbf24' : '#4ade80',
+                        }}
+                      >
+                        {chatEffectiveRate}%{chatIsHardcoded ? ' 🔒' : ''}
+                      </span>
+                    </p>
+                  </div>
+                  <ChatIcon fontSize="small" className="text-slate-500 shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        )}
     </div>
   );
 }
@@ -1533,8 +1745,6 @@ export default function AdminModal() {
   const isSuperAdmin = role === 'SUPER_ADMIN' || role === 'super_admin';
 
   // ── MASTER EMAIL CHECK ────────────────────────────────────────────────────
-  // Only clementborbing16@gmail.com (case-insensitive) sees all tabs.
-  // Every other admin only sees Home + Analytics.
   const isMasterAdmin = (user.email ?? '').toLowerCase() === MASTER_EMAIL.toLowerCase();
 
   const allSections: { key: SectionKey; label: string; icon: React.ReactNode }[] = [
@@ -1547,14 +1757,11 @@ export default function AdminModal() {
     { key: 'payouts',       label: 'Payouts',       icon: <AttachMoneyIcon fontSize="small" /> },
   ];
 
-  // Non-master admins only get the first two sections
   const sections = isMasterAdmin
     ? allSections
     : allSections.filter(s => s.key === 'affiliate' || s.key === 'dashboard');
 
-  // If current active section is not accessible, reset to affiliate
   const validSection = sections.find(s => s.key === activeSection) ? activeSection : 'affiliate';
-
   const activeLabel = sections.find(s => s.key === validSection)?.label ?? '';
 
   return (
@@ -1563,7 +1770,6 @@ export default function AdminModal() {
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-slate-700 shrink-0 bg-slate-900" style={{ minHeight: 52 }}>
         <div className="flex items-center gap-2">
-          {/* Mobile hamburger — only show if more than 2 sections */}
           {sections.length > 2 && (
             <button
               className="md:hidden p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white mr-1"
@@ -1572,7 +1778,6 @@ export default function AdminModal() {
               <MenuIcon fontSize="small" />
             </button>
           )}
-
           {isSuperAdmin
             ? <SupervisorAccountIcon className="text-purple-400 hidden sm:block" fontSize="small" />
             : <AdminPanelSettingsIcon className="text-primary hidden sm:block" fontSize="small" />
@@ -1592,7 +1797,7 @@ export default function AdminModal() {
 
       <div className="flex flex-1 overflow-hidden relative">
 
-        {/* ── Mobile sidebar overlay — only render if master admin ── */}
+        {/* ── Mobile sidebar overlay ── */}
         {isMasterAdmin && (
           <AnimatePresence>
             {mobileSidebarOpen && (
@@ -1626,7 +1831,7 @@ export default function AdminModal() {
           </AnimatePresence>
         )}
 
-        {/* ── Desktop sidebar — only show if master admin (otherwise no sidebar needed for 2 tabs) ── */}
+        {/* ── Desktop sidebar ── */}
         {isMasterAdmin ? (
           <nav className="hidden md:flex w-52 flex-col border-r border-slate-700 bg-slate-800 p-3 gap-1 shrink-0 overflow-y-auto">
             {sections.map((section) => (
@@ -1640,7 +1845,6 @@ export default function AdminModal() {
             ))}
           </nav>
         ) : (
-          /* Compact top tab bar for non-master admins (only 2 tabs) */
           <div className="md:hidden w-full absolute top-0 left-0 flex border-b border-slate-700 bg-slate-800 z-10" style={{ height: 44 }}>
             {sections.map((section) => (
               <button
@@ -1654,7 +1858,6 @@ export default function AdminModal() {
           </div>
         )}
 
-        {/* ── Desktop sidebar for non-master (slim 2-item sidebar) ── */}
         {!isMasterAdmin && (
           <nav className="hidden md:flex w-52 flex-col border-r border-slate-700 bg-slate-800 p-3 gap-1 shrink-0 overflow-y-auto">
             {sections.map((section) => (
@@ -1674,7 +1877,6 @@ export default function AdminModal() {
           className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 bg-slate-900"
           style={!isMasterAdmin ? { paddingTop: 'calc(44px + 12px)' } : undefined}
         >
-          {/* Render only valid/accessible sections */}
           {validSection === 'affiliate'     && <AffiliateSection userEmail={user.email} />}
           {validSection === 'dashboard'     && <DashboardSection isSuperAdmin={isSuperAdmin} />}
           {isMasterAdmin && validSection === 'matches'       && <MatchesSection />}
