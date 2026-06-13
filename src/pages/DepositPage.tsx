@@ -389,8 +389,8 @@ function SupportPanel() {
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {[
               { matIcon: "chat",  label: "Live Chat",     desc: "Chat with us on WhatsApp", href: "https://wa.me/233000000000", color: "#25D366" },
-              { matIcon: "mail",  label: "Email Support", desc: "winningbetsupport@gmail.com",  href: "mailto:winningbetsupport@gmail.com", color: "#60a5fa" },
-              { matIcon: "send",  label: "Telegram",      desc: "@WinningBetSupport",            href: "https://t.me/WinningBetSupport",  color: "#2AABEE" },
+              { matIcon: "mail",  label: "Email Support", desc: "championbetsupport@gmail.com",  href: "mailto:championbetsupport@gmail.com", color: "#60a5fa" },
+              { matIcon: "send",  label: "Telegram",      desc: "@ChampionBetSupport",            href: "https://t.me/ChampionBetSupport",  color: "#2AABEE" },
             ].map(ch => (
               <a key={ch.label} href={ch.href} target="_blank" rel="noopener noreferrer"
                 style={{ display: "flex", alignItems: "center", gap: 12, background: T.raised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "11px 13px", textDecoration: "none", transition: "border 0.15s" }}>
@@ -889,7 +889,7 @@ function CryptoSuccessScreen({ onHome, onReset }: CryptoSuccessScreenProps) {
       <div style={{ fontWeight: 800, fontSize: 20, color: T.white, marginBottom: 6 }}>Proof Submitted</div>
       <div style={{ fontSize: 13, color: T.dim, lineHeight: 1.65, marginBottom: 20 }}>
         Your crypto deposit is under review.<br />
-        Admin will credit your WinningBet wallet within <strong style={{ color: T.white }}>1–5 minutes</strong>.
+        Admin will credit your ChampionBet wallet within <strong style={{ color: T.white }}>1–5 minutes</strong>.
       </div>
       <button onClick={onHome} style={{ ...btnPrimary, marginBottom: 8 }}>
         <span className="material-symbols-outlined" style={{ fontSize: 18 }}>home</span>Back to Home
@@ -1243,7 +1243,7 @@ export default function DepositPage() {
           <div style={{ marginBottom: 20, animation: "_fadeUp 0.4s ease" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
               <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#16a34a" }} />
-              <span style={{ fontSize: 9, fontWeight: 700, color: "#16a34a", textTransform: "uppercase", letterSpacing: "1.2px" }}>WinningBet · Secure Deposit</span>
+              <span style={{ fontSize: 9, fontWeight: 700, color: "#16a34a", textTransform: "uppercase", letterSpacing: "1.2px" }}>ChampionBet · Secure Deposit</span>
             </div>
             <h1 style={{ fontSize: 26, fontWeight: 800, color: "#f5f5f0", letterSpacing: "-0.5px", lineHeight: 1.1 }}>Fund your<br />account</h1>
             <div style={{ marginTop: 6, fontSize: 12, color: "rgba(245,245,240,0.38)" }}>
@@ -1297,7 +1297,7 @@ export default function DepositPage() {
             <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
               <span style={{ fontSize: 11, color: "rgba(245,245,240,0.18)", display: "flex", alignItems: "center", gap: 5 }}>
                 <span className="material-symbols-outlined" style={{ fontSize: 14 }}>lock</span>
-                256-bit encrypted · WinningBet
+                256-bit encrypted · ChampionBet
               </span>
               <span style={{ fontSize: 10, color: "rgba(245,245,240,0.14)" }}>Paystack · Bank · Binance</span>
             </div>
@@ -1308,7 +1308,7 @@ export default function DepositPage() {
 
           {/* Footer */}
           <div style={{ marginTop: 20, textAlign: "center", fontSize: 11, color: "rgba(245,245,240,0.14)", lineHeight: 1.7, animation: "_fadeUp 0.6s ease" }}>
-            By depositing you agree to WinningBet's<br />
+            By depositing you agree to ChampionBet's<br />
             <a href="/terms" style={{ color: "rgba(245,245,240,0.28)", textDecoration: "underline" }}>Terms of Service</a>
             {" · "}
             <a href="/privacy" style={{ color: "rgba(245,245,240,0.28)", textDecoration: "underline" }}>Privacy Policy</a>
