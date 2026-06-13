@@ -2,7 +2,7 @@ import BoltIcon from '@mui/icons-material/Bolt';
 
 const fontLink = document.createElement('link');
 fontLink.rel = 'stylesheet';
-fontLink.href = 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap';
+fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,700;0,800;0,900;1,700;1,800;1,900&display=swap';
 document.head.appendChild(fontLink);
 
 const styleTag = document.createElement('style');
@@ -17,7 +17,7 @@ styleTag.textContent = `
     border-radius: 8px;
     overflow: hidden;
     display: flex;
-    font-family: 'Open Sans', sans-serif;
+    font-family: 'Inter', sans-serif;
     background: #0d0d0d;
     height: clamp(150px, 20vw, 240px);
   }
@@ -27,7 +27,7 @@ styleTag.textContent = `
     z-index: 2;
     width: 40%;
     min-width: 280px;
-    background: #cc0000;
+    background: #E8000D;
     clip-path: polygon(0 0, 100% 0, 90% 100%, 0 100%);
     display: flex;
     flex-direction: column;
@@ -69,7 +69,116 @@ styleTag.textContent = `
 `;
 document.head.appendChild(styleTag);
 
-const FONT = "'Open Sans', sans-serif";
+const FONT = "'Inter', sans-serif";
+
+// ─── CB Monogram SVG (matches Header exactly) ────────────────────────────────
+function CBMark({ size = 24 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 28 28"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      {/* C — bold open arc */}
+      <path
+        d="M16 6.5C12.2 6.5 8.5 9.2 8.5 14C8.5 18.8 12.2 21.5 16 21.5"
+        stroke="white"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+      />
+      {/* B — vertical stem */}
+      <line
+        x1="16" y1="6.5" x2="16" y2="21.5"
+        stroke="white"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+      />
+      {/* B — upper arc */}
+      <path
+        d="M16 6.5H19.5C21.4 6.5 22.8 7.8 22.8 9.6C22.8 11.4 21.4 13 19.5 13H16"
+        stroke="white"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        fill="none"
+      />
+      {/* B — lower arc */}
+      <path
+        d="M16 13H20C22.2 13 23.5 14.5 23.5 16.5C23.5 18.6 22.2 21.5 20 21.5H16"
+        stroke="white"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
+// ─── ChampionBet Logo (matches Header exactly) ───────────────────────────────
+function ChampionBetLogo() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 11, userSelect: 'none' }} aria-label="CHAMPIONBET">
+      {/* Monogram badge */}
+      <div style={{
+        width: 42,
+        height: 42,
+        background: 'rgba(0,0,0,0.22)',
+        border: '2px solid rgba(255,255,255,0.70)',
+        borderRadius: 9,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+      }}>
+        <CBMark size={24} />
+      </div>
+
+      {/* Stacked wordmark */}
+      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1, gap: 0 }}>
+        <span style={{
+          fontFamily: FONT,
+          fontWeight: 800,
+          fontStyle: 'italic',
+          fontSize: '0.72rem',
+          letterSpacing: '0.26em',
+          color: 'rgba(255,255,255,0.90)',
+          textTransform: 'uppercase',
+          lineHeight: 1,
+          whiteSpace: 'nowrap',
+        }}>
+          Champion
+        </span>
+        <span style={{
+          fontFamily: FONT,
+          fontWeight: 900,
+          fontStyle: 'italic',
+          fontSize: '1.72rem',
+          letterSpacing: '-0.01em',
+          color: '#ffffff',
+          textTransform: 'uppercase',
+          lineHeight: 1,
+          display: 'inline-block',
+          transform: 'skewX(-10deg)',
+          textShadow: '0 1px 4px rgba(0,0,0,0.30)',
+          whiteSpace: 'nowrap',
+        }}>
+          Bet
+        </span>
+        <div style={{
+          width: '100%',
+          height: 2.5,
+          background: '#ffffff',
+          borderRadius: 2,
+          opacity: 0.65,
+          marginTop: 2,
+        }} />
+      </div>
+    </div>
+  );
+}
 
 export default function PromoBanner() {
   return (
@@ -91,17 +200,15 @@ export default function PromoBanner() {
           </span>
         </div>
 
-        {/* brand */}
-        <div style={{ lineHeight: 1 }}>
-          <span style={{ fontWeight: 800, fontSize: 'clamp(1rem, 2.6vw, 1.35rem)', color: '#fff', letterSpacing: '-0.01em' }}>winning</span>
-          <span style={{ fontWeight: 800, fontSize: 'clamp(1rem, 2.6vw, 1.35rem)', color: 'rgba(255,255,255,0.42)', letterSpacing: '-0.01em' }}>bet</span>
-        </div>
+        {/* Logo — replaces old "winningbet" text */}
+        <ChampionBetLogo />
 
         {/* headline */}
         <h2 style={{
           margin: 0, fontWeight: 800,
           fontSize: 'clamp(1.3rem, 3.6vw, 2.1rem)',
           color: '#fff', letterSpacing: '0.01em', lineHeight: 1,
+          fontFamily: FONT,
           textShadow: '0 2px 10px rgba(0,0,0,0.25)',
         }}>
           Bet Smarter Today
@@ -114,7 +221,7 @@ export default function PromoBanner() {
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6,
               padding: '8px 20px', borderRadius: 5,
-              background: '#fff', color: '#cc0000',
+              background: '#fff', color: '#E8000D',
               fontFamily: FONT, fontWeight: 800, fontSize: '0.74rem',
               letterSpacing: '0.1em', textTransform: 'uppercase' as const,
               textDecoration: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.22)',
@@ -158,8 +265,8 @@ export default function PromoBanner() {
           }}
           onMouseEnter={e => {
             const el = e.currentTarget as HTMLElement;
-            el.style.background = '#cc0000';
-            el.style.borderColor = '#cc0000';
+            el.style.background = '#E8000D';
+            el.style.borderColor = '#E8000D';
           }}
           onMouseLeave={e => {
             const el = e.currentTarget as HTMLElement;

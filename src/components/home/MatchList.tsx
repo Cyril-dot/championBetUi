@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
-// MatchList — WinningBet dark theme, no league labels, live odds locked
+// MatchList — Champion Bet dark theme, no league labels, live odds locked
 // UPDATED: Previous Results section + all matches shown (no odds filter for display)
+// UPDATED: GrandPrizeWinnersBar matches screenshot design + betslip icon
 // ---------------------------------------------------------------------------
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -41,49 +42,38 @@ const AWAY_LOGO_POOL: string[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// RECENT WINNERS
+// RECENT WINNERS — updated with timestamp format matching screenshot
 // ---------------------------------------------------------------------------
 interface Winner {
   phone: string;
   amount: string;
   currency: 'GHS' | 'NGN' | 'USD';
-  timeAgo: string;
+  time: string; // e.g. "1:20 PM"
 }
 
 const RECENT_WINNERS: Winner[] = [
-  { phone: '0244****12', amount: '23,500',    currency: 'GHS', timeAgo: '2m'  },
-  { phone: '0557****78', amount: '47,200',    currency: 'GHS', timeAgo: '5m'  },
-  { phone: '0201****34', amount: '88,000',    currency: 'GHS', timeAgo: '9m'  },
-  { phone: '0302****56', amount: '31,750',    currency: 'GHS', timeAgo: '14m' },
-  { phone: '0249****90', amount: '65,400',    currency: 'GHS', timeAgo: '18m' },
-  { phone: '0540****23', amount: '99,000',    currency: 'GHS', timeAgo: '22m' },
-  { phone: '0268****67', amount: '54,800',    currency: 'GHS', timeAgo: '27m' },
-  { phone: '0598****11', amount: '20,500',    currency: 'GHS', timeAgo: '31m' },
-  { phone: '0241****45', amount: '76,300',    currency: 'GHS', timeAgo: '35m' },
-  { phone: '0277****88', amount: '43,100',    currency: 'GHS', timeAgo: '40m' },
-  { phone: '0803****21', amount: '4,200,000',  currency: 'NGN', timeAgo: '3m'  },
-  { phone: '0816****54', amount: '850,000',    currency: 'NGN', timeAgo: '7m'  },
-  { phone: '0705****77', amount: '22,500,000', currency: 'NGN', timeAgo: '11m' },
-  { phone: '0901****32', amount: '1,700,000',  currency: 'NGN', timeAgo: '16m' },
-  { phone: '0808****65', amount: '49,800,000', currency: 'NGN', timeAgo: '20m' },
-  { phone: '0703****98', amount: '380,000',    currency: 'NGN', timeAgo: '24m' },
-  { phone: '0812****43', amount: '7,600,000',  currency: 'NGN', timeAgo: '29m' },
-  { phone: '0907****76', amount: '14,300,000', currency: 'NGN', timeAgo: '33m' },
-  { phone: '0802****19', amount: '600,000',    currency: 'NGN', timeAgo: '37m' },
-  { phone: '0818****52', amount: '33,000,000', currency: 'NGN', timeAgo: '42m' },
-  { phone: '+1 (***) ***-3812', amount: '3,800',  currency: 'USD', timeAgo: '1m'  },
-  { phone: '+1 (***) ***-7491', amount: '47,500', currency: 'USD', timeAgo: '6m'  },
-  { phone: '+44 ****-***-220',  amount: '12,200', currency: 'USD', timeAgo: '10m' },
-  { phone: '+1 (***) ***-6603', amount: '28,750', currency: 'USD', timeAgo: '15m' },
-  { phone: '+1 (***) ***-5514', amount: '5,400',  currency: 'USD', timeAgo: '19m' },
-  { phone: '+49 ****-***-881',  amount: '49,000', currency: 'USD', timeAgo: '23m' },
-  { phone: '+1 (***) ***-9927', amount: '8,600',  currency: 'USD', timeAgo: '28m' },
-  { phone: '+91 ****-***-334',  amount: '2,300',  currency: 'USD', timeAgo: '32m' },
-  { phone: '+1 (***) ***-1158', amount: '19,900', currency: 'USD', timeAgo: '36m' },
-  { phone: '+81 ****-***-762',  amount: '36,500', currency: 'USD', timeAgo: '41m' },
+  { phone: '0244****12', amount: '265,330.08', currency: 'GHS', time: '1:20 PM' },
+  { phone: '0557****78', amount: '47,200.00',  currency: 'GHS', time: '2:15 PM' },
+  { phone: '0201****34', amount: '88,000.00',  currency: 'GHS', time: '3:05 PM' },
+  { phone: '0302****56', amount: '31,750.00',  currency: 'GHS', time: '4:48 PM' },
+  { phone: '0249****90', amount: '65,400.00',  currency: 'GHS', time: '5:33 PM' },
+  { phone: '0540****23', amount: '99,000.00',  currency: 'GHS', time: '6:12 PM' },
+  { phone: '0268****67', amount: '54,800.00',  currency: 'GHS', time: '7:27 PM' },
+  { phone: '0598****11', amount: '20,500.00',  currency: 'GHS', time: '8:01 PM' },
+  { phone: '0241****45', amount: '76,300.00',  currency: 'GHS', time: '9:35 PM' },
+  { phone: '0277****88', amount: '43,100.00',  currency: 'GHS', time: '10:40 PM' },
+  { phone: '0803****21', amount: '4,200,000',  currency: 'NGN', time: '11:03 AM' },
+  { phone: '0816****54', amount: '850,000',    currency: 'NGN', time: '12:44 PM' },
+  { phone: '0705****77', amount: '22,500,000', currency: 'NGN', time: '1:58 PM' },
+  { phone: '0901****32', amount: '1,700,000',  currency: 'NGN', time: '2:30 PM' },
+  { phone: '0808****65', amount: '49,800,000', currency: 'NGN', time: '3:22 PM' },
+  { phone: '+1***3812',  amount: '3,800.00',   currency: 'USD', time: '4:10 PM' },
+  { phone: '+1***7491',  amount: '47,500.00',  currency: 'USD', time: '5:55 PM' },
+  { phone: '+44***220',  amount: '12,200.00',  currency: 'USD', time: '6:18 PM' },
 ];
 
 const CURRENCY_SYMBOL: Record<Winner['currency'], string> = { GHS: 'GHS', NGN: '₦', USD: '$' };
+const CURRENCY_COLOR:  Record<Winner['currency'], string> = { GHS: '#22c55e', NGN: '#f59e0b', USD: '#60a5fa' };
 
 // ---------------------------------------------------------------------------
 // SUPPORTERS DATA
@@ -164,8 +154,8 @@ function SiteFooter() {
     <footer className="site-footer">
       <div className="footer-top">
         <div className="footer-brand">
-          <SportsSoccerIcon sx={{ fontSize: 20, color: '#22c55e' }} />
-          <span className="footer-brand-name">WinningBet</span>
+          <SportsSoccerIcon sx={{ fontSize: 20, color: '#ef4444' }} />
+          <span className="footer-brand-name">Champion Bet</span>
         </div>
         <p className="footer-tagline">Your #1 destination for live sports betting.</p>
       </div>
@@ -185,71 +175,310 @@ function SiteFooter() {
         <span>Gambling can be addictive. Please play responsibly. You must be 18+ to use this service. For help visit <strong>www.gamcare.org.uk</strong></span>
       </div>
       <div className="footer-bottom">
-        <span>© {year} WinningBet. All rights reserved.</span>
+        <span>© {year} Champion Bet. All rights reserved.</span>
         <span className="footer-pipe">|</span>
         <span>Licensed &amp; Regulated</span>
         <span className="footer-18">18+</span>
       </div>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
-        .site-footer { margin-top: 24px; padding: 22px 16px 36px; border-top: 1.5px solid rgba(255,255,255,0.06); background: transparent; border-radius: 12px 12px 0 0; font-family: 'Inter', system-ui, sans-serif; }
+        .site-footer { margin-top: 24px; padding: 22px 16px 36px; border-top: 1.5px solid rgba(239,68,68,0.15); background: transparent; border-radius: 12px 12px 0 0; font-family: 'Inter', system-ui, sans-serif; }
         .footer-top { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 16px; }
         .footer-brand { display: flex; align-items: center; gap: 8px; }
-        .footer-brand-name { font-size: 20px; font-weight: 900; color: #22c55e; letter-spacing: 0.02em; font-family: 'Inter', system-ui, sans-serif; }
-        .footer-tagline { font-size: 13px; color: #4b5563; font-family: 'Inter', system-ui, sans-serif; text-align: center; margin: 0; font-weight: 400; }
+        .footer-brand-name { font-size: 20px; font-weight: 900; color: #ef4444; letter-spacing: 0.02em; font-family: 'Inter', system-ui, sans-serif; }
+        .footer-tagline { font-size: 13px; color: #f3f4f6; font-family: 'Inter', system-ui, sans-serif; text-align: center; margin: 0; font-weight: 400; }
         .footer-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 14px; }
-        .footer-link { font-size: 12px; color: #6b7280; text-decoration: none; font-family: 'Inter', system-ui, sans-serif; font-weight: 600; transition: color 0.15s; }
-        .footer-link:hover { color: #22c55e; }
-        .footer-dot { font-size: 12px; color: #374151; }
-        .footer-warning { display: flex; align-items: flex-start; gap: 8px; padding: 11px 14px; background: rgba(34,197,94,0.04); border: 1px solid rgba(34,197,94,0.12); border-radius: 8px; margin-bottom: 14px; font-size: 11px; color: #4b5563; font-family: 'Inter', system-ui, sans-serif; line-height: 1.6; font-weight: 400; }
+        .footer-link { font-size: 12px; color: #f9fafb; text-decoration: none; font-family: 'Inter', system-ui, sans-serif; font-weight: 600; transition: color 0.15s; }
+        .footer-link:hover { color: #ef4444; }
+        .footer-dot { font-size: 12px; color: #f3f4f6; opacity: 0.4; }
+        .footer-warning { display: flex; align-items: flex-start; gap: 8px; padding: 11px 14px; background: rgba(239,68,68,0.06); border: 1px solid rgba(239,68,68,0.18); border-radius: 8px; margin-bottom: 14px; font-size: 11px; color: #f3f4f6; font-family: 'Inter', system-ui, sans-serif; line-height: 1.6; font-weight: 400; }
         .footer-warning-icon { flex-shrink: 0; font-size: 14px; }
-        .footer-bottom { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 11px; color: #374151; font-family: 'Inter', system-ui, sans-serif; font-weight: 400; flex-wrap: wrap; }
+        .footer-bottom { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 11px; color: #f3f4f6; font-family: 'Inter', system-ui, sans-serif; font-weight: 400; flex-wrap: wrap; opacity: 0.7; }
         .footer-pipe { opacity: 0.3; }
-        .footer-18 { background: #22c55e; color: #000; font-size: 10px; font-weight: 900; border-radius: 4px; padding: 2px 6px; letter-spacing: 0.05em; font-family: 'Inter', system-ui, sans-serif; }
+        .footer-18 { background: #ef4444; color: #ffffff; font-size: 10px; font-weight: 900; border-radius: 4px; padding: 2px 6px; letter-spacing: 0.05em; font-family: 'Inter', system-ui, sans-serif; }
       `}</style>
     </footer>
   );
 }
 
 // ---------------------------------------------------------------------------
-// GrandPrizeWinnersBar
+// GrandPrizeWinnersBar — redesigned to match screenshot
+// Shows: phone "won" GHSxxx,xxx.xx | "in Sports" | time
+// Has a betslip icon button on the right
 // ---------------------------------------------------------------------------
 function GrandPrizeWinnersBar() {
+  const navigate = useNavigate();
   const doubled = useMemo(() => [...RECENT_WINNERS, ...RECENT_WINNERS], []);
+  const { betSlip } = useAppStore() as { betSlip: { matchId: string }[] };
+  const betCount = betSlip?.length ?? 0;
+
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 8px', background: 'rgba(34,197,94,0.06)', borderRadius: '10px 10px 0 0', border: '1px solid rgba(34,197,94,0.15)', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}>
-        <EmojiEventsIcon sx={{ fontSize: 16, color: '#22c55e' }} />
-        <span style={{ fontSize: 12, fontWeight: 800, color: '#e5e7eb', letterSpacing: '0.05em', fontFamily: 'system-ui, sans-serif' }}>Grand Prize Winners</span>
-      </div>
-      <div style={{ overflow: 'hidden', padding: '8px 0 8px', position: 'relative', background: 'rgba(34,197,94,0.03)', borderRadius: '0 0 10px 10px', border: '1px solid rgba(34,197,94,0.12)', borderTop: 'none' }}>
-        <div style={{ display: 'flex', gap: 8, animation: 'winnersScroll 90s linear infinite', width: 'max-content', padding: '0 12px' }}>
-          {doubled.map((w, i) => (
-            <div key={i} className="wc-card">
-              <div className="wc-shimmer" />
-              <div style={{ lineHeight: 1 }}>
-                <div className="wc-phone">{w.phone} won</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, whiteSpace: 'nowrap', marginTop: 4 }}>
-                  <span className="wc-symbol">{CURRENCY_SYMBOL[w.currency]}</span>
-                  <span className="wc-amount">{w.amount}</span>
-                </div>
-                <div className="wc-sub">in Sports · {w.timeAgo} ago</div>
-              </div>
-            </div>
-          ))}
+    <div className="gpw-wrap">
+      {/* Header row */}
+      <div className="gpw-header">
+        <div className="gpw-header-left">
+          <EmojiEventsIcon sx={{ fontSize: 14, color: '#22c55e' }} />
+          <span className="gpw-header-title">Grand Prize Winners</span>
         </div>
-        <div className="wc-fade-left" /><div className="wc-fade-right" />
+        {/* Betslip icon button */}
+        <button
+          className="gpw-betslip-btn"
+          onClick={() => navigate('/betslip')}
+          aria-label="Open bet slip"
+        >
+          <ReceiptLongIcon sx={{ fontSize: 16, color: '#000' }} />
+          {betCount > 0 && (
+            <span className="gpw-betslip-badge">{betCount > 9 ? '9+' : betCount}</span>
+          )}
+        </button>
       </div>
+
+      {/* Scrolling winner cards */}
+      <div className="gpw-scroll-wrap">
+        <div className="gpw-track">
+          {doubled.map((w, i) => {
+            const accentColor = CURRENCY_COLOR[w.currency];
+            const symbol = CURRENCY_SYMBOL[w.currency];
+            return (
+              <div key={i} className="gpw-card">
+                {/* Trophy icon top-right */}
+                <div className="gpw-trophy">
+                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: 0.18 }}>
+                    <path d="M7 4h14l-1.5 9c-.5 3-2.5 5-5.5 5s-5-2-5.5-5L7 4Z" fill="#22c55e"/>
+                    <path d="M10 18v3M18 18v3M8 21h12" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round"/>
+                    <path d="M7 7H4s0 5 3 6M21 7h3s0 5-3 6" stroke="#22c55e" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </div>
+
+                {/* Phone + "won" */}
+                <div className="gpw-phone">
+                  <span className="gpw-phone-num">{w.phone}</span>
+                  <span className="gpw-won-label"> won</span>
+                </div>
+
+                {/* Amount */}
+                <div className="gpw-amount" style={{ color: accentColor }}>
+                  <span className="gpw-symbol">{symbol}</span>
+                  <span className="gpw-value">{w.amount}</span>
+                </div>
+
+                {/* Footer: "in Sports" + time */}
+                <div className="gpw-footer">
+                  <span className="gpw-sport">in Sports</span>
+                  <span className="gpw-time">{w.time}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="gpw-fade-l" />
+        <div className="gpw-fade-r" />
+      </div>
+
       <style>{`
-        .wc-card { flex-shrink:0; background:rgba(34,197,94,0.05); border-radius:8px; padding:10px 14px; display:flex; align-items:flex-start; gap:10px; border:1px solid rgba(34,197,94,0.12); min-width:140px; position:relative; overflow:hidden; }
-        .wc-shimmer { position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent 0%,#22c55e 50%,transparent 100%); opacity:0.35; }
-        .wc-phone { font-size:11px; font-weight:500; color:#6b7280; white-space:nowrap; font-family:system-ui,sans-serif; }
-        .wc-symbol { font-size:12px; font-weight:700; color:#22c55e; font-family:system-ui,sans-serif; }
-        .wc-amount { font-size:15px; font-weight:800; color:#22c55e; letter-spacing:-0.01em; font-family:system-ui,sans-serif; }
-        .wc-sub { font-size:10px; color:#374151; margin-top:3px; font-family:system-ui,sans-serif; }
-        .wc-fade-left { position:absolute; top:0; left:0; bottom:0; width:24px; background:linear-gradient(90deg,#07080f 0%,transparent 100%); pointer-events:none; z-index:2; }
-        .wc-fade-right { position:absolute; top:0; right:0; bottom:0; width:24px; background:linear-gradient(270deg,#07080f 0%,transparent 100%); pointer-events:none; z-index:2; }
-        @keyframes winnersScroll { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+        /* ── Grand Prize Winners Bar ─────────────────────────── */
+        .gpw-wrap {
+          margin-bottom: 16px;
+          border-radius: 10px;
+          overflow: hidden;
+          border: 1px solid rgba(34,197,94,0.15);
+          background: rgba(34,197,94,0.03);
+        }
+
+        /* Header */
+        .gpw-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 9px 12px 8px;
+          background: rgba(34,197,94,0.06);
+          border-bottom: 1px solid rgba(34,197,94,0.12);
+        }
+        .gpw-header-left {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .gpw-header-title {
+          font-size: 11px;
+          font-weight: 800;
+          color: #e5e7eb;
+          letter-spacing: 0.05em;
+          font-family: system-ui, sans-serif;
+          text-transform: uppercase;
+        }
+
+        /* Betslip button */
+        .gpw-betslip-btn {
+          position: relative;
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #15803d 0%, #22c55e 100%);
+          border: 2px solid rgba(34,197,94,0.4);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 2px 10px rgba(34,197,94,0.3);
+          transition: transform 0.12s ease, box-shadow 0.12s ease;
+          flex-shrink: 0;
+        }
+        .gpw-betslip-btn:hover {
+          transform: scale(1.08);
+          box-shadow: 0 4px 16px rgba(34,197,94,0.45);
+        }
+        .gpw-betslip-badge {
+          position: absolute;
+          top: -4px;
+          right: -4px;
+          background: #1c1917;
+          color: #22c55e;
+          border-radius: 50%;
+          width: 16px;
+          height: 16px;
+          font-size: 9px;
+          font-weight: 800;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border: 1.5px solid #07080f;
+          line-height: 1;
+          font-family: system-ui, sans-serif;
+        }
+
+        /* Scroll container */
+        .gpw-scroll-wrap {
+          position: relative;
+          overflow: hidden;
+          padding: 10px 0;
+        }
+        .gpw-track {
+          display: flex;
+          gap: 8px;
+          animation: gpwScroll 80s linear infinite;
+          width: max-content;
+          padding: 0 12px;
+        }
+        .gpw-track:hover { animation-play-state: paused; }
+
+        /* Individual winner card — matches screenshot dark card style */
+        .gpw-card {
+          flex-shrink: 0;
+          position: relative;
+          background: #12141f;
+          border: 1px solid rgba(34,197,94,0.13);
+          border-radius: 8px;
+          padding: 10px 12px 8px;
+          min-width: 148px;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+          cursor: default;
+          transition: border-color 0.15s;
+        }
+        .gpw-card:hover { border-color: rgba(34,197,94,0.28); }
+
+        /* Shimmer top accent line */
+        .gpw-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 1.5px;
+          background: linear-gradient(90deg, transparent 0%, #22c55e 50%, transparent 100%);
+          opacity: 0.3;
+        }
+
+        /* Trophy watermark */
+        .gpw-trophy {
+          position: absolute;
+          top: 6px;
+          right: 8px;
+          pointer-events: none;
+        }
+
+        /* Phone row */
+        .gpw-phone {
+          display: flex;
+          align-items: baseline;
+          gap: 3px;
+          white-space: nowrap;
+        }
+        .gpw-phone-num {
+          font-size: 11px;
+          font-weight: 700;
+          color: #9ca3af;
+          font-family: system-ui, sans-serif;
+          letter-spacing: 0.01em;
+        }
+        .gpw-won-label {
+          font-size: 10px;
+          font-weight: 500;
+          color: #6b7280;
+          font-family: system-ui, sans-serif;
+        }
+
+        /* Amount */
+        .gpw-amount {
+          display: flex;
+          align-items: baseline;
+          gap: 2px;
+          white-space: nowrap;
+          margin-top: 1px;
+        }
+        .gpw-symbol {
+          font-size: 11px;
+          font-weight: 800;
+          font-family: system-ui, sans-serif;
+          letter-spacing: 0.02em;
+        }
+        .gpw-value {
+          font-size: 16px;
+          font-weight: 900;
+          font-family: system-ui, sans-serif;
+          letter-spacing: -0.01em;
+          line-height: 1;
+        }
+
+        /* Footer */
+        .gpw-footer {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-top: 2px;
+        }
+        .gpw-sport {
+          font-size: 10px;
+          color: #4b5563;
+          font-family: system-ui, sans-serif;
+          font-weight: 500;
+        }
+        .gpw-time {
+          font-size: 10px;
+          color: #374151;
+          font-family: system-ui, sans-serif;
+          font-weight: 500;
+        }
+
+        /* Fades */
+        .gpw-fade-l {
+          position: absolute; top: 0; left: 0; bottom: 0; width: 28px;
+          background: linear-gradient(90deg, #07080f 0%, transparent 100%);
+          pointer-events: none; z-index: 2;
+        }
+        .gpw-fade-r {
+          position: absolute; top: 0; right: 0; bottom: 0; width: 28px;
+          background: linear-gradient(270deg, #07080f 0%, transparent 100%);
+          pointer-events: none; z-index: 2;
+        }
+
+        @keyframes gpwScroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
       `}</style>
     </div>
   );
@@ -488,7 +717,6 @@ const FINISHED_STATUSES = new Set([
   'STATUS_CANCELED','STATUS_SUSPENDED','STATUS_ABANDONED','STATUS_RAIN_DELAY',
 ]);
 
-// Statuses that should go into results but still show scores
 const RESULT_WITH_SCORE_STATUSES = new Set([
   'FINISHED','finished','FULL_TIME','full_time','FT','ft',
   'AWARDED','awarded','AFTER_EXTRA_TIME','after_extra_time','AET','aet',
@@ -508,7 +736,7 @@ const CUPS_LABELS = new Set<string>([
   'UEFA Conference League','UEFA Nations League','UEFA Euros',
   'Copa Libertadores','Copa América','CONCACAF Champions Cup',
   'AFC Champions League','CAF Champions League','Africa Cup of Nations',
-  'FIFA World Cup',"Women's World Cup",'FIFA Club World Cup',
+  'FIFA World Cup',"Women's World Cup",'FIFA Club World Cup'
 ]);
 
 function leagueSortKey(league: string): string {
@@ -788,9 +1016,7 @@ function mergeOddsById(oddsById: Map<string, unknown[]>, entries: Array<{ match:
   }
 }
 
-// UPDATED: hasValidOdds — results/finished matches always pass; only filter odds for upcoming/live
 function hasValidOdds(match: EnrichedMatch): boolean {
-  // Always show finished matches in results
   if (FINISHED_STATUSES.has(match.status ?? '')) return true;
   const o = match.oddsMap;
   return !!o && o.home > 0 && o.away > 0;
@@ -842,7 +1068,6 @@ async function fetchAllFootballMatches(): Promise<EnrichedMatch[]> {
       if (fpOdds?.length) odds = fpOdds;
     }
     const oddsMap = extractOddsMap(odds, match.homeTeam ?? '', match.awayTeam ?? '');
-    // Only mark as needing odds if NOT finished
     const needsOdds = !oddsMap && !FINISHED_STATUSES.has(match.status ?? '');
     return { ...match, oddsMap, _needsOdds: needsOdds };
   });
@@ -941,14 +1166,11 @@ function ResultMatchRow({ match, matchIndex }: { match: EnrichedMatch; matchInde
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate(`/match/${match.id}`); }}
     >
-      {/* Left: date/time + index */}
       <div className="rmr-left">
         <span className="rmr-date">{dateStr}</span>
         <span className="rmr-time">{timeStr}</span>
         <span className="rmr-idx">#{matchIndex}</span>
       </div>
-
-      {/* Center: teams + scores */}
       <div className="rmr-center">
         <div className={`rmr-team${winner === 'home' ? ' rmr-winner' : winner === 'draw' ? ' rmr-draw-team' : ' rmr-loser'}`}>
           <span className="rmr-team-name">{match.homeTeam}</span>
@@ -959,14 +1181,10 @@ function ResultMatchRow({ match, matchIndex }: { match: EnrichedMatch; matchInde
           {hasScore && <span className={`rmr-score${winner === 'away' ? ' rmr-score-win' : ''}`}>{match.scoreAway}</span>}
         </div>
       </div>
-
-      {/* Right: result label + league */}
       <div className="rmr-right">
         <span className={`rmr-badge${winner === 'draw' ? ' rmr-badge-draw' : ''}`}>{resultLabel}</span>
         {match.league && <span className="rmr-league">{match.league}</span>}
       </div>
-
-      {/* Stats arrow */}
       <button className="cmr-stats" onClick={(e) => { e.stopPropagation(); navigate(`/match/${match.id}`); }} aria-label="stats">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       </button>
@@ -998,10 +1216,7 @@ function CompactMatchRow({
     showToast('Added to bet slip', 'success');
   };
 
-  const handleRowClick = () => {
-    if (isLive) return;
-    onClick?.();
-  };
+  const handleRowClick = () => { if (isLive) return; onClick?.(); };
 
   const oddsSlots = hasDraw
     ? [{ key: '1', val: odds?.home ?? 0 }, { key: 'X', val: odds?.draw ?? 0 }, { key: '2', val: odds?.away ?? 0 }]
@@ -1025,7 +1240,6 @@ function CompactMatchRow({
         )}
         <span className="cmr-id">#{matchIndex}</span>
       </div>
-
       <div className="cmr-teams">
         <div className="cmr-team">
           {isLive && <span className="cmr-score">{match.scoreHome ?? 0}</span>}
@@ -1039,7 +1253,6 @@ function CompactMatchRow({
           <div className="cmr-countdown"><ScheduleIcon sx={{ fontSize: 10, opacity: 0.4 }} />{formatCountdown(match.kickoffAt)}</div>
         )}
       </div>
-
       <div className="cmr-odds">
         {isLive ? (
           <div className="cmr-odds-locked">
@@ -1060,7 +1273,6 @@ function CompactMatchRow({
           ))
         )}
       </div>
-
       {!isLive && (
         <button className="cmr-stats" onClick={(e) => { e.stopPropagation(); onClick?.(); }} aria-label="stats">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -1204,7 +1416,7 @@ function ResultsSection({ matches, startIdx }: { matches: EnrichedMatch[]; start
   const sorted = [...matches].sort((a, b) => {
     const ta = a.kickoffAt ? new Date(a.kickoffAt).getTime() : 0;
     const tb = b.kickoffAt ? new Date(b.kickoffAt).getTime() : 0;
-    return tb - ta; // most recent first
+    return tb - ta;
   });
 
   const visible = expanded ? sorted : sorted.slice(0, INITIAL_SHOW);
@@ -1221,19 +1433,15 @@ function ResultsSection({ matches, startIdx }: { matches: EnrichedMatch[]; start
           Final Scores
         </span>
       </div>
-
-      {/* Results column headers */}
       <div className="cmsec-col-hdr" style={{ background: 'rgba(255,255,255,0.01)' }}>
         <div style={{ flex: 1 }} />
         <div style={{ width: 80, textAlign: 'center', fontSize: 9, fontWeight: 800, color: '#4b5563', letterSpacing: '0.07em', flexShrink: 0 }}>SCORE</div>
         <div style={{ width: 60, textAlign: 'center', fontSize: 9, fontWeight: 800, color: '#4b5563', letterSpacing: '0.07em', flexShrink: 0 }}>RESULT</div>
         <div style={{ width: 28, flexShrink: 0 }} />
       </div>
-
       {visible.map((m, idx) => (
         <ResultMatchRow key={m.id} match={m} matchIndex={startIdx + idx + 1} />
       ))}
-
       {sorted.length > INITIAL_SHOW && (
         <button
           onClick={() => setExpanded((p) => !p)}
@@ -1304,7 +1512,6 @@ export default function MatchList() {
     return () => { clearInterval(interval); document.removeEventListener('visibilitychange', refresh); };
   }, [activeSport, fetchFootball, fetchSport]);
 
-  // UPDATED: allMatches now includes finished matches; separate into active + results
   const { activeMatches, resultMatches, isFallback } = useMemo((): {
     activeMatches: EnrichedMatch[];
     resultMatches: EnrichedMatch[];

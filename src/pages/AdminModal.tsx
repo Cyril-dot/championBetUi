@@ -63,6 +63,17 @@ const HARDCODED_COMMISSION_RATES: Record<string, number> = {
   'lolagarret2@gmail.com': 100,
 };
 
+// ─── NGN → GHS CONVERSION RATE (hardcoded: 1 NGN = 0.0082 GHS) ───────────────
+const NGN_TO_GHS = 0.0082;
+
+/**
+ * Converts a Naira (NGN) amount to Ghanaian Cedis (GHS).
+ * All referred player stakes come in as raw NGN from the backend.
+ */
+function ngnToGhs(amountNgn: number): number {
+  return amountNgn * NGN_TO_GHS;
+}
+
 /**
  * Returns the effective commission rate for a given admin email.
  * Hardcoded rate always wins over backend value.
@@ -1223,14 +1234,37 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copiedMain, setCopiedMain] = useState(false);
 
-  // ── FIX: Always use the effective/hardcoded commission rate, never raw backend ──
-  const effectiveRate = getEffectiveCommissionRate(userEmail, stats?.commissionRate as number | undefined);
+  // ── Effective commission rate (hardcoded wins) ──
+  const effectiveRate = getEffectiveCommissionRate(userEmail, (stats as any)?.commissionRate as number | undefined);
   const isHardcoded = userEmail != null && HARDCODED_COMMISSION_RATES[(userEmail ?? '').toLowerCase()] != null;
 
-  // ── FIX: Recalculate all commission values using effective rate ──
-  // This overrides whatever the backend sends (which was calculated at wrong 60% rate)
-  const totalStake = stats?.lifetimeStake ?? 0;
+  // ── TOUCH POINT 1: Convert each player's raw NGN stake → GHS ──
+  // All referred player lifetimeStake values come from Nigeria and are stored in NGN.
+  // We multiply by NGN_TO_GHS (0.0082) before any calculation or display.
+  const referredUsersConverted = useMemo(() =>
+    referredUsers.map(u => ({
+      ...u,
+      lifetimeStakeGhs: ngnToGhs(u.lifetimeStake ?? 0),
+    })),
+    [referredUsers]
+  );
+
+  // ── TOUCH POINT 2: totalStake is the sum of all converted (GHS) stakes ──
+  // Backend stats.lifetimeStake also comes in as raw NGN, so convert it too.
+  const totalStakeGhs = useMemo(
+    () => referredUsersConverted.reduce((sum, u) => sum + u.lifetimeStakeGhs, 0),
+    [referredUsersConverted]
+  );
+
+  // If backend provides a lifetimeStake on stats, convert it too as a fallback.
+  // We prefer the sum from referredUsers (more accurate), but fall back if list is empty.
+  const totalStake = referredUsersConverted.length > 0
+    ? totalStakeGhs
+    : ngnToGhs(stats?.lifetimeStake ?? 0);
+
   const totalPaidOut = stats?.totalPaidOutLifetime ?? 0;
+
+  // ── TOUCH POINT 3: All commission values now use the GHS-converted totalStake ──
   const correctedLifetimeCommission = (totalStake * effectiveRate) / 100;
   const correctedCommissionBalance = Math.max(0, correctedLifetimeCommission - totalPaidOut);
   const correctedTotalEarned = correctedLifetimeCommission;
@@ -1257,7 +1291,6 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // ── FIX: Payout enabled based on corrected balance ──
   const payoutEnabled = correctedCommissionBalance > 0;
 
   const requestPayout = async () => {
@@ -1287,7 +1320,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
   const primaryCode = primaryLink?.code ?? '—';
   const copyMainLink = () => { if (!primaryUrl) return; navigator.clipboard.writeText(primaryUrl); setCopiedMain(true); setTimeout(() => setCopiedMain(false), 2000); showToast('Link copied!', 'success'); };
 
-  // ── FIX: Top stat cards use corrected values ──
+  // Stat cards — all using GHS-converted values
   const statCards = [
     { label: 'LIFETIME EARNED',  value: loading ? `${currency.symbol}0.00` : fmt(correctedTotalEarned, currency),      icon: '↗' },
     { label: 'TOTAL PAID OUT',   value: loading ? `${currency.symbol}0.00` : fmt(totalPaidOut, currency),               icon: '📋' },
@@ -1295,10 +1328,10 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
     { label: 'USERS BROUGHT',    value: loading ? '0'                      : String(stats?.totalReferrals ?? 0),         icon: '👤' },
   ];
 
-  // ── FIX: Total deposits sums ALL player stakes (no deduction) ──
-  const totalDeposits = referredUsers.reduce((s, u) => s + (u.lifetimeStake ?? 0), 0);
-  // ── FIX: Active = has any deposit at all ──
-  const activePlayers = referredUsers.filter(u => (u.lifetimeStake ?? 0) > 0).length;
+  // Active = player has any converted GHS deposit > 0
+  const activePlayers = referredUsersConverted.filter(u => u.lifetimeStakeGhs > 0).length;
+  // Total deposits = sum of all GHS-converted stakes
+  const totalDeposits = totalStakeGhs;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -1339,7 +1372,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         </button>
       </div>
 
-      {/* ── Stat cards (FIX: all use corrected values) ── */}
+      {/* ── Stat cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {statCards.map((card) => (
           <div key={card.label} style={{ background: '#fff', borderRadius: 14, padding: '16px 18px', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
@@ -1354,7 +1387,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         ))}
       </div>
 
-      {/* ── Commission balance + payout (FIX: uses corrected balance) ── */}
+      {/* ── Commission balance + payout ── */}
       <div style={{ background: '#fff', borderRadius: 16, padding: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
         <p style={{ margin: '0 0 6px', fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280' }}>COMMISSION BALANCE (AVAILABLE TO WITHDRAW)</p>
         {loading
@@ -1386,25 +1419,20 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         )}
       </div>
 
-      {/* ── Full stats breakdown (FIX: all corrected values) ── */}
+      {/* ── Full stats breakdown ── */}
       {stats && (
         <div style={{ background: '#fff', borderRadius: 16, padding: '18px 20px', boxShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
           <p style={{ margin: '0 0 14px', fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6b7280' }}>REFERRAL STATS</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {[
               { label: 'Total Referrals',     value: String(stats.totalReferrals) },
-              // FIX: Show actual total deposits from all referred users (full sum, no deduction)
               { label: 'Users Total Stake',   value: fmt(totalStake, currency) },
-              // FIX: corrected lifetime commission = totalStake * effectiveRate / 100
               { label: 'Lifetime Commission', value: fmt(correctedLifetimeCommission, currency) },
-              // FIX: corrected balance = correctedLifetimeCommission - totalPaidOut
               { label: 'Commission Balance',  value: fmt(correctedCommissionBalance, currency) },
-              // FIX: corrected total earned = correctedLifetimeCommission
               { label: 'Total Earned',        value: fmt(correctedTotalEarned, currency) },
               { label: 'Total Paid Out',      value: fmt(totalPaidOut, currency) },
               {
                 label: 'Commission Rate',
-                // FIX: always show effective/hardcoded rate
                 value: `${effectiveRate}%${isHardcoded ? ' 🔒' : ''}`,
               },
             ].map((s) => (
@@ -1419,7 +1447,7 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
         </div>
       )}
 
-      {/* ── Referral links (FIX: always show effectiveRate, not per-link backend rate) ── */}
+      {/* ── Referral links ── */}
       <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.08)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <p style={{ margin: 0, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Referral Links <span style={{ color: '#63d2ff' }}>({links.length})</span></p>
@@ -1440,7 +1468,6 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
                 {links.map(link => {
                   const url = buildUrl(link.code);
                   const isCopied = copiedId === link.id;
-                  // FIX: always show effectiveRate for this admin, ignore per-link backend commission value
                   const commissionDisplay = `${effectiveRate}% commission`;
                   return (
                     <div key={link.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
@@ -1460,40 +1487,54 @@ function AffiliateSection({ userEmail }: { userEmail?: string }) {
             )}
       </div>
 
-      {/* ── Referred players (FIX: correct total deposits & active count) ── */}
+      {/* ── Referred players ── */}
       <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: '18px 20px', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Referred Players <span style={{ color: '#63d2ff' }}>({referredUsers.length})</span></p>
+        <p style={{ margin: '0 0 12px', fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Referred Players <span style={{ color: '#63d2ff' }}>({referredUsersConverted.length})</span></p>
         {loading
           ? <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{[1,2,3].map(i => <div key={i} style={{ height: 44, background: 'rgba(255,255,255,0.04)', borderRadius: 8 }} />)}</div>
-          : referredUsers.length === 0
+          : referredUsersConverted.length === 0
             ? <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', textAlign: 'center', padding: '16px 0' }}>No referred players yet.</p>
             : (
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14, padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.04)' }}>
-                  <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total Players</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#fff' }}>{referredUsers.length}</p></div>
-                  {/* FIX: active = any stake > 0 (no deduction) */}
+                  <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total Players</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#fff' }}>{referredUsersConverted.length}</p></div>
                   <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Active Players</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#4ade80' }}>{activePlayers}</p></div>
-                  {/* FIX: full sum of all lifetimeStake values, no deduction */}
+                  {/* Total Deposits shown in GHS after NGN→GHS conversion */}
                   <div><p style={{ margin: '0 0 2px', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>Total Deposits</p><p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#63d2ff' }}>{fmt(totalDeposits, currency)}</p></div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                  {referredUsers.map((player) => {
+                  {referredUsersConverted.map((player) => {
                     const name = [player.firstName, player.lastName].filter(Boolean).join(' ') || player.email || player.userId;
-                    // FIX: active = has any deposit at all, no deduction
-                    const isActive = (player.lifetimeStake ?? 0) > 0;
-                    // FIX: per-player commission = player.lifetimeStake * effectiveRate / 100
-                    const playerCommission = ((player.lifetimeStake ?? 0) * effectiveRate) / 100;
+                    // Active = has any GHS deposit > 0 after conversion
+                    const isActive = player.lifetimeStakeGhs > 0;
+                    // Per-player commission uses their GHS-converted stake
+                    const playerCommission = (player.lifetimeStakeGhs * effectiveRate) / 100;
                     return (
                       <div key={player.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <p style={{ margin: '0 0 1px', fontSize: 13, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
-                          {/* FIX: show full lifetimeStake (no deduction) */}
-                          <p style={{ margin: 0, fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>Joined {fmtDate(player.joinedAt)} · Deposit: <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{fmt(player.lifetimeStake ?? 0, currency)}</span></p>
+                          {/* Deposit shown in GHS (converted from NGN) */}
+                          <p style={{ margin: 0, fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
+                            Joined {fmtDate(player.joinedAt)} · Deposit:{' '}
+                            <span style={{ color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>
+                              {fmt(player.lifetimeStakeGhs, currency)}
+                            </span>
+                            {' '}
+                            <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 9 }}>
+                              (₦{(player.lifetimeStake ?? 0).toLocaleString()})
+                            </span>
+                          </p>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 10 }}>
-                          {/* FIX: show recalculated commission using effectiveRate */}
-                          {playerCommission > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: '#4ade80' }}>+{fmt(playerCommission, currency)}</span>}
-                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: isActive ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.06)', color: isActive ? '#4ade80' : 'rgba(255,255,255,0.3)' }}>{isActive ? 'Active' : 'Inactive'}</span>
+                          {/* Commission shown in GHS based on converted stake */}
+                          {playerCommission > 0 && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#4ade80' }}>
+                              +{fmt(playerCommission, currency)}
+                            </span>
+                          )}
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: isActive ? 'rgba(74,222,128,0.15)' : 'rgba(255,255,255,0.06)', color: isActive ? '#4ade80' : 'rgba(255,255,255,0.3)' }}>
+                            {isActive ? 'Active' : 'Inactive'}
+                          </span>
                         </div>
                       </div>
                     );

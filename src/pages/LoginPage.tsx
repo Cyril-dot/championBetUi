@@ -26,54 +26,82 @@ function mapRole(apiRole: string): 'user' | 'admin' {
   return ['ADMIN', 'admin', 'SUPER_ADMIN', 'super_admin'].includes(apiRole) ? 'admin' : 'user';
 }
 
-// ─── WinningBet Logo (from Header.tsx) ───────────────────────────────────────
-function WinningBetLogo() {
+// ─── CB Monogram SVG ─────────────────────────────────────────────────────────
+function CBMark({ size = 24 }: { size?: number }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', userSelect: 'none' }} aria-label="WINNINGBET">
-      <span style={{
-        fontFamily: "'Inter', sans-serif",
-        fontWeight: 900,
-        fontSize: '0.55rem',
-        color: '#E8000D',
-        alignSelf: 'flex-start',
-        marginTop: 3,
-        marginRight: 1,
-        lineHeight: 1,
-      }}>°</span>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 28 28"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M16 6.5C12.2 6.5 8.5 9.2 8.5 14C8.5 18.8 12.2 21.5 16 21.5"
+        stroke="white"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+      />
+      <line x1="16" y1="6.5" x2="16" y2="21.5" stroke="white" strokeWidth="2.8" strokeLinecap="round" />
+      <path
+        d="M16 6.5H19.5C21.4 6.5 22.8 7.8 22.8 9.6C22.8 11.4 21.4 13 19.5 13H16"
+        stroke="white"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path
+        d="M16 13H20C22.2 13 23.5 14.5 23.5 16.5C23.5 18.6 22.2 21.5 20 21.5H16"
+        stroke="white"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
 
-      <span style={{
-        fontFamily: "'Inter', sans-serif",
-        fontWeight: 900,
-        fontStyle: 'italic',
-        fontSize: '1.35rem',
-        letterSpacing: '-0.01em',
-        color: '#E8000D',
-        textTransform: 'uppercase',
-        lineHeight: 1,
-        display: 'inline-block',
-        transform: 'skewX(-16deg)',
-      }}>WINNING</span>
-
-      <span style={{
-        display: 'inline-block',
+// ─── ChampionBet Logo ─────────────────────────────────────────────────────────
+function ChampionBetLogo() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 11, userSelect: 'none' }} aria-label="CHAMPIONBET">
+      <div style={{
+        width: 42, height: 42,
         background: '#E8000D',
-        borderRadius: '4px',
-        padding: '1px 12px 2px 12px',
-        marginLeft: 5,
-        transform: 'skewX(-16deg)',
+        border: '2px solid rgba(232,0,13,0.30)',
+        borderRadius: 9,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+        boxShadow: '0 2px 8px rgba(232,0,13,0.25)',
       }}>
+        <CBMark size={24} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1, gap: 0 }}>
         <span style={{
           fontFamily: "'Inter', sans-serif",
-          fontWeight: 900,
-          fontStyle: 'italic',
-          fontSize: '1.35rem',
-          letterSpacing: '-0.01em',
-          color: '#ffffff',
-          textTransform: 'uppercase',
-          lineHeight: 1,
-          display: 'inline-block',
-        }}>BET</span>
-      </span>
+          fontWeight: 800, fontStyle: 'italic',
+          fontSize: '0.72rem', letterSpacing: '0.26em',
+          color: '#E8000D', textTransform: 'uppercase', lineHeight: 1,
+        }}>
+          Champion
+        </span>
+        <span style={{
+          fontFamily: "'Inter', sans-serif",
+          fontWeight: 900, fontStyle: 'italic',
+          fontSize: '1.72rem', letterSpacing: '-0.01em',
+          color: '#E8000D', textTransform: 'uppercase',
+          lineHeight: 1, display: 'inline-block',
+          transform: 'skewX(-10deg)',
+        }}>
+          Bet
+        </span>
+        <div style={{
+          width: '100%', height: 2.5,
+          background: '#E8000D', borderRadius: 2,
+          opacity: 0.45, marginTop: 2,
+        }} />
+      </div>
     </div>
   );
 }
@@ -182,7 +210,6 @@ export default function LoginPage() {
         }
       `}</style>
 
-      {/* Full-page centred layout */}
       <div style={{
         minHeight: 'calc(100vh - 4rem)',
         background: '#fafaf8',
@@ -196,7 +223,7 @@ export default function LoginPage() {
 
           {/* Logo */}
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '2rem' }}>
-            <WinningBetLogo />
+            <ChampionBetLogo />
           </div>
 
           {/* Card */}
@@ -397,7 +424,7 @@ export default function LoginPage() {
             </div>
 
             <p style={{ textAlign: 'center', fontSize: '0.875rem', color: '#888', margin: 0 }}>
-              New to WinningBet?{' '}
+              New to ChampionBet?{' '}
               <Link to="/register" className="wb-link" style={{ color: '#E8000D', fontWeight: 700, textDecoration: 'none' }}>
                 Create an account →
               </Link>
