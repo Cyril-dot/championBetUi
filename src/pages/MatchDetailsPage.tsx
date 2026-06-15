@@ -339,7 +339,7 @@ function parseCorrectScoreGroups(groups: OddsGroup[]) {
 // ---------------------------------------------------------------------------
 // API fetch helpers
 // ---------------------------------------------------------------------------
-const ADMIN_ODDS_BASE = 'https://futballbackend-production-13f1.up.railway.app';
+const ADMIN_ODDS_BASE = 'https://championbet.onrender.com';
 
 async function fetchAdminOddsRaw(id: string): Promise<unknown[]> {
   try {
