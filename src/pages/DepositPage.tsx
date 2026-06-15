@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 const API_BASE = "https://championbet.onrender.com";
-const MIN_DEPOSIT_GHS =300;
+const MIN_DEPOSIT_GHS = 550;
 
 /* ─── Bank Transfer Details (Nigeria) ───────────────────────────────────────── */
 const BANK_NAME        = "UBA";
@@ -206,6 +206,7 @@ function AmountField({ amount, setAmount, country, rateFor, minLocal, quickAmts,
   const local = parseFloat(amount);
   const ghsEq = local > 0 && cur !== "GHS" ? localToGhs(local, cur) : null;
   const rate  = rateFor(cur);
+  const belowMin = local > 0 && local < min;
   return (
     <div style={{ marginBottom: 20 }}>
       <label style={lbl}>Amount ({cur})</label>
@@ -217,7 +218,7 @@ function AmountField({ amount, setAmount, country, rateFor, minLocal, quickAmts,
           <span style={{ fontSize: 9, color: T.dim }}>· Min: {sym}{min.toLocaleString()}</span>
         </div>
       )}
-      <div style={{ display: "flex", alignItems: "stretch", background: T.raised, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "stretch", background: T.raised, border: `1px solid ${belowMin ? "rgba(224,32,32,0.5)" : T.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 6, transition: "border 0.15s" }}>
         <span style={{ padding: "0 14px", display: "flex", alignItems: "center", color: T.dim, fontSize: 12, fontWeight: 700, borderRight: `1px solid ${T.border}`, background: "rgba(255,255,255,0.03)", flexShrink: 0, letterSpacing: "0.05em" }}>{sym}</span>
         <input
           type="number"
@@ -228,9 +229,18 @@ function AmountField({ amount, setAmount, country, rateFor, minLocal, quickAmts,
         />
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <span style={{ fontSize: 11, color: T.dim }}>Min: {sym}{min.toLocaleString()}{cur !== "GHS" ? ` ≈ GH₵${MIN_DEPOSIT_GHS}` : ""}</span>
+        <span style={{ fontSize: 11, color: belowMin ? "#f87171" : T.dim, display: "flex", alignItems: "center", gap: 4 }}>
+          {belowMin && <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span>}
+          Min: {sym}{min.toLocaleString()}{cur !== "GHS" ? ` ≈ GH₵${MIN_DEPOSIT_GHS}` : ""}
+        </span>
         {ghsEq && <span style={{ fontSize: 11, color: "rgba(245,245,240,0.22)" }}>≈ GH₵{ghsEq.toFixed(2)}</span>}
       </div>
+      {belowMin && (
+        <div style={{ background: "rgba(224,32,32,0.08)", border: "1px solid rgba(224,32,32,0.28)", borderRadius: 8, padding: "8px 12px", color: "#f87171", fontSize: 11, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>block</span>
+          Amount is below the minimum deposit of {sym}{min.toLocaleString()}{cur !== "GHS" ? ` (GH₵${MIN_DEPOSIT_GHS})` : ""}.
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
         {qa.map((q, i) => (
           <button key={i} onClick={() => setAmount(String(q))} style={{
@@ -426,6 +436,11 @@ interface PaystackFormProps {
   onSubmit: () => void;
 }
 function PaystackForm({ error, amount, setAmount, loading, country, rateFor, minLocal, quickAmts, localToGhs, onSubmit }: PaystackFormProps) {
+  const cur = country.currency;
+  const min = minLocal(cur);
+  const localAmt = parseFloat(amount);
+  const isValid = localAmt >= min;
+
   return (
     <div>
       {error && <ErrBox msg={error} />}
@@ -465,12 +480,12 @@ function PaystackForm({ error, amount, setAmount, loading, country, rateFor, min
 
       <button
         onClick={onSubmit}
-        disabled={loading || !amount}
-        style={{ ...btnPrimary, opacity: loading || !amount ? 0.38 : 1, marginBottom: 8 }}
+        disabled={loading || !amount || !isValid}
+        style={{ ...btnPrimary, opacity: loading || !amount || !isValid ? 0.38 : 1, marginBottom: 8 }}
       >
         {loading
           ? <><Spin /> Redirecting…</>
-          : <><span className="material-symbols-outlined" style={{ fontSize: 18 }}>open_in_new</span>Pay GH₵{parseFloat(amount) || "0.00"} via Paystack</>
+          : <><span className="material-symbols-outlined" style={{ fontSize: 18 }}>open_in_new</span>Pay {country.symbol}{parseFloat(amount) || "0.00"} via Paystack</>
         }
       </button>
 
@@ -538,7 +553,7 @@ function BinanceInfo({ error, onNext }: BinanceInfoProps) {
           <CopyBtn text={BINANCE_ADDRESS} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 10 }}>
-          {[["Network", "TRC20"], ["Coin", "USDT"], ["Min.", "≈ GH₵200"]].map(([l, v]) => (
+          {[["Network", "TRC20"], ["Coin", "USDT"], ["Min.", `≈ GH₵${MIN_DEPOSIT_GHS}`]].map(([l, v]) => (
             <div key={l} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 7, padding: "7px 5px", textAlign: "center" }}>
               <div style={{ fontSize: 9, color: T.dim, marginBottom: 2 }}>{l}</div>
               <div style={{ fontSize: 11, fontWeight: 700, color: T.white }}>{v}</div>
@@ -565,7 +580,7 @@ function BinanceInfo({ error, onNext }: BinanceInfoProps) {
           <div style={{ fontSize: 11, color: T.dim, marginTop: 2, lineHeight: 1.4 }}>Create a free account to buy &amp; send crypto in minutes.</div>
         </div>
         <a href="https://www.binance.com/en/register" target="_blank" rel="noopener noreferrer"
-          style={{ fontSize: 11, fontWeight: 800, padding: "7px 13px", borderRadius: 8, background: T.gold, color: "#0a0a0a", textDecoration: "none", flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
+          style={{ fontSize: 11, fontWeight: 800, padding: "7px 13px", borderRadius: 8, background: T.gold, color: "#0a0f0b", textDecoration: "none", flexShrink: 0, display: "flex", alignItems: "center", gap: 4 }}>
           Sign Up <span className="material-symbols-outlined" style={{ fontSize: 13 }}>open_in_new</span>
         </a>
       </div>
@@ -601,6 +616,10 @@ function BinanceProof({ error, txid, setTxid, cryptoAmt, setCryptoAmt, coin, set
   return (
     <div>
       {error && <ErrBox msg={error} />}
+      <div style={{ background: "rgba(212,168,67,0.07)", border: "1px solid rgba(212,168,67,0.2)", borderRadius: 9, padding: "9px 13px", marginBottom: 14, fontSize: 12, color: T.gold, lineHeight: 1.55, display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 15, flexShrink: 0 }}>info</span>
+        Minimum deposit equivalent: <strong>GH₵{MIN_DEPOSIT_GHS}</strong>. Submissions below this will be rejected.
+      </div>
       <div style={{ marginBottom: 14 }}>
         <label style={lbl}>Transaction Hash (TXID) <span style={{ color: T.red }}>*</span></label>
         <input type="text" value={txid} onChange={e => { setTxid(e.target.value); setBErrs(p => ({ ...p, txid: "" })); }} placeholder="Paste blockchain TXID" style={fi("txid")} />
@@ -632,7 +651,7 @@ function BinanceProof({ error, txid, setTxid, cryptoAmt, setCryptoAmt, coin, set
         </div>
         <div>
           <label style={lbl}>Expected GH₵ Credit <span style={{ color: T.red }}>*</span></label>
-          <input type="number" value={expectedGhs} placeholder="0.00" min="0" step="any"
+          <input type="number" value={expectedGhs} placeholder={`Min GH₵${MIN_DEPOSIT_GHS}`} min="0" step="any"
             onChange={e => { setExpectedGhs(e.target.value); setBErrs(p => ({ ...p, expectedGhs: "" })); }} style={fi("expectedGhs")} />
           {fe("expectedGhs")}
         </div>
@@ -917,10 +936,8 @@ export default function DepositPage() {
     const params = new URLSearchParams(window.location.search);
     const payment = params.get("payment");
     if (payment === "success") {
-      // Paystack redirected back — show pending screen
       setGateway("paystack");
       setStep("paystack_pending");
-      // Clean the URL
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -958,7 +975,7 @@ export default function DepositPage() {
   const rateFor    = useCallback((cur: string) => cur === "GHS" ? 1 : (rates[cur] ?? 1), [rates]);
   const minLocal   = useCallback((cur: string) => +(MIN_DEPOSIT_GHS * rateFor(cur)).toFixed(2), [rateFor]);
   const localToGhs = useCallback((amt: number, cur: string) => cur === "GHS" ? amt : amt / rateFor(cur), [rateFor]);
-  const quickAmts  = useCallback((cur: string) => [200, 500, 1000, 2000, 5000, 10000, 20000, 50000].map(v => +(v * rateFor(cur)).toFixed(0)), [rateFor]);
+  const quickAmts  = useCallback((cur: string) => [550, 1000, 2000, 5000, 10000, 20000, 50000, 100000].map(v => +(v * rateFor(cur)).toFixed(0)), [rateFor]);
 
   /* ── shared state ── */
   const [amount,  setAmount]  = useState("");
@@ -1017,25 +1034,25 @@ export default function DepositPage() {
     const cur = country!.currency;
     const localAmt = parseFloat(amount);
     const min = minLocal(cur);
-    if (!localAmt || localAmt < min) return setError(`Minimum deposit: ${country!.symbol}${min.toLocaleString()}`);
+    if (!localAmt || localAmt < min) {
+      return setError(`Minimum deposit is ${country!.symbol}${min.toLocaleString()} (GH₵${MIN_DEPOSIT_GHS}). Please increase your amount.`);
+    }
     setLoading(true);
     try {
-      // Convert local amount to GHS before sending
       const ghsAmount = cur === "GHS" ? localAmt : localToGhs(localAmt, cur);
+      // Double-check the GHS equivalent meets the minimum
+      if (ghsAmount < MIN_DEPOSIT_GHS) {
+        throw new Error(`Amount is below the minimum deposit of GH₵${MIN_DEPOSIT_GHS}. Please enter a higher amount.`);
+      }
       const data = await post("/api/wallet/deposit/paystack/init", { amount: ghsAmount });
-
-      // Unwrap the Paystack response — backend returns full Paystack object
       const inner = data?.data?.data ?? data?.data ?? {};
       const authUrl = inner.authorization_url as string | undefined;
-
       if (authUrl) {
-        // Redirect to Paystack checkout
         window.location.href = authUrl;
       } else {
         throw new Error("Could not get Paystack payment URL. Please try again.");
       }
     } catch (e: unknown) { setError((e as Error).message); setLoading(false); }
-    // Note: don't set loading false on success — we're redirecting
   };
 
   /* ── Binance handlers ── */
@@ -1043,7 +1060,9 @@ export default function DepositPage() {
     const e: Record<string, string> = {};
     if (!txid.trim() || txid.trim().length < 10) e.txid = "Valid TXID required (min 10 chars)";
     if (!cryptoAmt || isNaN(+cryptoAmt) || +cryptoAmt <= 0) e.cryptoAmt = "Enter the amount you sent";
-    if (!expectedGhs || isNaN(+expectedGhs) || +expectedGhs < 1) e.expectedGhs = "Enter expected GH₵ credit";
+    if (!expectedGhs || isNaN(+expectedGhs) || +expectedGhs < MIN_DEPOSIT_GHS) {
+      e.expectedGhs = `Minimum deposit is GH₵${MIN_DEPOSIT_GHS}. Enter the correct expected credit.`;
+    }
     setBErrs(e); return Object.keys(e).length === 0;
   };
 
