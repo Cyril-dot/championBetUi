@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE = "https://futballbackend-production-13f1.up.railway.app";
+const API_BASE = "https://championbet.onrender.com";
 const MIN_DEPOSIT_GHS =300;
 
 /* ─── Bank Transfer Details (Nigeria) ───────────────────────────────────────── */
