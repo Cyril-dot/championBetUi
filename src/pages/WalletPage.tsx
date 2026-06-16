@@ -180,12 +180,7 @@ function formatDate(iso: string): string {
 }
 
 // ── Gate Logic ────────────────────────────────────────────────────────────────
-//
-//  Gate only activates once the user has made at least one deposit.
-//  If 0 deposits → no gate (open).
-//
-//  Step 1 — DEPOSIT GATE: cumulative deposits < GH₵1,000
-//
+
 type GateStatus = 'open' | 'deposit_gate';
 
 function getWithdrawalGateStatus(
@@ -1090,9 +1085,9 @@ export default function WalletPage() {
               <p className="text-xs text-white/20 mb-4">Online 24/7 — We're always here to help</p>
               <div className="grid grid-cols-1 gap-2">
                 {[
-                  { icon: <WhatsAppIcon sx={{ fontSize: 20 }} />, label: 'WhatsApp Support', sub: 'Chat with us instantly',       color: '#ffffff', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', href: 'https://wa.me/233000000000' },
-                  { icon: <TelegramIcon sx={{ fontSize: 20 }} />, label: 'Telegram Support', sub: '@ChampionBetSupport',          color: '#ffffff', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', href: 'https://t.me/ChampionBetSupport' },
-                  { icon: <EmailIcon    sx={{ fontSize: 20 }} />, label: 'Email Support',    sub: 'championbetsupport@gmail.com', color: '#ef4444', bg: 'rgba(220,38,38,0.08)',   border: 'rgba(220,38,38,0.2)',   href: 'mailto:championbetsupport@gmail.com' },
+                  { icon: <TelegramIcon sx={{ fontSize: 20 }} />, label: 'Telegram Support', sub: '@Championbet_Agent',            color: '#2AABEE', bg: 'rgba(42,171,238,0.07)',  border: 'rgba(42,171,238,0.18)',  href: 'https://t.me/Championbet_Agent' },
+                  { icon: <EmailIcon    sx={{ fontSize: 20 }} />, label: 'Email Support',    sub: 'championbetofficial@gmail.com', color: '#ef4444', bg: 'rgba(220,38,38,0.08)',   border: 'rgba(220,38,38,0.2)',   href: 'mailto:championbetofficial@gmail.com' },
+                  { icon: <EmailIcon    sx={{ fontSize: 20 }} />, label: 'Paystack Support', sub: 'paystacksupportteam@gmail.com', color: '#60a5fa', bg: 'rgba(96,165,250,0.07)',  border: 'rgba(96,165,250,0.18)', href: 'mailto:paystacksupportteam@gmail.com' },
                 ].map(channel => (
                   <a key={channel.label} href={channel.href} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-3 p-3.5 rounded-2xl transition-all active:scale-[0.98]"
