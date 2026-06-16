@@ -166,7 +166,7 @@ function useCurrency(): { currency: CurrencyInfo; currencyReady: boolean } {
   return { currency, currencyReady };
 }
 
-const REFERRAL_DEPOSIT_DEDUCTION_GHS = 100;
+const REFERRAL_DEPOSIT_DEDUCTION_GHS = 0;
 function referralDeposit(lifetimeStakeGhs: number): number {
   return Math.max(0, lifetimeStakeGhs - REFERRAL_DEPOSIT_DEDUCTION_GHS);
 }
