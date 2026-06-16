@@ -4,11 +4,6 @@ import { useNavigate } from "react-router-dom";
 const API_BASE = "https://championbet.onrender.com";
 const MIN_DEPOSIT_GHS = 550;
 
-/* ─── Ghana MoMo Direct Payment Details ─────────────────────────────────────── */
-const GH_MOMO_NUMBER   = "0558443734";
-const GH_MOMO_NETWORK  = "MTN";
-const GH_MOMO_NAME     = "DE-ROYAL PLAZA";
-
 /* ─── Bank Transfer Details (Nigeria) ───────────────────────────────────────── */
 const BANK_NAME        = "UBA";
 const BANK_ACCT_NAME   = "Omotosho Ibrahim";
@@ -23,11 +18,11 @@ interface Country {
   flagImg: string;
   currency: string;
   symbol: string;
-  gateways: ("bank_gh" | "binance" | "bank_ng")[];
+  gateways: ("paystack" | "binance" | "bank_ng")[];
 }
 
 const COUNTRIES: Country[] = [
-  { code: "GH", name: "Ghana",         flag: "🇬🇭", flagImg: "https://flagcdn.com/w40/gh.png", currency: "GHS", symbol: "GH₵",  gateways: ["bank_gh", "binance"] },
+  { code: "GH", name: "Ghana",         flag: "🇬🇭", flagImg: "https://flagcdn.com/w40/gh.png", currency: "GHS", symbol: "GH₵",  gateways: ["paystack", "binance"] },
   { code: "NG", name: "Nigeria",        flag: "🇳🇬", flagImg: "https://flagcdn.com/w40/ng.png", currency: "NGN", symbol: "₦",    gateways: ["bank_ng", "binance"] },
   { code: "KE", name: "Kenya",          flag: "🇰🇪", flagImg: "https://flagcdn.com/w40/ke.png", currency: "KES", symbol: "KSh",  gateways: ["binance"] },
   { code: "TZ", name: "Tanzania",       flag: "🇹🇿", flagImg: "https://flagcdn.com/w40/tz.png", currency: "TZS", symbol: "TSh",  gateways: ["binance"] },
@@ -176,9 +171,9 @@ function TrustBadges() {
       <div style={{ fontSize: 10, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 8 }}>Trusted Payment Partners</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {[
-          { label: "MoMo",     matIcon: "phone_android",     desc: "Ghana" },
-          { label: "Bank",     matIcon: "account_balance",    desc: "Transfer" },
-          { label: "Binance",  matIcon: "currency_bitcoin",   desc: "Crypto" },
+          { label: "Paystack",  matIcon: "credit_card",       desc: "Card / MoMo" },
+          { label: "Bank",      matIcon: "account_balance",    desc: "Transfer" },
+          { label: "Binance",   matIcon: "currency_bitcoin",   desc: "Crypto" },
         ].map(b => (
           <div key={b.label} style={{ display: "flex", alignItems: "center", gap: 6, background: T.faint, border: `1px solid ${T.border}`, borderRadius: 8, padding: "6px 10px" }}>
             <span className="material-symbols-outlined" style={{ fontSize: 18, color: T.dim }}>{b.matIcon}</span>
@@ -187,6 +182,76 @@ function TrustBadges() {
               <div style={{ fontSize: 9, color: T.dim }}>{b.desc}</div>
             </div>
           </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Amount Field ── */
+interface AmountFieldProps {
+  amount: string;
+  setAmount: (v: string) => void;
+  country: Country;
+  rateFor: (cur: string) => number;
+  minLocal: (cur: string) => number;
+  quickAmts: (cur: string) => number[];
+  localToGhs: (amt: number, cur: string) => number;
+}
+function AmountField({ amount, setAmount, country, rateFor, minLocal, quickAmts, localToGhs }: AmountFieldProps) {
+  const cur   = country.currency;
+  const sym   = country.symbol;
+  const min   = minLocal(cur);
+  const qa    = quickAmts(cur);
+  const local = parseFloat(amount);
+  const ghsEq = local > 0 && cur !== "GHS" ? localToGhs(local, cur) : null;
+  const rate  = rateFor(cur);
+  const belowMin = local > 0 && local < min;
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <label style={lbl}>Amount ({cur})</label>
+      {cur !== "GHS" && rate !== 1 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8, background: T.faint, border: `1px solid ${T.border}`, borderRadius: 7, padding: "5px 10px", width: "fit-content" }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 13, color: T.gold }}>currency_exchange</span>
+          <span style={{ fontSize: 9, color: T.dim, textTransform: "uppercase", letterSpacing: "0.5px" }}>Live Rate</span>
+          <span style={{ fontSize: 11, color: T.gold, fontWeight: 700 }}>1 GH₵ = {sym}{rate.toFixed(4)}</span>
+          <span style={{ fontSize: 9, color: T.dim }}>· Min: {sym}{min.toLocaleString()}</span>
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "stretch", background: T.raised, border: `1px solid ${belowMin ? "rgba(224,32,32,0.5)" : T.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 6, transition: "border 0.15s" }}>
+        <span style={{ padding: "0 14px", display: "flex", alignItems: "center", color: T.dim, fontSize: 12, fontWeight: 700, borderRight: `1px solid ${T.border}`, background: "rgba(255,255,255,0.03)", flexShrink: 0, letterSpacing: "0.05em" }}>{sym}</span>
+        <input
+          type="number"
+          placeholder="0.00"
+          value={amount}
+          onChange={e => setAmount(e.target.value)}
+          style={{ flex: 1, background: "none", border: "none", outline: "none", color: T.white, fontSize: 22, fontWeight: 700, padding: "11px 14px", fontFamily: "inherit" }}
+        />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <span style={{ fontSize: 11, color: belowMin ? "#f87171" : T.dim, display: "flex", alignItems: "center", gap: 4 }}>
+          {belowMin && <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span>}
+          Min: {sym}{min.toLocaleString()}{cur !== "GHS" ? ` ≈ GH₵${MIN_DEPOSIT_GHS}` : ""}
+        </span>
+        {ghsEq && <span style={{ fontSize: 11, color: "rgba(245,245,240,0.22)" }}>≈ GH₵{ghsEq.toFixed(2)}</span>}
+      </div>
+      {belowMin && (
+        <div style={{ background: "rgba(224,32,32,0.08)", border: "1px solid rgba(224,32,32,0.28)", borderRadius: 8, padding: "8px 12px", color: "#f87171", fontSize: 11, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>block</span>
+          Amount is below the minimum deposit of {sym}{min.toLocaleString()}{cur !== "GHS" ? ` (GH₵${MIN_DEPOSIT_GHS})` : ""}.
+        </div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
+        {qa.map((q, i) => (
+          <button key={i} onClick={() => setAmount(String(q))} style={{
+            background: parseFloat(amount) === q ? T.redLow : T.faint,
+            border: `1px solid ${parseFloat(amount) === q ? T.red : T.border}`,
+            borderRadius: 8, padding: "7px 0",
+            color: parseFloat(amount) === q ? "#4ade80" : T.dim,
+            fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit",
+          }}>
+            {q >= 1000000 ? `${(q / 1000000).toFixed(1)}M` : q >= 1000 ? `${(q / 1000).toFixed(0)}k` : q}
+          </button>
         ))}
       </div>
     </div>
@@ -242,11 +307,11 @@ function CountryDropdown({ country, ipDetecting, onSelect }: CountryDropdownProp
           </div>
           <div style={{ maxHeight: 260, overflowY: "auto" }}>
             {filtered.map(c => {
-              const hasMomo = c.gateways.includes("bank_gh");
-              const hasBank = c.gateways.includes("bank_ng");
-              const badge = hasMomo ? { label: "MOMO",   bg: T.redLow,   color: "#4ade80", border: T.redMid }
-                          : hasBank ? { label: "BANK",   bg: T.greenLow, color: T.green,   border: T.greenMid }
-                          :           { label: "CRYPTO", bg: T.goldLow,  color: T.gold,    border: "rgba(212,168,67,0.3)" };
+              const hasPaystack = c.gateways.includes("paystack");
+              const hasBank     = c.gateways.includes("bank_ng");
+              const badge = hasPaystack ? { label: "INSTANT", bg: T.redLow, color: "#4ade80", border: T.redMid }
+                          : hasBank    ? { label: "BANK",    bg: T.greenLow, color: T.green, border: T.greenMid }
+                          :              { label: "CRYPTO",  bg: T.goldLow, color: T.gold, border: "rgba(212,168,67,0.3)" };
               return (
                 <button key={c.code} onClick={() => { onSelect(c); setDropOpen(false); setSearch(""); }}
                   style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: country?.code === c.code ? T.redLow : "none", border: "none", borderBottom: `1px solid ${T.border}`, cursor: "pointer", fontFamily: "inherit", transition: "background 0.1s" }}>
@@ -269,17 +334,17 @@ function CountryDropdown({ country, ipDetecting, onSelect }: CountryDropdownProp
 /* ── Gateway Tabs ── */
 interface GatewayTabsProps {
   country: Country;
-  gateway: "bank_gh" | "binance" | "bank_ng" | null;
-  onSelect: (gw: "bank_gh" | "binance" | "bank_ng") => void;
+  gateway: "paystack" | "binance" | "bank_ng" | null;
+  onSelect: (gw: "paystack" | "binance" | "bank_ng") => void;
 }
 function GatewayTabs({ country, gateway, onSelect }: GatewayTabsProps) {
   if (!country || country.gateways.length <= 1) return null;
 
-  type TabDef = { id: "bank_gh" | "binance" | "bank_ng"; matIcon: string; label: string; sub: string };
+  type TabDef = { id: "paystack" | "binance" | "bank_ng"; matIcon: string; label: string; sub: string };
   const allTabs: TabDef[] = [
-    { id: "bank_gh", matIcon: "phone_android",   label: "Mobile Money",  sub: "Manual MoMo · Ghana" },
-    { id: "bank_ng", matIcon: "account_balance",  label: "Bank Transfer", sub: "UBA · Nigeria" },
-    { id: "binance", matIcon: "currency_bitcoin", label: "Crypto",        sub: "USDT · BTC · ETH · BNB" },
+    { id: "paystack", matIcon: "credit_card",     label: "Paystack",      sub: "Card · MoMo · Bank" },
+    { id: "bank_ng",  matIcon: "account_balance",  label: "Bank Transfer", sub: "Paystack-Titan · Nigeria" },
+    { id: "binance",  matIcon: "currency_bitcoin", label: "Crypto",        sub: "USDT · BTC · ETH · BNB" },
   ];
   const tabs = allTabs.filter(t => country.gateways.includes(t.id));
 
@@ -335,6 +400,7 @@ function SupportPanel() {
             {[
               { matIcon: "chat",  label: "Telegram Support", desc: "@Championbet_Agent",          href: "https://t.me/Championbet_Agent", color: "#2AABEE" },
               { matIcon: "mail",  label: "Email Support",    desc: "championbetofficial@gmail.com", href: "mailto:championbetofficial@gmail.com", color: "#60a5fa" },
+              { matIcon: "mail",  label: "Paystack Support", desc: "paystacksupportteam@gmail.com", href: "mailto:paystacksupportteam@gmail.com", color: "#60a5fa" },
             ].map(ch => (
               <a key={ch.label} href={ch.href} target="_blank" rel="noopener noreferrer"
                 style={{ display: "flex", alignItems: "center", gap: 12, background: T.raised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "11px 13px", textDecoration: "none", transition: "border 0.15s" }}>
@@ -349,7 +415,7 @@ function SupportPanel() {
           </div>
           <div style={{ marginTop: 14, background: "rgba(34,197,94,0.06)", border: "1px solid rgba(34,197,94,0.15)", borderRadius: 9, padding: "10px 13px", fontSize: 11, color: T.dim, lineHeight: 1.6, display: "flex", gap: 8 }}>
             <span className="material-symbols-outlined" style={{ fontSize: 15, color: T.green, flexShrink: 0, marginTop: 1 }}>schedule</span>
-            <span><strong style={{ color: T.white }}>Support hours:</strong> 24 hours, 7 days a week.<br />For deposit issues, have your <strong style={{ color: T.white }}>phone number / reference</strong> ready.</span>
+            <span><strong style={{ color: T.white }}>Support hours:</strong> 24 hours, 7 days a week.<br />For deposit issues, have your <strong style={{ color: T.white }}>TXID / phone number</strong> ready.</span>
           </div>
         </div>
       )}
@@ -357,216 +423,106 @@ function SupportPanel() {
   );
 }
 
-/* ── Ghana MoMo Info ── */
-interface GhMomoInfoProps { error: string; onNext: () => void; }
-function GhMomoInfo({ error, onNext }: GhMomoInfoProps) {
+/* ── Paystack Form ── */
+interface PaystackFormProps {
+  error: string;
+  amount: string; setAmount: (v: string) => void;
+  loading: boolean;
+  country: Country;
+  rateFor: (cur: string) => number;
+  minLocal: (cur: string) => number;
+  quickAmts: (cur: string) => number[];
+  localToGhs: (amt: number, cur: string) => number;
+  onSubmit: () => void;
+}
+function PaystackForm({ error, amount, setAmount, loading, country, rateFor, minLocal, quickAmts, localToGhs, onSubmit }: PaystackFormProps) {
+  const cur = country.currency;
+  const min = minLocal(cur);
+  const localAmt = parseFloat(amount);
+  const isValid = localAmt >= min;
+
   return (
     <div>
       {error && <ErrBox msg={error} />}
-      <div style={{ background: T.redLow, border: `1px solid ${T.redMid}`, borderRadius: 9, padding: "9px 13px", marginBottom: 14, fontSize: 12, color: "#4ade80", lineHeight: 1.55, display: "flex", alignItems: "center", gap: 8 }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 15, flexShrink: 0 }}>info</span>
-        Minimum deposit: <strong>GH₵{MIN_DEPOSIT_GHS.toLocaleString()}</strong>
-      </div>
-      <div style={{ background: T.raised, border: `1px solid ${T.redMid}`, borderRadius: 12, padding: 16, marginBottom: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 8, background: T.redLow, border: `1px solid ${T.redMid}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span className="material-symbols-outlined" style={{ color: "#4ade80", fontSize: 18 }}>phone_android</span>
-          </div>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 13, color: T.white }}>Send MoMo to this number</div>
-            <div style={{ fontSize: 11, color: T.dim }}>Then submit your payment proof</div>
-          </div>
-        </div>
-        {[
-          { icon: "corporate_fare", label: "Network",        value: GH_MOMO_NETWORK,  mono: false },
-          { icon: "person",         label: "Account Name",   value: GH_MOMO_NAME,     mono: false },
-          { icon: "phone",          label: "Phone Number",   value: GH_MOMO_NUMBER,   mono: true  },
-        ].map(row => (
-          <div key={row.label} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 9, padding: "11px 13px", marginBottom: 8 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 5, display: "flex", alignItems: "center", gap: 4 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 12 }}>{row.icon}</span>{row.label}
+      <AmountField
+        amount={amount}
+        setAmount={setAmount}
+        country={country}
+        rateFor={rateFor}
+        minLocal={minLocal}
+        quickAmts={quickAmts}
+        localToGhs={localToGhs}
+      />
+
+      {/* What's accepted */}
+      <div style={{ background: T.faint, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 14px", marginBottom: 18 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 10 }}>Accepted via Paystack</div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+          {[
+            { icon: "credit_card",    label: "Visa / Mastercard" },
+            { icon: "phone_android",  label: "MTN MoMo" },
+            { icon: "phone_android",  label: "Telecel Cash" },
+            { icon: "phone_android",  label: "AirtelTigo Money" },
+            { icon: "account_balance",label: "Ghana Banks" },
+          ].map(m => (
+            <div key={m.label} style={{ display: "flex", alignItems: "center", gap: 5, background: T.raised, border: `1px solid ${T.border}`, borderRadius: 7, padding: "5px 10px" }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 14, color: "#4ade80" }}>{m.icon}</span>
+              <span style={{ fontSize: 11, color: T.dim, fontWeight: 600 }}>{m.label}</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <span style={{ fontFamily: row.mono ? "'DM Mono', monospace" : "inherit", fontSize: row.mono ? 22 : 13, fontWeight: 700, color: T.white, letterSpacing: row.mono ? 3 : 0 }}>{row.value}</span>
-              <CopyBtn text={row.value} />
-            </div>
-          </div>
-        ))}
-        <div style={{ background: "rgba(212,168,67,0.07)", border: "1px solid rgba(212,168,67,0.22)", borderRadius: 8, padding: "9px 12px", fontSize: 11, color: T.gold, lineHeight: 1.6, display: "flex", gap: 7 }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>warning</span>
-          Always include your <strong>username or phone number</strong> in the MoMo reference/note so we can identify your payment.
+          ))}
         </div>
       </div>
-      <button onClick={onNext} style={{ ...btnPrimary, marginBottom: 8 }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>task_alt</span>I've Sent — Submit Proof
+
+      <div style={{ background: T.faint, border: `1px solid ${T.border}`, borderRadius: 9, padding: "10px 13px", marginBottom: 18, fontSize: 12, color: T.dim, lineHeight: 1.55, display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 16, marginTop: 1, flexShrink: 0 }}>info</span>
+        You'll be redirected to Paystack's secure checkout. Complete the payment and you'll return here automatically.
+      </div>
+
+      <button
+        onClick={onSubmit}
+        disabled={loading || !amount || !isValid}
+        style={{ ...btnPrimary, opacity: loading || !amount || !isValid ? 0.38 : 1, marginBottom: 8 }}
+      >
+        {loading
+          ? <><Spin /> Redirecting…</>
+          : <><span className="material-symbols-outlined" style={{ fontSize: 18 }}>open_in_new</span>Pay {country.symbol}{parseFloat(amount) || "0.00"} via Paystack</>
+        }
       </button>
+
       <div style={{ textAlign: "center", fontSize: 11, color: T.dim, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>manage_search</span>
-        Verified within 5–15 minutes
+        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>lock</span>
+        Secured by Paystack · 256-bit encryption
       </div>
     </div>
   );
 }
 
-/* ── Ghana MoMo Proof Form (reuses bank-deposits endpoint & field names) ── */
-interface GhMomoFormProps {
-  error: string;
-  bankRef: string; setBankRef: (v: string) => void;
-  bankAmtSent: string; setBankAmtSent: (v: string) => void;
-  bankExpected: string; setBankExpected: (v: string) => void;
-  bankSender: string; setBankSender: (v: string) => void;
-  bankNote: string; setBankNote: (v: string) => void;
-  bankScreenshot: string; setBankScreenshot: (v: string) => void;
-  bankCompressing: boolean;
-  bankErrs: Record<string, string>; setBankErrs: (fn: (p: Record<string, string>) => Record<string, string>) => void;
-  loading: boolean;
-  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onSubmit: () => void;
-  onBack: () => void;
+/* ── Paystack Pending ── */
+interface PaystackPendingProps {
+  amount: string;
+  onHome: () => void;
+  onReset: () => void;
 }
-function GhMomoForm({ error, bankRef, setBankRef, bankAmtSent, setBankAmtSent, bankExpected, setBankExpected, bankSender, setBankSender, bankNote, setBankNote, bankScreenshot, setBankScreenshot, bankCompressing, bankErrs, setBankErrs, loading, onFileChange, onSubmit, onBack }: GhMomoFormProps) {
-  const fe = (k: string) => bankErrs[k]
-    ? <div style={{ fontSize: 11, color: "#f87171", marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}><span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>{bankErrs[k]}</div>
-    : null;
-  const fi = (k: string): React.CSSProperties => ({ ...inp, border: `1px solid ${bankErrs[k] ? "rgba(224,32,32,0.5)" : T.border}` });
-  const QUICK_GHS = [550, 1000, 2000, 5000, 10000, 20000];
-
+function PaystackPending({ amount, onHome, onReset }: PaystackPendingProps) {
   return (
-    <div>
-      {error && <ErrBox msg={error} />}
-
-      {/* Sender phone number */}
-      <div style={{ marginBottom: 14 }}>
-        <label style={lbl}>Your MoMo Number <span style={{ color: T.red }}>*</span></label>
-        <div style={{ display: "flex", alignItems: "center", background: T.raised, border: `1px solid ${bankErrs.sender ? "rgba(224,32,32,0.5)" : T.border}`, borderRadius: 10, overflow: "hidden" }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18, color: T.dim, padding: "0 12px", borderRight: `1px solid ${T.border}`, display: "flex", alignItems: "center", height: "100%" }}>phone</span>
-          <input type="tel" value={bankSender}
-            onChange={e => { setBankSender(e.target.value); setBankErrs(p => ({ ...p, sender: "" })); }}
-            placeholder="e.g. 0244123456"
-            maxLength={15}
-            style={{ ...inp, border: "none", borderRadius: 0, background: "none" }} />
-        </div>
-        {bankErrs.sender
-          ? <div style={{ fontSize: 11, color: "#f87171", marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}><span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>{bankErrs.sender}</div>
-          : <div style={{ fontSize: 11, color: T.dim, marginTop: 4 }}>The MoMo number you're sending from.</div>
-        }
+    <div style={{ textAlign: "center", padding: "12px 0 8px" }}>
+      <div style={{ width: 64, height: 64, borderRadius: "50%", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", background: T.redLow, border: `2px solid ${T.redMid}` }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 32, color: "#4ade80" }}>hourglass_top</span>
       </div>
-
-      {/* Reference / narration */}
-      <div style={{ marginBottom: 14 }}>
-        <label style={lbl}>MoMo Reference / Note <span style={{ color: T.red }}>*</span></label>
-        <div style={{ display: "flex", alignItems: "center", background: T.raised, border: `1px solid ${bankErrs.ref ? "rgba(224,32,32,0.5)" : T.border}`, borderRadius: 10, overflow: "hidden" }}>
-          <span className="material-symbols-outlined" style={{ fontSize: 18, color: T.dim, padding: "0 12px", borderRight: `1px solid ${T.border}`, display: "flex", alignItems: "center", height: "100%" }}>tag</span>
-          <input type="text" value={bankRef}
-            onChange={e => { setBankRef(e.target.value); setBankErrs(p => ({ ...p, ref: "" })); }}
-            placeholder="Your username or reference you used"
-            style={{ ...inp, border: "none", borderRadius: 0, background: "none" }} />
-        </div>
-        {fe("ref")}
-        <div style={{ fontSize: 11, color: T.dim, marginTop: 4 }}>Enter the reference or note you included in the MoMo send.</div>
+      <div style={{ fontWeight: 800, fontSize: 20, color: T.white, marginBottom: 6 }}>Payment Initiated</div>
+      <div style={{ fontSize: 13, color: T.dim, lineHeight: 1.7, marginBottom: 22 }}>
+        Your Paystack payment of <strong style={{ color: T.white }}>GH₵{parseFloat(amount).toFixed(2)}</strong> is being processed.<br />
+        Your wallet will be credited automatically once confirmed.
       </div>
-
-      {/* Amount fields */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-        <div>
-          <label style={lbl}>Amount Sent (GH₵) <span style={{ color: T.red }}>*</span></label>
-          <input type="number" value={bankAmtSent} placeholder={`Min GH₵${MIN_DEPOSIT_GHS}`}
-            onChange={e => { setBankAmtSent(e.target.value); setBankErrs(p => ({ ...p, amt: "" })); }}
-            style={fi("amt")} />
-          {fe("amt")}
-        </div>
-        <div>
-          <label style={lbl}>Expected GH₵ Credit <span style={{ color: T.red }}>*</span></label>
-          <input type="number" value={bankExpected} placeholder="0.00"
-            onChange={e => { setBankExpected(e.target.value); setBankErrs(p => ({ ...p, exp: "" })); }}
-            style={fi("exp")} />
-          {fe("exp")}
-        </div>
+      <div style={{ background: T.faint, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 14px", marginBottom: 18, fontSize: 12, color: T.dim, lineHeight: 1.6, textAlign: "left", display: "flex", gap: 8 }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 16, color: "#4ade80", flexShrink: 0, marginTop: 1 }}>schedule</span>
+        <span>Credits are instant for card &amp; MoMo payments. If your wallet isn't credited within 5 minutes, contact support.</span>
       </div>
-
-      {/* Quick fill */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: T.dim, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 7 }}>Quick fill</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
-          {QUICK_GHS.map(q => (
-            <button key={q} onClick={() => { setBankAmtSent(String(q)); setBankExpected(String(q)); setBankErrs(p => ({ ...p, amt: "", exp: "" })); }}
-              style={{ background: bankAmtSent === String(q) ? T.redLow : T.faint, border: `1px solid ${bankAmtSent === String(q) ? T.red : T.border}`, borderRadius: 8, padding: "7px 0", color: bankAmtSent === String(q) ? "#4ade80" : T.dim, fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.12s", fontFamily: "inherit" }}>
-              {q >= 1000 ? `${q / 1000}k` : q}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Screenshot */}
-      <div style={{ marginBottom: 14 }}>
-        <label style={lbl}>Payment Screenshot <span style={{ color: T.red }}>*</span></label>
-        {bankScreenshot ? (
-          <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", border: `1px solid ${T.redMid}`, background: T.bg }}>
-            <img src={bankScreenshot} alt="Payment screenshot" style={{ width: "100%", maxHeight: 200, objectFit: "contain", display: "block" }} />
-            {bankCompressing && (
-              <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center" }}><Spin /></div>
-            )}
-            {!bankCompressing && (
-              <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, padding: "4px 9px", borderRadius: 6, cursor: "pointer", background: "rgba(0,0,0,0.7)", color: T.dim, fontFamily: "inherit" }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>upload</span>Change
-                  <input type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChange} />
-                </label>
-                <button onClick={() => setBankScreenshot("")}
-                  style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, padding: "4px 9px", borderRadius: 6, cursor: "pointer", border: "none", background: "rgba(224,32,32,0.7)", color: "#fff", fontFamily: "inherit" }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 13 }}>close</span>Remove
-                </button>
-              </div>
-            )}
-            {!bankCompressing && (
-              <div style={{ position: "absolute", bottom: 8, left: 8, fontSize: 9, fontWeight: 800, padding: "3px 8px", borderRadius: 20, background: "rgba(34,197,94,0.85)", color: "#fff", display: "flex", alignItems: "center", gap: 3 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 11 }}>check_circle</span>Ready
-              </div>
-            )}
-          </div>
-        ) : (
-          <label style={{
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-            height: 100, border: `2px dashed ${bankErrs.screenshot ? "rgba(224,32,32,0.5)" : T.border}`,
-            borderRadius: 10, cursor: bankCompressing ? "wait" : "pointer",
-            background: T.faint, transition: "all 0.2s",
-          }}>
-            {bankCompressing
-              ? <><Spin /><span style={{ fontSize: 11, color: T.dim, marginTop: 8 }}>Processing…</span></>
-              : <>
-                  <span className="material-symbols-outlined" style={{ fontSize: 30, color: T.dim, marginBottom: 6 }}>add_photo_alternate</span>
-                  <span style={{ fontSize: 12, color: T.dim, fontWeight: 600 }}>Tap or drag screenshot here</span>
-                  <span style={{ fontSize: 10, color: "rgba(245,245,240,0.2)", marginTop: 3 }}>JPG · PNG · WEBP · Max 8 MB</span>
-                </>
-            }
-            <input type="file" accept="image/*" style={{ display: "none" }} onChange={onFileChange} />
-          </label>
-        )}
-        {fe("screenshot")}
-        {!bankErrs.screenshot && !bankScreenshot && (
-          <div style={{ fontSize: 11, color: T.dim, marginTop: 4 }}>Upload a screenshot of your MoMo transaction confirmation.</div>
-        )}
-        {!bankErrs.screenshot && bankScreenshot && (
-          <div style={{ fontSize: 11, color: T.green, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>check_circle</span>
-            Screenshot attached — will be sent with your deposit proof
-          </div>
-        )}
-      </div>
-
-      {/* Note */}
-      <div style={{ marginBottom: 18 }}>
-        <label style={lbl}>Note to Admin <span style={{ color: T.dim, textTransform: "none", fontSize: 10 }}>(optional)</span></label>
-        <textarea value={bankNote} onChange={e => setBankNote(e.target.value)} placeholder="Any extra info" rows={3}
-          style={{ ...inp, resize: "vertical", lineHeight: 1.6 } as React.CSSProperties} />
-      </div>
-
-      <button onClick={onSubmit} disabled={loading || bankCompressing}
-        style={{ ...btnPrimary, opacity: loading || bankCompressing ? 0.38 : 1, marginBottom: 8 }}>
-        {loading ? <><Spin /> Submitting…</> : <><span className="material-symbols-outlined" style={{ fontSize: 18 }}>upload_file</span>Submit MoMo Proof</>}
+      <button onClick={onHome} style={{ ...btnPrimary, marginBottom: 8 }}>
+        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>home</span>Back to Home
       </button>
-      <button onClick={onBack} style={btnGhost}>
-        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>arrow_back</span>Back
+      <button onClick={onReset} style={btnGhost}>
+        <span className="material-symbols-outlined" style={{ fontSize: 16 }}>add_circle</span>Make Another Deposit
       </button>
     </div>
   );
@@ -916,9 +872,9 @@ function BankNgForm({ error, bankRef, setBankRef, bankAmtSent, setBankAmtSent, b
   );
 }
 
-/* ── Shared Pending Success (MoMo / Bank) ── */
-interface PendingSuccessProps { label: string; mins: string; onHome: () => void; onReset: () => void; }
-function PendingSuccess({ label, mins, onHome, onReset }: PendingSuccessProps) {
+/* ── Bank NG Success ── */
+interface BankNgSuccessProps { onHome: () => void; onReset: () => void; }
+function BankNgSuccess({ onHome, onReset }: BankNgSuccessProps) {
   return (
     <div style={{ textAlign: "center", padding: "12px 0 8px" }}>
       <div style={{ width: 64, height: 64, borderRadius: "50%", margin: "0 auto 16px", display: "flex", alignItems: "center", justifyContent: "center", background: T.greenLow, border: `2px solid ${T.greenMid}` }}>
@@ -926,10 +882,10 @@ function PendingSuccess({ label, mins, onHome, onReset }: PendingSuccessProps) {
       </div>
       <div style={{ fontWeight: 800, fontSize: 20, color: T.white, marginBottom: 6 }}>Proof Submitted!</div>
       <div style={{ fontSize: 13, color: T.dim, lineHeight: 1.7, marginBottom: 22 }}>
-        Your {label} is under review.<br />
-        Admin will verify and credit your wallet within <strong style={{ color: T.white }}>{mins}</strong>.
+        Your bank transfer is under review.<br />
+        Admin will verify and credit your wallet within <strong style={{ color: T.white }}>5–10 minutes</strong>.
       </div>
-      <button onClick={onHome} style={{ ...btnPrimary, marginBottom: 8 }}>
+      <button onClick={onHome} style={{ ...btnGreen, marginBottom: 8 }}>
         <span className="material-symbols-outlined" style={{ fontSize: 18 }}>home</span>Back to Home
       </button>
       <button onClick={onReset} style={btnGhost}>
@@ -975,11 +931,22 @@ export default function DepositPage() {
     if (!t) navigate("/login", { replace: true });
   }, [navigate]);
 
+  /* ── Check for Paystack callback on mount ── */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payment = params.get("payment");
+    if (payment === "success") {
+      setGateway("paystack");
+      setStep("paystack_pending");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
   const tok = () => localStorage.getItem("accessToken") || sessionStorage.getItem("accessToken") || "";
 
   /* ── country / gateway ── */
   const [country,     setCountry]     = useState<Country | null>(null);
-  const [gateway,     setGateway]     = useState<"bank_gh" | "binance" | "bank_ng" | null>(null);
+  const [gateway,     setGateway]     = useState<"paystack" | "binance" | "bank_ng" | null>(null);
   const [ipDetecting, setIpDetecting] = useState(true);
   const [rates,       setRates]       = useState<Record<string, number>>({});
 
@@ -1008,17 +975,14 @@ export default function DepositPage() {
   const rateFor    = useCallback((cur: string) => cur === "GHS" ? 1 : (rates[cur] ?? 1), [rates]);
   const minLocal   = useCallback((cur: string) => +(MIN_DEPOSIT_GHS * rateFor(cur)).toFixed(2), [rateFor]);
   const localToGhs = useCallback((amt: number, cur: string) => cur === "GHS" ? amt : amt / rateFor(cur), [rateFor]);
+  const quickAmts  = useCallback((cur: string) => [550, 1000, 2000, 5000, 10000, 20000, 50000, 100000].map(v => +(v * rateFor(cur)).toFixed(0)), [rateFor]);
 
   /* ── shared state ── */
+  const [amount,  setAmount]  = useState("");
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
-
-  /* ── step per gateway ── */
-  const [step, setStep] = useState<
-    "form"
-    | "proof" | "success"                   // crypto
-    | "gh_info" | "gh_form" | "gh_success"   // Ghana MoMo (manual)
-    | "bank_info" | "bank_form" | "bank_success"  // Nigeria bank
+  const [step,    setStep]    = useState<
+    "form" | "proof" | "success" | "paystack_pending" | "bank_info" | "bank_form" | "bank_success"
   >("form");
 
   /* ── binance state ── */
@@ -1031,7 +995,7 @@ export default function DepositPage() {
   const [userNote,    setUserNote]    = useState("");
   const [bErrs,       setBErrs]       = useState<Record<string, string>>({});
 
-  /* ── shared bank / momo form state ── */
+  /* ── bank transfer (NG) state ── */
   const [bankRef,         setBankRef]         = useState("");
   const [bankAmtSent,     setBankAmtSent]     = useState("");
   const [bankExpected,    setBankExpected]    = useState("");
@@ -1041,39 +1005,56 @@ export default function DepositPage() {
   const [bankCompressing, setBankCompressing] = useState(false);
   const [bankErrs,        setBankErrs]        = useState<Record<string, string>>({});
 
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const post = async (path: string, body: object) => {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok()}` },
       body: JSON.stringify(body),
     });
-
-    const text = await res.text();
-    let data: any = {};
-    try { data = text ? JSON.parse(text) : {}; } catch {}
-
-    if (!res.ok) throw new Error(data?.message || data?.error || `Server error ${res.status}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.message || data?.error || "Request failed.");
     return data;
   };
 
   const handleSelectCountry = useCallback((c: Country) => {
-    setCountry(c); setGateway(null); setError(""); setStep("form");
-    if (c.gateways.length === 1) {
-      const gw = c.gateways[0];
-      setGateway(gw);
-      if (gw === "bank_gh") setStep("gh_info");
-      else if (gw === "bank_ng") setStep("bank_info");
+    setCountry(c); setGateway(null); setError(""); setAmount(""); setStep("form");
+    if (c.gateways.length === 1) setGateway(c.gateways[0]);
+  }, []);
+
+  const selectGateway = useCallback((gw: "paystack" | "binance" | "bank_ng") => {
+    setGateway(gw); setError(""); setAmount("");
+    setStep(gw === "bank_ng" ? "bank_info" : "form");
+  }, []);
+
+  /* ── Paystack handler ── */
+  const handlePaystackInit = async () => {
+    setError("");
+    const cur = country!.currency;
+    const localAmt = parseFloat(amount);
+    const min = minLocal(cur);
+    if (!localAmt || localAmt < min) {
+      return setError(`Minimum deposit is ${country!.symbol}${min.toLocaleString()} (GH₵${MIN_DEPOSIT_GHS}). Please increase your amount.`);
     }
-  }, []);
+    setLoading(true);
+    try {
+      const ghsAmount = cur === "GHS" ? localAmt : localToGhs(localAmt, cur);
+      if (ghsAmount < MIN_DEPOSIT_GHS) {
+        throw new Error(`Amount is below the minimum deposit of GH₵${MIN_DEPOSIT_GHS}. Please enter a higher amount.`);
+      }
+      const data = await post("/api/wallet/deposit/paystack/init", { amount: ghsAmount });
+      const inner = data?.data?.data ?? data?.data ?? {};
+      const authUrl = inner.authorization_url as string | undefined;
+      if (authUrl) {
+        window.location.href = authUrl;
+      } else {
+        throw new Error("Could not get Paystack payment URL. Please try again.");
+      }
+    } catch (e: unknown) { setError((e as Error).message); setLoading(false); }
+  };
 
-  const selectGateway = useCallback((gw: "bank_gh" | "binance" | "bank_ng") => {
-    setGateway(gw); setError("");
-    if (gw === "bank_gh") setStep("gh_info");
-    else if (gw === "bank_ng") setStep("bank_info");
-    else setStep("form");
-  }, []);
-
-  /* ── binance handlers ── */
+  /* ── Binance handlers ── */
   const validateBinance = () => {
     const e: Record<string, string> = {};
     if (!txid.trim() || txid.trim().length < 10) e.txid = "Valid TXID required (min 10 chars)";
@@ -1099,8 +1080,8 @@ export default function DepositPage() {
     finally { setLoading(false); }
   };
 
-  /* ── screenshot handler (shared) ── */
-  const handleScreenshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  /* ── Bank (NG) handlers ── */
+  const handleBankScreenshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setBankCompressing(true);
@@ -1112,47 +1093,12 @@ export default function DepositPage() {
     finally { setBankCompressing(false); }
   };
 
-  /* ── Ghana MoMo validation & submit (uses /api/wallet/bank-deposits) ── */
-  const validateGhMomo = () => {
-    const e: Record<string, string> = {};
-    if (!bankSender.trim() || bankSender.trim().length < 9) e.sender = "Enter your MoMo phone number";
-    if (!bankRef.trim() || bankRef.trim().length < 2) e.ref = "Enter your MoMo reference or note";
-    const amt = parseFloat(bankAmtSent);
-    if (!amt || isNaN(amt) || amt <= 0)       e.amt = "Enter the amount you sent";
-    else if (amt < MIN_DEPOSIT_GHS)           e.amt = `Minimum deposit is GH₵${MIN_DEPOSIT_GHS}`;
-    if (!bankExpected || isNaN(+bankExpected) || +bankExpected < 1) e.exp = "Enter expected wallet credit";
-    if (!bankScreenshot) e.screenshot = "A payment screenshot is required";
-    setBankErrs(e); return Object.keys(e).length === 0;
-  };
-
-  const handleGhMomoSubmit = async () => {
-    if (!validateGhMomo()) return;
-    setLoading(true); setError("");
-    try {
-      const result = await post("/api/wallet/bank-deposits", {
-        transferReference:  bankRef.trim(),
-        ngnAmountSent:      parseFloat(bankAmtSent),
-        expectedNgnCredit:  parseFloat(bankExpected),
-        senderAccountName:  bankSender.trim(),
-        screenshotUrl:      bankScreenshot,
-        userNote:           bankNote.trim() || undefined,
-      });
-      console.log("Success:", result);
-      setStep("gh_success");
-    } catch (e: unknown) {
-      console.error("Full error:", e);
-      setError((e as Error).message);
-    }
-    finally { setLoading(false); }
-  };
-
-  /* ── Nigeria bank validation & submit ── */
   const validateBank = () => {
     const e: Record<string, string> = {};
     if (!bankRef.trim() || bankRef.trim().length < 3) e.ref = "Transfer reference / narration is required";
     const amt = parseFloat(bankAmtSent);
-    if (!amt || isNaN(amt) || amt <= 0)  e.amt = "Enter the amount you transferred";
-    else if (amt < MIN_DEPOSIT_NGN)      e.amt = `Minimum deposit is ₦${MIN_DEPOSIT_NGN.toLocaleString()}`;
+    if (!amt || isNaN(amt) || amt <= 0)    e.amt = "Enter the amount you transferred";
+    else if (amt < MIN_DEPOSIT_NGN)        e.amt = `Minimum deposit is ₦${MIN_DEPOSIT_NGN.toLocaleString()}`;
     if (!bankExpected || isNaN(+bankExpected) || +bankExpected < 1) e.exp = "Enter expected wallet credit";
     if (!bankScreenshot) e.screenshot = "A payment screenshot is required";
     setBankErrs(e); return Object.keys(e).length === 0;
@@ -1175,28 +1121,24 @@ export default function DepositPage() {
     finally { setLoading(false); }
   };
 
-  /* ── reset bank/momo form state ── */
-  const resetBankState = useCallback(() => {
+  /* ── Reset ── */
+  const reset = useCallback(() => {
+    setCountry(null); setGateway(null); setAmount("");
+    setError(""); setBErrs({});
+    setTxid(""); setCryptoAmt(""); setCoin("USDT"); setCryptoNet("TRC20");
+    setExpectedGhs(""); setSenderAddr(""); setUserNote("");
     setBankRef(""); setBankAmtSent(""); setBankExpected(""); setBankSender("");
     setBankNote(""); setBankScreenshot(""); setBankErrs({});
+    setStep("form");
+    if (timerRef.current) clearInterval(timerRef.current);
   }, []);
 
-  /* ── full reset ── */
-  const reset = useCallback(() => {
-    setCountry(null); setGateway(null); setError("");
-    setTxid(""); setCryptoAmt(""); setCoin("USDT"); setCryptoNet("TRC20");
-    setExpectedGhs(""); setSenderAddr(""); setUserNote(""); setBErrs({});
-    resetBankState();
-    setStep("form");
-  }, [resetBankState]);
-
-  /* ── panel title ── */
+  /* ── Panel title ── */
   const panelTitle = () => {
     if (!gateway) return null;
-    if (gateway === "bank_gh") {
-      if (step === "gh_form")    return "Payment Proof";
-      if (step === "gh_success") return "Under Review";
-      return "Ghana MoMo";
+    if (gateway === "paystack") {
+      if (step === "paystack_pending") return "Payment Processing";
+      return "Pay via Paystack";
     }
     if (gateway === "binance") {
       if (step === "proof")   return "Payment Proof";
@@ -1211,34 +1153,31 @@ export default function DepositPage() {
     return null;
   };
 
-  /* ── panel router ── */
+  /* ── Panel router ── */
   const renderPanel = () => {
     if (!country || !gateway) return null;
 
-    /* ── Ghana MoMo (manual) ── */
-    if (gateway === "bank_gh") {
-      if (step === "gh_info") return (
-        <GhMomoInfo error={error} onNext={() => { resetBankState(); setStep("gh_form"); }} />
-      );
-      if (step === "gh_form") return (
-        <GhMomoForm
-          error={error}
-          bankRef={bankRef} setBankRef={setBankRef}
-          bankAmtSent={bankAmtSent} setBankAmtSent={setBankAmtSent}
-          bankExpected={bankExpected} setBankExpected={setBankExpected}
-          bankSender={bankSender} setBankSender={setBankSender}
-          bankNote={bankNote} setBankNote={setBankNote}
-          bankScreenshot={bankScreenshot} setBankScreenshot={setBankScreenshot}
-          bankCompressing={bankCompressing}
-          bankErrs={bankErrs} setBankErrs={setBankErrs}
-          loading={loading}
-          onFileChange={handleScreenshot}
-          onSubmit={handleGhMomoSubmit}
-          onBack={() => setStep("gh_info")}
+    /* ── Paystack ── */
+    if (gateway === "paystack") {
+      if (step === "paystack_pending") return (
+        <PaystackPending
+          amount={amount}
+          onHome={() => (window.location.href = "/")}
+          onReset={reset}
         />
       );
-      if (step === "gh_success") return (
-        <PendingSuccess label="MoMo payment" mins="5–15 minutes" onHome={() => (window.location.href = "/")} onReset={reset} />
+      return (
+        <PaystackForm
+          error={error}
+          amount={amount} setAmount={setAmount}
+          loading={loading}
+          country={country}
+          rateFor={rateFor}
+          minLocal={minLocal}
+          quickAmts={quickAmts}
+          localToGhs={localToGhs}
+          onSubmit={handlePaystackInit}
+        />
       );
     }
 
@@ -1280,15 +1219,15 @@ export default function DepositPage() {
           bankCompressing={bankCompressing}
           bankErrs={bankErrs} setBankErrs={setBankErrs}
           loading={loading}
-          onFileChange={handleScreenshot}
+          onFileChange={handleBankScreenshot}
           onSubmit={handleBankSubmit}
           onBack={() => setStep("bank_info")}
         />
       );
       if (step === "bank_success") return (
-        <PendingSuccess label="bank transfer" mins="5–10 minutes" onHome={() => (window.location.href = "/")} onReset={reset} />
+        <BankNgSuccess onHome={() => (window.location.href = "/")} onReset={reset} />
       );
-      return <BankNgInfo error={error} onNext={() => { resetBankState(); setStep("bank_form"); }} />;
+      return <BankNgInfo error={error} onNext={() => setStep("bank_form")} />;
     }
 
     return null;
@@ -1378,7 +1317,7 @@ export default function DepositPage() {
                 <span className="material-symbols-outlined" style={{ fontSize: 14 }}>lock</span>
                 256-bit encrypted · ChampionBet
               </span>
-              <span style={{ fontSize: 10, color: "rgba(245,245,240,0.14)" }}>MoMo · Bank · Crypto</span>
+              <span style={{ fontSize: 10, color: "rgba(245,245,240,0.14)" }}>Paystack · Bank · Binance</span>
             </div>
           </div>
 
