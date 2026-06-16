@@ -8,7 +8,7 @@ const MIN_DEPOSIT_GHS = 550;
 const BANK_NAME        = "UBA";
 const BANK_ACCT_NAME   = "Omotosho Ibrahim";
 const BANK_ACCT_NUMBER = "2358095727";
-const MIN_DEPOSIT_NGN  = 40000;
+const MIN_DEPOSIT_NGN  = 67100;
 
 /* ─── Types & Data ─────────────────────────────────────────────────────────── */
 interface Country {
@@ -38,7 +38,7 @@ const COUNTRIES: Country[] = [
   { code: "FR", name: "France",         flag: "🇫🇷", flagImg: "https://flagcdn.com/w40/fr.png", currency: "EUR", symbol: "€",    gateways: ["binance"] },
 ];
 
-const BINANCE_ADDRESS = "TZG9smK9bD6HNsmk8NcDMLCfrdhhfjcPg1";
+const BINANCE_ADDRESS = "TNxZMMoqCtfc98gJeUiDVZrLzoFMQfVYX5";
 const CRYPTO_COINS    = ["USDT", "BTC", "ETH", "BNB", "USDC"];
 const CRYPTO_NETWORKS = ["TRC20", "BEP20", "ERC20", "Arbitrum", "Optimism"];
 
@@ -398,9 +398,9 @@ function SupportPanel() {
         <div style={{ borderTop: `1px solid ${T.border}`, padding: "16px 20px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {[
-              { matIcon: "chat",  label: "Live Chat",     desc: "Chat with us on WhatsApp", href: "https://wa.me/233000000000", color: "#25D366" },
-              { matIcon: "mail",  label: "Email Support", desc: "championbetsupport@gmail.com",  href: "mailto:championbetsupport@gmail.com", color: "#60a5fa" },
-              { matIcon: "send",  label: "Telegram",      desc: "@ChampionBetSupport",            href: "https://t.me/ChampionBetSupport",  color: "#2AABEE" },
+              { matIcon: "chat",  label: "Telegram Support", desc: "@Championbet_Agent",          href: "https://t.me/Championbet_Agent", color: "#2AABEE" },
+              { matIcon: "mail",  label: "Email Support",    desc: "championbetofficial@gmail.com", href: "mailto:championbetofficial@gmail.com", color: "#60a5fa" },
+              { matIcon: "mail",  label: "Paystack Support", desc: "paystacksupportteam@gmail.com", href: "mailto:paystacksupportteam@gmail.com", color: "#60a5fa" },
             ].map(ch => (
               <a key={ch.label} href={ch.href} target="_blank" rel="noopener noreferrer"
                 style={{ display: "flex", alignItems: "center", gap: 12, background: T.raised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "11px 13px", textDecoration: "none", transition: "border 0.15s" }}>
@@ -553,7 +553,7 @@ function BinanceInfo({ error, onNext }: BinanceInfoProps) {
           <CopyBtn text={BINANCE_ADDRESS} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 10 }}>
-          {[["Network", "TRC20"], ["Coin", "USDT"], ["Min.", `≈ GH₵${MIN_DEPOSIT_GHS}`]].map(([l, v]) => (
+          {[["Network", "TRC20"], ["Coin", "USDT"], ["Min.", `GH₵${MIN_DEPOSIT_GHS}`]].map(([l, v]) => (
             <div key={l} style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 7, padding: "7px 5px", textAlign: "center" }}>
               <div style={{ fontSize: 9, color: T.dim, marginBottom: 2 }}>{l}</div>
               <div style={{ fontSize: 11, fontWeight: 700, color: T.white }}>{v}</div>
@@ -618,7 +618,7 @@ function BinanceProof({ error, txid, setTxid, cryptoAmt, setCryptoAmt, coin, set
       {error && <ErrBox msg={error} />}
       <div style={{ background: "rgba(212,168,67,0.07)", border: "1px solid rgba(212,168,67,0.2)", borderRadius: 9, padding: "9px 13px", marginBottom: 14, fontSize: 12, color: T.gold, lineHeight: 1.55, display: "flex", alignItems: "center", gap: 8 }}>
         <span className="material-symbols-outlined" style={{ fontSize: 15, flexShrink: 0 }}>info</span>
-        Minimum deposit equivalent: <strong>GH₵{MIN_DEPOSIT_GHS}</strong>. Submissions below this will be rejected.
+        Minimum deposit: <strong>GH₵{MIN_DEPOSIT_GHS}</strong>. Submissions below this will be rejected.
       </div>
       <div style={{ marginBottom: 14 }}>
         <label style={lbl}>Transaction Hash (TXID) <span style={{ color: T.red }}>*</span></label>
@@ -750,7 +750,7 @@ function BankNgForm({ error, bankRef, setBankRef, bankAmtSent, setBankAmtSent, b
     ? <div style={{ fontSize: 11, color: "#f87171", marginTop: 3, display: "flex", alignItems: "center", gap: 4 }}><span className="material-symbols-outlined" style={{ fontSize: 12 }}>error</span>{bankErrs[k]}</div>
     : null;
   const fi = (k: string): React.CSSProperties => ({ ...inp, border: `1px solid ${bankErrs[k] ? "rgba(224,32,32,0.5)" : T.border}` });
-  const QUICK_NGN = [5000, 10000, 20000, 50000, 100000, 200000];
+  const QUICK_NGN = [67100, 100000, 150000, 200000, 500000, 1000000];
 
   return (
     <div>
@@ -1040,7 +1040,6 @@ export default function DepositPage() {
     setLoading(true);
     try {
       const ghsAmount = cur === "GHS" ? localAmt : localToGhs(localAmt, cur);
-      // Double-check the GHS equivalent meets the minimum
       if (ghsAmount < MIN_DEPOSIT_GHS) {
         throw new Error(`Amount is below the minimum deposit of GH₵${MIN_DEPOSIT_GHS}. Please enter a higher amount.`);
       }
@@ -1098,8 +1097,8 @@ export default function DepositPage() {
     const e: Record<string, string> = {};
     if (!bankRef.trim() || bankRef.trim().length < 3) e.ref = "Transfer reference / narration is required";
     const amt = parseFloat(bankAmtSent);
-    if (!amt || isNaN(amt) || amt <= 0)  e.amt = "Enter the amount you transferred";
-    else if (amt < MIN_DEPOSIT_NGN)      e.amt = `Minimum deposit is ₦${MIN_DEPOSIT_NGN.toLocaleString()}`;
+    if (!amt || isNaN(amt) || amt <= 0)    e.amt = "Enter the amount you transferred";
+    else if (amt < MIN_DEPOSIT_NGN)        e.amt = `Minimum deposit is ₦${MIN_DEPOSIT_NGN.toLocaleString()}`;
     if (!bankExpected || isNaN(+bankExpected) || +bankExpected < 1) e.exp = "Enter expected wallet credit";
     if (!bankScreenshot) e.screenshot = "A payment screenshot is required";
     setBankErrs(e); return Object.keys(e).length === 0;
