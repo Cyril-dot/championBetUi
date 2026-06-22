@@ -1,9 +1,9 @@
 // CHAMPIONBET — Header.tsx
 // Auth-responsive: shows wallet balance + avatar when logged in, Join/Login when not
-// Currency: backend stores GH₵. Detected country switches display:
-//   Ghana   → GH₵ (no conversion)
-//   Nigeria → ₦ NGN (live GHS→NGN rate)
-//   Others  → $ USD (live GHS→USD rate)
+// Currency: shows correct symbol based on detected country, NO conversion (raw balance value shown)
+//   Ghana   → GH₵
+//   Nigeria → ₦
+//   Others  → $
 // Country detection is cached in localStorage for 24 hours.
 
 import { useState, useEffect, useRef } from 'react';
@@ -12,22 +12,20 @@ import { useAppStore } from '../../store';
 import { wallet as walletApi } from '../../utils/api';
 import type { ApiResponse } from '../../utils/api';
 
-// ─── Currency detection + conversion ─────────────────────────────────────────
+// ─── Currency symbol detection ────────────────────────────────────────────────
 
-type CurrencyInfo = {
-  code: 'GHS' | 'NGN' | 'USD';
+type CurrencySymbol = {
   symbol: string;
-  rate: number;
 };
 
 const CURRENCY_CACHE_KEY = 'cb_currency_cache';
 const CURRENCY_CACHE_TTL = 24 * 60 * 60 * 1000;
 
-function getCachedCurrency(): CurrencyInfo | null {
+function getCachedCurrency(): CurrencySymbol | null {
   try {
     const raw = localStorage.getItem(CURRENCY_CACHE_KEY);
     if (!raw) return null;
-    const { data, timestamp } = JSON.parse(raw) as { data: CurrencyInfo; timestamp: number };
+    const { data, timestamp } = JSON.parse(raw) as { data: CurrencySymbol; timestamp: number };
     if (Date.now() - timestamp > CURRENCY_CACHE_TTL) {
       localStorage.removeItem(CURRENCY_CACHE_KEY);
       return null;
@@ -38,13 +36,13 @@ function getCachedCurrency(): CurrencyInfo | null {
   }
 }
 
-function setCachedCurrency(info: CurrencyInfo): void {
+function setCachedCurrency(info: CurrencySymbol): void {
   try {
     localStorage.setItem(CURRENCY_CACHE_KEY, JSON.stringify({ data: info, timestamp: Date.now() }));
   } catch {}
 }
 
-async function detectCurrency(): Promise<CurrencyInfo> {
+async function detectCurrencySymbol(): Promise<CurrencySymbol> {
   const cached = getCachedCurrency();
   if (cached) return cached;
 
@@ -57,55 +55,25 @@ async function detectCurrency(): Promise<CurrencyInfo> {
     }
   } catch {}
 
-  let result: CurrencyInfo;
+  let result: CurrencySymbol;
 
   if (countryCode === 'GH') {
-    result = { code: 'GHS', symbol: 'GH₵', rate: 1 };
+    result = { symbol: 'GH₵' };
   } else if (countryCode === 'NG') {
-    try {
-      const fxRes = await fetch('https://open.er-api.com/v6/latest/GHS', { signal: AbortSignal.timeout(5000) });
-      if (fxRes.ok) {
-        const fx = await fxRes.json();
-        const rate = fx?.rates?.NGN;
-        result = typeof rate === 'number' && rate > 0
-          ? { code: 'NGN', symbol: '₦', rate }
-          : { code: 'NGN', symbol: '₦', rate: 52 };
-      } else {
-        result = { code: 'NGN', symbol: '₦', rate: 52 };
-      }
-    } catch {
-      result = { code: 'NGN', symbol: '₦', rate: 52 };
-    }
+    result = { symbol: '₦' };
   } else {
-    try {
-      const fxRes = await fetch('https://open.er-api.com/v6/latest/GHS', { signal: AbortSignal.timeout(5000) });
-      if (fxRes.ok) {
-        const fx = await fxRes.json();
-        const rate = fx?.rates?.USD;
-        result = typeof rate === 'number' && rate > 0
-          ? { code: 'USD', symbol: '$', rate }
-          : { code: 'USD', symbol: '$', rate: 0.067 };
-      } else {
-        result = { code: 'USD', symbol: '$', rate: 0.067 };
-      }
-    } catch {
-      result = { code: 'USD', symbol: '$', rate: 0.067 };
-    }
+    result = { symbol: '$' };
   }
 
   setCachedCurrency(result);
   return result;
 }
 
-function formatAmount(cedis: number, currency: CurrencyInfo): string {
-  const converted = cedis * currency.rate;
-  if (currency.code === 'GHS') return `GH₵ ${converted.toFixed(2)}`;
-  if (currency.code === 'NGN') return `₦ ${converted.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  return `$ ${converted.toFixed(2)}`;
+function formatAmount(balance: number, currency: CurrencySymbol): string {
+  return `${currency.symbol} ${balance.toFixed(2)}`;
 }
 
-// ─── CB Monogram SVG ─────────────────────────────────────────────────────────
-// Bolder, more legible interlocked C+B letterform
+// ─── CB Monogram SVG ──────────────────────────────────────────────────────────
 function CBMark({ size = 24 }: { size?: number }) {
   return (
     <svg
@@ -116,21 +84,13 @@ function CBMark({ size = 24 }: { size?: number }) {
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      {/* C — bold open arc */}
       <path
         d="M16 6.5C12.2 6.5 8.5 9.2 8.5 14C8.5 18.8 12.2 21.5 16 21.5"
         stroke="white"
         strokeWidth="2.8"
         strokeLinecap="round"
       />
-      {/* B — vertical stem */}
-      <line
-        x1="16" y1="6.5" x2="16" y2="21.5"
-        stroke="white"
-        strokeWidth="2.8"
-        strokeLinecap="round"
-      />
-      {/* B — upper arc */}
+      <line x1="16" y1="6.5" x2="16" y2="21.5" stroke="white" strokeWidth="2.8" strokeLinecap="round" />
       <path
         d="M16 6.5H19.5C21.4 6.5 22.8 7.8 22.8 9.6C22.8 11.4 21.4 13 19.5 13H16"
         stroke="white"
@@ -138,7 +98,6 @@ function CBMark({ size = 24 }: { size?: number }) {
         strokeLinecap="round"
         fill="none"
       />
-      {/* B — lower arc (slightly wider) */}
       <path
         d="M16 13H20C22.2 13 23.5 14.5 23.5 16.5C23.5 18.6 22.2 21.5 20 21.5H16"
         stroke="white"
@@ -150,93 +109,23 @@ function CBMark({ size = 24 }: { size?: number }) {
   );
 }
 
-// ─── Logo ─────────────────────────────────────────────────────────────────────
-function ChampionBetLogo() {
-  return (
-    <div
-      style={{ display: 'flex', alignItems: 'center', gap: 11, userSelect: 'none' }}
-      aria-label="CHAMPIONBET"
-    >
-      {/* Monogram badge — larger, more solid */}
-      <div style={{
-        width: 42,
-        height: 42,
-        background: 'rgba(0,0,0,0.22)',
-        border: '2px solid rgba(255,255,255,0.70)',
-        borderRadius: 9,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-      }}>
-        <CBMark size={24} />
-      </div>
-
-      {/* Wordmark */}
-      <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1, gap: 0 }}>
-        {/* "CHAMPION" — eyebrow, bolder */}
-        <span style={{
-          fontFamily: "'Inter', sans-serif",
-          fontWeight: 800,
-          fontStyle: 'italic',
-          fontSize: '0.72rem',
-          letterSpacing: '0.26em',
-          color: 'rgba(255,255,255,0.90)',
-          textTransform: 'uppercase',
-          lineHeight: 1,
-        }}>
-          Champion
-        </span>
-
-        {/* "BET" — hero word, bigger + bolder */}
-        <span style={{
-          fontFamily: "'Inter', sans-serif",
-          fontWeight: 900,
-          fontStyle: 'italic',
-          fontSize: '1.72rem',
-          letterSpacing: '-0.01em',
-          color: '#ffffff',
-          textTransform: 'uppercase',
-          lineHeight: 1,
-          display: 'inline-block',
-          transform: 'skewX(-10deg)',
-          textShadow: '0 1px 4px rgba(0,0,0,0.30)',
-        }}>
-          Bet
-        </span>
-
-        {/* Accent underline — brighter */}
-        <div style={{
-          width: '100%',
-          height: 2.5,
-          background: '#ffffff',
-          borderRadius: 2,
-          opacity: 0.65,
-          marginTop: 2,
-        }} />
-      </div>
-    </div>
-  );
-}
-
 // ─── Wallet Balance chip ───────────────────────────────────────────────────────
-function WalletChip({ currency }: { currency: CurrencyInfo | null }) {
-  const [balanceCedis, setBalanceCedis] = useState<number | null>(null);
+function WalletChip({ currency }: { currency: CurrencySymbol | null }) {
+  const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
     walletApi.getWallet()
       .then((res: ApiResponse<Record<string, unknown>>) => {
         const data = res.data as Record<string, unknown>;
-        if (typeof data?.balance === 'number') setBalanceCedis(data.balance);
+        if (typeof data?.balance === 'number') setBalance(data.balance);
       })
       .catch(() => {});
   }, []);
 
   const displayBalance =
-    balanceCedis === null || currency === null
+    balance === null || currency === null
       ? '···'
-      : formatAmount(balanceCedis, currency);
+      : formatAmount(balance, currency);
 
   return (
     <Link
@@ -523,12 +412,12 @@ function DepositBtn() {
 // ─── Header ───────────────────────────────────────────────────────────────────
 export default function Header() {
   const [scrolled, setScrolled] = useState(false);
-  const [currency, setCurrency] = useState<CurrencyInfo | null>(null);
+  const [currency, setCurrency] = useState<CurrencySymbol | null>(null);
   const { user, modalOpen, setModalOpen } = useAppStore();
   const isLoggedIn = !!user;
 
   useEffect(() => {
-    detectCurrency().then(setCurrency);
+    detectCurrencySymbol().then(setCurrency);
   }, []);
 
   useEffect(() => {
@@ -574,51 +463,27 @@ export default function Header() {
           }
         }
 
-        /* ── Logo badge shrinks gracefully ── */
         @media (max-width: 360px) {
-          .wb-logo-badge {
-            width: 34px !important;
-            height: 34px !important;
-            border-radius: 6px !important;
-          }
-          .wb-logo-champion {
-            font-size: 0.62rem !important;
-          }
-          .wb-logo-bet {
-            font-size: 1.35rem !important;
-          }
+          .wb-logo-badge { width: 34px !important; height: 34px !important; border-radius: 6px !important; }
+          .wb-logo-champion { font-size: 0.62rem !important; }
+          .wb-logo-bet { font-size: 1.35rem !important; }
         }
 
         @media (max-width: 320px) {
-          .wb-logo-badge {
-            width: 28px !important;
-            height: 28px !important;
-          }
-          .wb-logo-champion {
-            font-size: 0.56rem !important;
-          }
-          .wb-logo-bet {
-            font-size: 1.1rem !important;
-          }
+          .wb-logo-badge { width: 28px !important; height: 28px !important; }
+          .wb-logo-champion { font-size: 0.56rem !important; }
+          .wb-logo-bet { font-size: 1.1rem !important; }
         }
 
-        /* ── Wallet: hide label text, icon-only on tiny screens ── */
         @media (max-width: 400px) {
-          .wb-wallet-label {
-            display: none;
-          }
-          .wb-wallet-chip {
-            padding: 6px 9px !important;
-          }
+          .wb-wallet-label { display: none; }
+          .wb-wallet-chip { padding: 6px 9px !important; }
         }
 
         @media (max-width: 480px) {
-          .wb-right-controls {
-            gap: 6px !important;
-          }
+          .wb-right-controls { gap: 6px !important; }
         }
 
-        /* ── CTA buttons ── */
         .wb-btn-join {
           font-family: 'Inter', sans-serif;
           font-weight: 800;
@@ -637,10 +502,7 @@ export default function Header() {
           align-items: center;
           box-shadow: 0 2px 8px rgba(0,0,0,0.18);
         }
-        .wb-btn-join:hover {
-          opacity: 0.88;
-          transform: translateY(-1px);
-        }
+        .wb-btn-join:hover { opacity: 0.88; transform: translateY(-1px); }
 
         .wb-btn-login {
           font-family: 'Inter', sans-serif;
@@ -659,10 +521,7 @@ export default function Header() {
           display: inline-flex;
           align-items: center;
         }
-        .wb-btn-login:hover {
-          background: rgba(255,255,255,0.18);
-          transform: translateY(-1px);
-        }
+        .wb-btn-login:hover { background: rgba(255,255,255,0.18); transform: translateY(-1px); }
 
         @media (max-width: 380px) {
           .wb-btn-join  { padding: 7px 14px; font-size: 0.78rem; }
@@ -688,7 +547,6 @@ export default function Header() {
               style={{ display: 'flex', alignItems: 'center', gap: 11, userSelect: 'none' }}
               aria-label="ChampionBet"
             >
-              {/* CB Monogram badge — larger, bolder border */}
               <div
                 className="wb-logo-badge"
                 style={{
@@ -707,7 +565,6 @@ export default function Header() {
                 <CBMark size={24} />
               </div>
 
-              {/* Stacked wordmark */}
               <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1, gap: 0 }}>
                 <span
                   className="wb-logo-champion"
