@@ -53,10 +53,12 @@ interface CurrencyInfo {
   symbol: string;
   countryCode: string;
   name: string;
-  rateFromGhs: number;
 }
 
 // ── Currency Detection ────────────────────────────────────────────────────────
+// Same pattern as Header.tsx: detect country once, cache the result in
+// localStorage for 24h, and display the RAW balance with the matching
+// currency symbol — no live exchange-rate conversion.
 
 const MOMO_NETWORKS: Record<string, string[]> = {
   GH: ['MTN', 'AirtelTigo', 'Telecel'],
@@ -88,11 +90,37 @@ const COUNTRY_CURRENCY: Record<string, { code: string; symbol: string; name: str
 };
 
 const DEFAULT_CURRENCY: CurrencyInfo = {
-  code: 'GHS', symbol: 'GH₵', name: 'Ghanaian Cedi',
-  countryCode: 'GH', rateFromGhs: 1,
+  code: 'GHS', symbol: 'GH₵', name: 'Ghanaian Cedi', countryCode: 'GH',
 };
 
+const CURRENCY_CACHE_KEY = 'cb_wallet_currency_cache';
+const CURRENCY_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+function getCachedCurrency(): CurrencyInfo | null {
+  try {
+    const raw = localStorage.getItem(CURRENCY_CACHE_KEY);
+    if (!raw) return null;
+    const { data, timestamp } = JSON.parse(raw) as { data: CurrencyInfo; timestamp: number };
+    if (Date.now() - timestamp > CURRENCY_CACHE_TTL) {
+      localStorage.removeItem(CURRENCY_CACHE_KEY);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedCurrency(info: CurrencyInfo): void {
+  try {
+    localStorage.setItem(CURRENCY_CACHE_KEY, JSON.stringify({ data: info, timestamp: Date.now() }));
+  } catch {}
+}
+
 async function detectCurrencyInfo(): Promise<CurrencyInfo> {
+  const cached = getCachedCurrency();
+  if (cached) return cached;
+
   let countryCode = '';
   try {
     const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
@@ -104,33 +132,18 @@ async function detectCurrencyInfo(): Promise<CurrencyInfo> {
       if (res.ok) { const d = await res.json(); countryCode = d.countryCode ?? ''; }
     } catch { /* fall through */ }
   }
+
   const localCurrency = countryCode ? COUNTRY_CURRENCY[countryCode] : undefined;
-  if (!localCurrency) return DEFAULT_CURRENCY;
-  let rateFromGhs = 1;
-  if (localCurrency.code !== 'GHS') {
-    try {
-      const res = await fetch('https://open.er-api.com/v6/latest/GHS', { signal: AbortSignal.timeout(5000) });
-      if (res.ok) { const d = await res.json(); rateFromGhs = d.rates?.[localCurrency.code] ?? 1; }
-    } catch { /* fall through */ }
-  }
-  return { code: localCurrency.code, symbol: localCurrency.symbol, name: localCurrency.name, countryCode, rateFromGhs };
+  const result: CurrencyInfo = localCurrency
+    ? { code: localCurrency.code, symbol: localCurrency.symbol, name: localCurrency.name, countryCode }
+    : DEFAULT_CURRENCY;
+
+  setCachedCurrency(result);
+  return result;
 }
 
-function formatCurrency(amountInGhs: number, currency: CurrencyInfo): string {
-  const converted = amountInGhs * currency.rateFromGhs;
-  try {
-    return new Intl.NumberFormat('en', {
-      style: 'currency', currency: currency.code,
-      minimumFractionDigits: 2, maximumFractionDigits: 2,
-    }).format(converted);
-  } catch {
-    return `${currency.symbol} ${converted.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-}
-
-function localToGhs(localAmount: number, currency: CurrencyInfo): number {
-  if (currency.rateFromGhs === 0) return localAmount;
-  return localAmount / currency.rateFromGhs;
+function formatCurrency(amount: number, currency: CurrencyInfo): string {
+  return `${currency.symbol} ${amount.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // ── Transaction Helpers ───────────────────────────────────────────────────────
@@ -429,9 +442,9 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
   useEffect(() => { setNetwork(momoNetworks[0] ?? ''); }, [currency.countryCode]);
 
   const amountLocal  = parseFloat(amount) || 0;
-  const amountGhs    = localToGhs(amountLocal, currency);
-  const balanceLocal = balanceGhs * currency.rateFromGhs;
-  const minLocal     = MIN_WITHDRAWAL_AMOUNT * currency.rateFromGhs;
+  const amountGhs    = amountLocal;
+  const balanceLocal = balanceGhs;
+  const minLocal     = MIN_WITHDRAWAL_AMOUNT;
   const amountValid  = amountLocal >= minLocal && amountLocal <= balanceLocal && !isNaN(amountLocal);
 
   const reset = () => {
@@ -491,7 +504,6 @@ function WithdrawModal({ open, onClose, onSuccess, balanceGhs, currency }: Withd
           <h3 className="text-lg font-bold text-white">Confirm Withdrawal</h3>
           <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
             <ModalRow label={`Amount (${currency.code})`} value={formatCurrency(amountGhs, currency)} />
-            {currency.code !== 'GHS' && <ModalRow label="Amount (GHS)" value={`GH₵ ${amountGhs.toFixed(2)}`} />}
             <ModalRow label="Method" value={method === 'momo' ? 'Mobile Money' : 'Bank Transfer'} />
             {method === 'momo' ? (
               <><ModalRow label="Network" value={network} /><ModalRow label="Phone Number" value={phoneNumber} last /></>
@@ -658,9 +670,9 @@ function AffiliateWithdrawModal({ open, onClose, onSuccess, availableBalanceGhs,
   const [error, setError]                 = useState('');
 
   const amountLocal    = parseFloat(amount) || 0;
-  const amountGhs      = localToGhs(amountLocal, currency);
-  const availableLocal = availableBalanceGhs * currency.rateFromGhs;
-  const minLocal       = MIN_WITHDRAWAL_AMOUNT * currency.rateFromGhs;
+  const amountGhs      = amountLocal;
+  const availableLocal = availableBalanceGhs;
+  const minLocal       = MIN_WITHDRAWAL_AMOUNT;
 
   const reset = () => {
     setStep('form'); setAmount(''); setBankName('');
