@@ -804,6 +804,15 @@ function BankNgInfo({ error, onNext }: BankNgInfoProps) {
             </div>
           </div>
         ))}
+        <div style={{ background: "rgba(224,32,32,0.08)", border: "1px solid rgba(224,32,32,0.3)", borderRadius: 8, padding: "10px 12px", marginBottom: 8, fontSize: 11, color: "#f87171", lineHeight: 1.6, display: "flex", gap: 7 }}>
+          <span style={{ fontSize: 14, flexShrink: 0, lineHeight: 1 }}>📝</span>
+          <span>
+            <strong>Important Notice:</strong> Please ensure you transfer at least the minimum deposit of{" "}
+            <strong>₦{MIN_DEPOSIT_NGN.toLocaleString()}</strong>. Any transfer below the required minimum may
+            not be credited automatically and can result in your account being flagged or restricted on this
+            platform. Always double-check the amount before sending.
+          </span>
+        </div>
         <div style={{ background: "rgba(212,168,67,0.07)", border: "1px solid rgba(212,168,67,0.22)", borderRadius: 8, padding: "9px 12px", fontSize: 11, color: T.gold, lineHeight: 1.6, display: "flex", gap: 7 }}>
           <span className="material-symbols-outlined" style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>warning</span>
           Always include your <strong>username or phone number</strong> in the transfer narration so we can identify your payment.
