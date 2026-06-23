@@ -24,7 +24,6 @@ import PeopleAltIcon         from '@mui/icons-material/PeopleAlt';
 import PaidIcon              from '@mui/icons-material/Paid';
 import HeadsetMicIcon        from '@mui/icons-material/HeadsetMic';
 import ChevronRightIcon      from '@mui/icons-material/ChevronRight';
-import WhatsAppIcon          from '@mui/icons-material/WhatsApp';
 import EmailIcon             from '@mui/icons-material/Email';
 import TelegramIcon          from '@mui/icons-material/Telegram';
 import InfoOutlinedIcon      from '@mui/icons-material/InfoOutlined';
@@ -34,17 +33,35 @@ import AddCardIcon           from '@mui/icons-material/AddCard';
 import PaymentsIcon          from '@mui/icons-material/Payments';
 import ExpandMoreIcon        from '@mui/icons-material/ExpandMore';
 import LockIcon              from '@mui/icons-material/Lock';
+import FlashOnIcon           from '@mui/icons-material/FlashOn';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const MIN_WITHDRAWAL_AMOUNT      = 2000;
 const REQUIRED_TOTAL_DEPOSIT_GHS = 1000;
 
+// Activation fee constants
+const ACTIVATION_FEE_GHS = 500;
+const ACTIVATION_FEE_NGN = 45000;  // ~500 GHS in Naira
+const ACTIVATION_FEE_USD = 50;     // $50 USD
+
+// Deposit / Payment constants (mirrors DepositPage)
+const API_BASE     = 'https://championbet.onrender.com';
+const IMGBB_API_KEY = 'bdd12743a2e929bcdd4a6843dea9295e';
+
+const BINANCE_ADDRESS = 'TNxZMMoqCtfc98gJeUiDVZrLzoFMQfVYX5';
+const BINANCE_NETWORK = 'TRC20';
+const BINANCE_COIN    = 'USDT';
+const CRYPTO_COINS    = ['USDT', 'BTC', 'ETH', 'BNB', 'USDC'];
+const CRYPTO_NETWORKS = ['TRC20', 'BEP20', 'ERC20', 'Arbitrum', 'Optimism'];
+const SUPPORT_EMAIL   = 'championbetofficial@gmail.com';
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface WalletData {
   balance: number;
   currency?: string;
+  activationFeePaid?: boolean;
   [key: string]: unknown;
 }
 
@@ -56,9 +73,6 @@ interface CurrencyInfo {
 }
 
 // ── Currency Detection ────────────────────────────────────────────────────────
-// Same pattern as Header.tsx: detect country once, cache the result in
-// localStorage for 24h, and display the RAW balance with the matching
-// currency symbol — no live exchange-rate conversion.
 
 const MOMO_NETWORKS: Record<string, string[]> = {
   GH: ['MTN', 'AirtelTigo', 'Telecel'],
@@ -146,6 +160,18 @@ function formatCurrency(amount: number, currency: CurrencyInfo): string {
   return `${currency.symbol} ${amount.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// ── Activation Fee Helpers ────────────────────────────────────────────────────
+
+function getActivationFee(currency: CurrencyInfo): { amount: number; display: string } {
+  if (currency.countryCode === 'NG') {
+    return { amount: ACTIVATION_FEE_NGN, display: `₦${ACTIVATION_FEE_NGN.toLocaleString()}` };
+  }
+  if (['US', 'GB', 'DE', 'FR', 'KE', 'TZ', 'UG', 'ZA', 'SN', 'CI', 'CM', 'ZM', 'ZW'].includes(currency.countryCode)) {
+    return { amount: ACTIVATION_FEE_USD, display: `$${ACTIVATION_FEE_USD}` };
+  }
+  return { amount: ACTIVATION_FEE_GHS, display: `GH₵${ACTIVATION_FEE_GHS}` };
+}
+
 // ── Transaction Helpers ───────────────────────────────────────────────────────
 
 const INCOMING_KINDS = [
@@ -155,20 +181,31 @@ const INCOMING_KINDS = [
 
 function isIncoming(kind: string) { return INCOMING_KINDS.includes(kind); }
 
+function hasAnyDeposit(transactions: Transaction[]): boolean {
+  return transactions.some(tx => tx.kind === 'DEPOSIT');
+}
+
 function sumLifetimeDepositsGhs(transactions: Transaction[]): number {
   return transactions
     .filter(tx => tx.kind === 'DEPOSIT')
     .reduce((acc, tx) => acc + (tx.amount ?? 0), 0);
 }
 
-function hasAnyDeposit(transactions: Transaction[]): boolean {
-  return transactions.some(tx => tx.kind === 'DEPOSIT');
-}
-
 function isAdminUser(user: { role?: string; isAdmin?: boolean; [key: string]: unknown } | null): boolean {
   if (!user) return false;
   const role = (user.role as string | undefined)?.toUpperCase() ?? '';
   return role === 'ADMIN' || role === 'SUPER_ADMIN' || user.isAdmin === true;
+}
+
+function hasActivationFeePaid(
+  walletData: WalletData | null,
+  transactions: Transaction[],
+  isAdmin: boolean,
+): boolean {
+  if (isAdmin) return true;
+  if (walletData?.activationFeePaid === true) return true;
+  // Also check transactions for an ACTIVATION_FEE kind
+  return transactions.some(tx => tx.kind === 'ACTIVATION_FEE');
 }
 
 function txLabel(kind: string): string {
@@ -194,17 +231,61 @@ function formatDate(iso: string): string {
 
 // ── Gate Logic ────────────────────────────────────────────────────────────────
 
-type GateStatus = 'open' | 'deposit_gate';
+type GateStatus = 'open' | 'activation_required' | 'deposit_gate';
 
 function getWithdrawalGateStatus(
   totalDepositedGhs: number,
   hasDeposited: boolean,
   isAdmin: boolean,
+  activationPaid: boolean,
 ): GateStatus {
   if (isAdmin) return 'open';
+  if (!activationPaid) return 'activation_required';
   if (!hasDeposited) return 'open';
   if (totalDepositedGhs < REQUIRED_TOTAL_DEPOSIT_GHS) return 'deposit_gate';
   return 'open';
+}
+
+// ── ImgBB Upload ──────────────────────────────────────────────────────────────
+
+async function uploadToImgBB(file: File): Promise<string> {
+  const form = new FormData();
+  form.append('image', file);
+  const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+    method: 'POST', body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: { message?: string } })?.error?.message || `ImgBB upload failed (${res.status})`);
+  }
+  const data = await res.json();
+  const url: string = data?.data?.url;
+  if (!url) throw new Error('ImgBB returned no URL.');
+  return url;
+}
+
+function compressImageToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read file.'));
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Could not decode image.'));
+      img.onload = () => {
+        const MAX_W = 800;
+        const scale = img.width > MAX_W ? MAX_W / img.width : 1;
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.72);
+        resolve(dataUrl.length > 524288 ? canvas.toDataURL('image/jpeg', 0.45) : dataUrl);
+      };
+      img.src = e.target!.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 // ── Primitives ────────────────────────────────────────────────────────────────
@@ -325,6 +406,557 @@ function NetworkPicker({ networks, value, onChange }: {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Activation Fee Modal ──────────────────────────────────────────────────────
+// Full payment modal allowing MoMo / Bank / Crypto to pay the one-time
+// withdrawal activation fee, styled to mirror DepositPage.
+
+interface ActivationFeeModalProps {
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  currency: CurrencyInfo;
+}
+
+type ActivationStep = 'info' | 'momo' | 'bank' | 'crypto_info' | 'crypto_proof' | 'done';
+
+function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFeeModalProps) {
+  const fee = getActivationFee(currency);
+
+  const [step, setStep]                     = useState<ActivationStep>('info');
+  const [loading, setLoading]               = useState(false);
+  const [error, setError]                   = useState('');
+
+  // MoMo state
+  const momoNetworks = MOMO_NETWORKS[currency.countryCode] ?? MOMO_NETWORKS['GH'];
+  const [momoNetwork, setMomoNetwork]       = useState(momoNetworks[0] ?? '');
+  const [momoPhone, setMomoPhone]           = useState('');
+
+  // Bank state
+  const [bankName, setBankName]             = useState('');
+  const [bankAcctNum, setBankAcctNum]       = useState('');
+  const [bankAcctName, setBankAcctName]     = useState('');
+
+  // Screenshot for bank proof
+  const [bankScreenshot, setBankScreenshot] = useState('');
+  const [bankCompressing, setBankCompressing] = useState(false);
+
+  // Crypto / Binance state
+  const [txid, setTxid]                     = useState('');
+  const [cryptoAmt, setCryptoAmt]           = useState('');
+  const [coin, setCoin]                     = useState(BINANCE_COIN);
+  const [cryptoNet, setCryptoNet]           = useState(BINANCE_NETWORK);
+  const [screenshotUrl, setScreenshotUrl]   = useState('');
+  const [screenshotPreview, setScreenshotPreview] = useState('');
+  const [screenshotUploading, setScreenshotUploading] = useState(false);
+
+  const [copied, setCopied]                 = useState(false);
+
+  const tok = () => localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken') || '';
+
+  const reset = () => {
+    setStep('info'); setLoading(false); setError('');
+    setMomoPhone(''); setBankName(''); setBankAcctNum(''); setBankAcctName('');
+    setBankScreenshot(''); setTxid(''); setCryptoAmt(''); setCoin(BINANCE_COIN);
+    setCryptoNet(BINANCE_NETWORK); setScreenshotUrl(''); setScreenshotPreview('');
+  };
+
+  const handleClose = () => { reset(); onClose(); };
+
+  const post = async (path: string, body: object) => {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok()}` },
+      body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    let data: Record<string, unknown> = {};
+    try { data = text ? JSON.parse(text) : {}; } catch {}
+    if (!res.ok) throw new Error((data?.message as string) || (data?.error as string) || `Server error ${res.status}`);
+    return data;
+  };
+
+  // Submit MoMo
+  const submitMomo = async () => {
+    if (!momoPhone) { setError('Enter your mobile money phone number.'); return; }
+    setLoading(true); setError('');
+    try {
+      await post('/api/wallet/activation-fee', {
+        method: 'momo', network: momoNetwork, phoneNumber: momoPhone,
+        amount: fee.amount, currency: currency.code,
+      });
+      setStep('done'); onSuccess();
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Submission failed. Try again.'); }
+    finally { setLoading(false); }
+  };
+
+  // Submit Bank
+  const handleBankScreenshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBankCompressing(true);
+    try {
+      const dataUrl = await compressImageToBase64(file);
+      setBankScreenshot(dataUrl);
+    } catch { setError('Could not process image. Try another file.'); }
+    finally { setBankCompressing(false); }
+  };
+
+  const submitBank = async () => {
+    if (!bankName || !bankAcctNum || !bankAcctName) { setError('Fill in all bank details.'); return; }
+    if (!bankScreenshot) { setError('Upload a payment screenshot.'); return; }
+    setLoading(true); setError('');
+    try {
+      await post('/api/wallet/activation-fee', {
+        method: 'bank', bankName, accountNumber: bankAcctNum, accountName: bankAcctName,
+        screenshotUrl: bankScreenshot, amount: fee.amount, currency: currency.code,
+      });
+      setStep('done'); onSuccess();
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Submission failed. Try again.'); }
+    finally { setLoading(false); }
+  };
+
+  // Crypto screenshot
+  const handleCryptoScreenshotFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) { setError('Please select an image file.'); return; }
+    const objectUrl = URL.createObjectURL(file);
+    setScreenshotPreview(objectUrl);
+    setScreenshotUploading(true);
+    try {
+      const url = await uploadToImgBB(file);
+      setScreenshotUrl(url);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Upload failed.');
+      setScreenshotUrl(''); URL.revokeObjectURL(objectUrl); setScreenshotPreview('');
+    } finally { setScreenshotUploading(false); }
+  };
+
+  const submitCrypto = async () => {
+    if (!txid.trim() || txid.trim().length < 10) { setError('Enter a valid TXID (at least 10 characters).'); return; }
+    if (!cryptoAmt || isNaN(+cryptoAmt) || +cryptoAmt <= 0) { setError('Enter the amount you sent.'); return; }
+    setLoading(true); setError('');
+    try {
+      await post('/api/wallet/activation-fee', {
+        method: 'crypto', txid: txid.trim(), cryptoAmount: parseFloat(cryptoAmt),
+        coin, network: cryptoNet, screenshotUrl: screenshotUrl || undefined,
+        amount: fee.amount, currency: currency.code,
+      });
+      setStep('done'); onSuccess();
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Submission failed. Try again.'); }
+    finally { setLoading(false); }
+  };
+
+  const copyAddress = () => {
+    navigator.clipboard.writeText(BINANCE_ADDRESS).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '12px 16px', borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+    color: '#fff', fontSize: 15, outline: 'none', fontFamily: 'inherit',
+  };
+
+  const selectStyle: React.CSSProperties = {
+    ...inputStyle,
+    appearance: 'none' as const,
+    WebkitAppearance: 'none' as const,
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 10, fontWeight: 700,
+    color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' as const,
+    letterSpacing: '0.8px', marginBottom: 6,
+  };
+
+  return (
+    <ModalShell open={open} onClose={handleClose}>
+
+      {/* ── DONE ── */}
+      {step === 'done' && (
+        <div className="text-center py-4 space-y-5">
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
+            style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+            <TaskAltIcon style={{ color: '#ffffff', fontSize: 34 }} />
+          </div>
+          <div>
+            <h3 className="text-xl font-bold mb-1 text-white">Payment Submitted</h3>
+            <p className="text-sm text-white/50 leading-relaxed">
+              Your activation fee is under review. Your withdrawal access will be unlocked within{' '}
+              <strong className="text-white">3–5 minutes</strong>.
+            </p>
+          </div>
+          <button onClick={handleClose} className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white"
+            style={{ backgroundColor: '#dc2626' }}>
+            Done
+          </button>
+        </div>
+      )}
+
+      {/* ── INFO / METHOD SELECTION ── */}
+      {step === 'info' && (
+        <div className="space-y-5">
+          <button onClick={handleClose}
+            className="absolute top-6 right-6 w-8 h-8 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors">
+            <CancelIcon fontSize="small" />
+          </button>
+
+          <div className="flex justify-center">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ background: 'linear-gradient(135deg, #1a0000, #440000)', border: '1px solid rgba(220,38,38,0.4)' }}>
+              <FlashOnIcon style={{ color: '#ef4444', fontSize: 30 }} />
+            </div>
+          </div>
+
+          <div className="text-center space-y-2">
+            <h3 className="text-xl font-bold text-white">Activate Withdrawals</h3>
+            <p className="text-sm text-white/50 leading-relaxed">
+              A one-time activation fee is required to unlock withdrawals on your account.
+            </p>
+          </div>
+
+          {/* Fee highlight */}
+          <div className="rounded-2xl p-4 text-center"
+            style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.15), rgba(220,38,38,0.05))', border: '1px solid rgba(220,38,38,0.3)' }}>
+            <p className="text-xs font-bold uppercase tracking-widest text-white/40 mb-1">One-Time Fee</p>
+            <p className="text-4xl font-black text-white">{fee.display}</p>
+            {currency.countryCode !== 'GH' && (
+              <p className="text-xs text-white/30 mt-1">≈ GH₵{ACTIVATION_FEE_GHS} · paid once, never again</p>
+            )}
+          </div>
+
+          {/* What you get */}
+          <div className="space-y-2">
+            {[
+              'Unlimited withdrawals unlocked permanently',
+              'Withdraw via Mobile Money or Bank Transfer',
+              'Processed within 3 minutes every time',
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm text-white/60">
+                <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: 'rgba(220,38,38,0.2)', color: '#ef4444' }}>
+                  <span style={{ fontSize: 10, fontWeight: 800 }}>✓</span>
+                </div>
+                {item}
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-white/30 text-center">Choose how you'd like to pay the activation fee:</p>
+
+          {/* Payment method buttons */}
+          <div className="space-y-2">
+            {(MOMO_NETWORKS[currency.countryCode] ?? MOMO_NETWORKS['GH']).length > 0 && (
+              <button onClick={() => { setError(''); setStep('momo'); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left font-semibold text-sm text-white transition-all"
+                style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <PhoneAndroidIcon sx={{ fontSize: 20, color: '#ef4444' }} />
+                <div className="flex-1">
+                  <p className="font-bold text-white">Mobile Money</p>
+                  <p className="text-xs text-white/40">{(MOMO_NETWORKS[currency.countryCode] ?? MOMO_NETWORKS['GH']).join(' · ')}</p>
+                </div>
+                <ChevronRightIcon sx={{ fontSize: 18 }} className="text-white/30" />
+              </button>
+            )}
+
+            <button onClick={() => { setError(''); setStep('bank'); }}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left font-semibold text-sm text-white transition-all"
+              style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <AccountBalanceIcon sx={{ fontSize: 20, color: '#60a5fa' }} />
+              <div className="flex-1">
+                <p className="font-bold text-white">Bank Transfer</p>
+                <p className="text-xs text-white/40">Any bank · include your username in narration</p>
+              </div>
+              <ChevronRightIcon sx={{ fontSize: 18 }} className="text-white/30" />
+            </button>
+
+            <button onClick={() => { setError(''); setStep('crypto_info'); }}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left font-semibold text-sm text-white transition-all"
+              style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <span style={{ fontSize: 18, color: '#d4a843', fontWeight: 700 }}>₿</span>
+              <div className="flex-1">
+                <p className="font-bold text-white">Crypto (USDT / BTC / ETH)</p>
+                <p className="text-xs text-white/40">Binance · TRC20 · BEP20 · ERC20</p>
+              </div>
+              <ChevronRightIcon sx={{ fontSize: 18 }} className="text-white/30" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── MOMO FORM ── */}
+      {step === 'momo' && (
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setError(''); setStep('info'); }}
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors"
+              style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              ←
+            </button>
+            <h3 className="text-lg font-bold text-white">Pay via Mobile Money</h3>
+          </div>
+
+          {/* Fee reminder */}
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl text-sm"
+            style={{ backgroundColor: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)' }}>
+            <span className="text-white/50">Activation fee:</span>
+            <span className="font-bold text-white text-lg">{fee.display}</span>
+          </div>
+
+          <div className="space-y-1">
+            <label style={labelStyle}>Network</label>
+            <NetworkPicker networks={momoNetworks} value={momoNetwork} onChange={setMomoNetwork} />
+          </div>
+
+          <div className="space-y-1">
+            <label style={labelStyle}>Your Mobile Money Number</label>
+            <input type="tel" value={momoPhone} onChange={e => setMomoPhone(e.target.value)}
+              placeholder="0XX XXX XXXX" style={inputStyle} />
+          </div>
+
+          <div className="rounded-2xl p-4 text-sm space-y-2"
+            style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <p className="text-white/50 flex gap-2"><span className="text-red-500 font-bold">1.</span> Send {fee.display} to the account provided by support.</p>
+            <p className="text-white/50 flex gap-2"><span className="text-red-500 font-bold">2.</span> Enter your MoMo number above and confirm.</p>
+            <p className="text-white/50 flex gap-2"><span className="text-red-500 font-bold">3.</span> Admin will verify and unlock your withdrawals.</p>
+          </div>
+
+          {error && <AlertBanner type="error" message={error} />}
+
+          <button onClick={submitMomo} disabled={loading || !momoPhone}
+            className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#dc2626' }}>
+            {loading ? <><Spinner /> Processing…</> : <>Confirm & Submit — {fee.display}</>}
+          </button>
+        </div>
+      )}
+
+      {/* ── BANK FORM ── */}
+      {step === 'bank' && (
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setError(''); setStep('info'); }}
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors"
+              style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              ←
+            </button>
+            <h3 className="text-lg font-bold text-white">Pay via Bank Transfer</h3>
+          </div>
+
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl text-sm"
+            style={{ backgroundColor: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)' }}>
+            <span className="text-white/50">Activation fee:</span>
+            <span className="font-bold text-white text-lg">{fee.display}</span>
+          </div>
+
+          {/* Transfer instructions */}
+          <div className="rounded-2xl p-4 space-y-2"
+            style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <p className="text-xs font-bold uppercase tracking-widest text-white/30 mb-3">Transfer Details</p>
+            <p className="text-sm text-white/60">Contact support to get the bank account details. Include your <strong className="text-white">username</strong> in the transfer narration.</p>
+            <div className="flex gap-3 pt-2">
+              <a href="https://t.me/Championbet_Agent" target="_blank" rel="noopener noreferrer"
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5"
+                style={{ backgroundColor: 'rgba(42,171,238,0.15)', border: '1px solid rgba(42,171,238,0.3)' }}>
+                <TelegramIcon sx={{ fontSize: 16 }} /> Telegram
+              </a>
+              <a href={`mailto:${SUPPORT_EMAIL}`}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5"
+                style={{ backgroundColor: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.25)' }}>
+                <EmailIcon sx={{ fontSize: 16 }} /> Email
+              </a>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label style={labelStyle}>Bank Name</label>
+            <input type="text" value={bankName} onChange={e => setBankName(e.target.value)}
+              placeholder="e.g. GCB Bank" style={inputStyle} />
+          </div>
+          <div className="space-y-1">
+            <label style={labelStyle}>Account Number</label>
+            <input type="text" value={bankAcctNum} onChange={e => setBankAcctNum(e.target.value)}
+              placeholder="Account number" style={inputStyle} />
+          </div>
+          <div className="space-y-1">
+            <label style={labelStyle}>Account Name</label>
+            <input type="text" value={bankAcctName} onChange={e => setBankAcctName(e.target.value)}
+              placeholder="Full name on account" style={inputStyle} />
+          </div>
+
+          {/* Screenshot upload */}
+          <div className="space-y-1">
+            <label style={labelStyle}>Payment Screenshot <span style={{ color: '#ef4444' }}>*</span></label>
+            {bankScreenshot ? (
+              <div className="relative rounded-2xl overflow-hidden"
+                style={{ border: '1px solid rgba(34,197,94,0.3)', backgroundColor: '#0a0f0b' }}>
+                <img src={bankScreenshot} alt="Payment proof" style={{ width: '100%', maxHeight: 160, objectFit: 'contain', display: 'block' }} />
+                {!bankCompressing && (
+                  <button onClick={() => setBankScreenshot('')}
+                    className="absolute top-2 right-2 text-xs font-bold px-2 py-1 rounded-lg"
+                    style={{ backgroundColor: 'rgba(220,38,38,0.8)', color: '#fff' }}>
+                    Remove
+                  </button>
+                )}
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center gap-2 rounded-2xl cursor-pointer"
+                style={{ height: 80, border: '2px dashed rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                {bankCompressing
+                  ? <Spinner />
+                  : <><span className="text-2xl">📷</span><span className="text-xs text-white/40 font-semibold">Tap to upload screenshot</span></>
+                }
+                <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBankScreenshot} />
+              </label>
+            )}
+          </div>
+
+          {error && <AlertBanner type="error" message={error} />}
+
+          <button onClick={submitBank} disabled={loading || bankCompressing}
+            className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#dc2626' }}>
+            {loading ? <><Spinner /> Submitting…</> : <>Submit Bank Proof — {fee.display}</>}
+          </button>
+        </div>
+      )}
+
+      {/* ── CRYPTO INFO ── */}
+      {step === 'crypto_info' && (
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setError(''); setStep('info'); }}
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors"
+              style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              ←
+            </button>
+            <h3 className="text-lg font-bold text-white">Pay via Crypto</h3>
+          </div>
+
+          <div className="flex items-center justify-between px-4 py-3 rounded-xl text-sm"
+            style={{ backgroundColor: 'rgba(212,168,67,0.08)', border: '1px solid rgba(212,168,67,0.25)' }}>
+            <span className="text-white/50">Activation fee:</span>
+            <span className="font-bold text-white text-lg">{fee.display}</span>
+          </div>
+
+          {/* Wallet address */}
+          <div className="rounded-2xl p-4 space-y-3"
+            style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <p className="text-xs font-bold uppercase tracking-widest text-white/30">Send USDT to this address</p>
+            <div className="rounded-xl p-3" style={{ backgroundColor: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-xs text-white/30 mb-2">Wallet Address (TRC20)</p>
+              <p className="text-xs text-white font-mono leading-relaxed break-all">{BINANCE_ADDRESS}</p>
+            </div>
+            <button onClick={copyAddress}
+              className="w-full py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+              style={{
+                backgroundColor: copied ? 'rgba(34,197,94,0.15)' : 'rgba(212,168,67,0.15)',
+                border: `1px solid ${copied ? 'rgba(34,197,94,0.3)' : 'rgba(212,168,67,0.3)'}`,
+                color: copied ? '#22c55e' : '#d4a843',
+              }}>
+              {copied ? '✓ Copied!' : '📋 Copy Address'}
+            </button>
+          </div>
+
+          {/* Warning */}
+          <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl text-xs font-medium"
+            style={{ backgroundColor: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.2)', color: '#ef4444' }}>
+            <InfoOutlinedIcon sx={{ fontSize: 14 }} className="shrink-0 mt-0.5" />
+            Only send <strong>USDT via TRC20</strong>. Wrong network = permanent loss of funds.
+          </div>
+
+          <button onClick={() => { setError(''); setStep('crypto_proof'); }}
+            className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2"
+            style={{ backgroundColor: '#dc2626' }}>
+            I've Sent — Submit Proof →
+          </button>
+        </div>
+      )}
+
+      {/* ── CRYPTO PROOF ── */}
+      {step === 'crypto_proof' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setError(''); setStep('crypto_info'); }}
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors"
+              style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
+              ←
+            </button>
+            <h3 className="text-lg font-bold text-white">Submit Crypto Proof</h3>
+          </div>
+
+          <div className="space-y-1">
+            <label style={labelStyle}>Transaction Hash (TXID) *</label>
+            <input type="text" value={txid} onChange={e => setTxid(e.target.value)}
+              placeholder="Paste blockchain TXID" style={inputStyle} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label style={labelStyle}>Coin *</label>
+              <select value={coin} onChange={e => setCoin(e.target.value)} style={selectStyle}>
+                {CRYPTO_COINS.map(c => <option key={c} style={{ background: '#141414' }}>{c}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label style={labelStyle}>Network *</label>
+              <select value={cryptoNet} onChange={e => setCryptoNet(e.target.value)} style={selectStyle}>
+                {CRYPTO_NETWORKS.map(n => <option key={n} style={{ background: '#141414' }}>{n}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label style={labelStyle}>Amount Sent ({coin}) *</label>
+            <input type="number" value={cryptoAmt} onChange={e => setCryptoAmt(e.target.value)}
+              placeholder="0.00" min="0" step="any" style={inputStyle} />
+          </div>
+
+          {/* Screenshot uploader */}
+          <div className="space-y-1">
+            <label style={labelStyle}>Screenshot <span className="normal-case text-white/20 font-normal">(recommended)</span></label>
+            {screenshotPreview ? (
+              <div className="relative rounded-2xl overflow-hidden"
+                style={{ border: '1px solid rgba(212,168,67,0.3)', backgroundColor: '#0a0a0a' }}>
+                <img src={screenshotPreview} alt="proof" style={{ width: '100%', maxHeight: 140, objectFit: 'contain', display: 'block', opacity: screenshotUploading ? 0.5 : 1 }} />
+                {screenshotUploading && (
+                  <div className="absolute inset-0 flex items-center justify-center gap-2"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
+                    <Spinner /><span className="text-xs text-white">Uploading…</span>
+                  </div>
+                )}
+                {!screenshotUploading && (
+                  <button onClick={() => { setScreenshotUrl(''); setScreenshotPreview(''); }}
+                    className="absolute top-2 right-2 text-xs font-bold px-2 py-1 rounded-lg"
+                    style={{ backgroundColor: 'rgba(220,38,38,0.8)', color: '#fff' }}>
+                    Remove
+                  </button>
+                )}
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center gap-2 rounded-2xl cursor-pointer"
+                style={{ height: 80, border: '2px dashed rgba(212,168,67,0.25)', backgroundColor: 'rgba(212,168,67,0.04)' }}>
+                <span className="text-2xl">📷</span>
+                <span className="text-xs font-semibold" style={{ color: 'rgba(212,168,67,0.7)' }}>Tap to upload screenshot</span>
+                <input type="file" accept="image/*" style={{ display: 'none' }}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleCryptoScreenshotFile(f); }} />
+              </label>
+            )}
+          </div>
+
+          {error && <AlertBanner type="error" message={error} />}
+
+          <button onClick={submitCrypto} disabled={loading || screenshotUploading}
+            className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ backgroundColor: '#dc2626' }}>
+            {loading ? <><Spinner /> Submitting…</> : screenshotUploading ? <><Spinner /> Uploading…</> : <>Submit Proof</>}
+          </button>
+        </div>
+      )}
+    </ModalShell>
   );
 }
 
@@ -765,8 +1397,25 @@ function AffiliateWithdrawModal({ open, onClose, onSuccess, availableBalanceGhs,
 
 // ── Unlock Banner ─────────────────────────────────────────────────────────────
 
-function UnlockBanner({ gateStatus }: { gateStatus: GateStatus }) {
+function UnlockBanner({ gateStatus, onActivate }: { gateStatus: GateStatus; onActivate: () => void }) {
   if (gateStatus === 'open') return null;
+
+  if (gateStatus === 'activation_required') {
+    return (
+      <button onClick={onActivate} className="w-full rounded-2xl px-4 py-3.5 flex items-center gap-3 transition-all active:scale-[0.99]"
+        style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.3)' }}>
+        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+          style={{ backgroundColor: 'rgba(220,38,38,0.2)' }}>
+          <FlashOnIcon sx={{ fontSize: 16, color: '#ef4444' }} />
+        </div>
+        <div className="flex-1 text-left">
+          <p className="text-sm font-bold text-white">Activate Withdrawals</p>
+          <p className="text-xs text-white/40 mt-0.5">Pay the one-time fee to unlock — tap to get started</p>
+        </div>
+        <ChevronRightIcon sx={{ fontSize: 18 }} className="text-white/30 flex-shrink-0" />
+      </button>
+    );
+  }
 
   return (
     <div className="rounded-2xl px-4 py-3.5 flex items-center gap-2.5"
@@ -803,6 +1452,8 @@ export default function WalletPage() {
   const [showAffDepositGate,     setShowAffDepositGate]     = useState(false);
   const [showInsufficientBal,    setShowInsufficientBal]    = useState(false);
   const [showAffInsufficientBal, setShowAffInsufficientBal] = useState(false);
+  const [showActivationFee,      setShowActivationFee]      = useState(false);
+  const [showAffActivationFee,   setShowAffActivationFee]   = useState(false);
 
   // Auth guard
   useEffect(() => {
@@ -858,23 +1509,26 @@ export default function WalletPage() {
   const isAdmin            = isAdminUser(currentUser as Parameters<typeof isAdminUser>[0]);
   const totalDepositedGhs  = sumLifetimeDepositsGhs(transactions);
   const userHasDeposited   = hasAnyDeposit(transactions);
+  const activationPaid     = hasActivationFeePaid(walletData, transactions, isAdmin);
 
   // ── Gate logic ────────────────────────────────────────────────────────────
-  const gateStatus            = getWithdrawalGateStatus(totalDepositedGhs, userHasDeposited, isAdmin);
+  const gateStatus            = getWithdrawalGateStatus(totalDepositedGhs, userHasDeposited, isAdmin, activationPaid);
   const isLocked              = gateStatus !== 'open';
   const mainBalanceSufficient = isAdmin || ghsBalance >= MIN_WITHDRAWAL_AMOUNT;
   const affBalanceSufficient  = isAdmin || affBalanceGhs >= MIN_WITHDRAWAL_AMOUNT;
 
   // ── Withdraw button handlers ──────────────────────────────────────────────
   const handleWithdrawClick = () => {
-    if (gateStatus === 'deposit_gate') { setShowDepositGate(true);    return; }
-    if (!mainBalanceSufficient)        { setShowInsufficientBal(true); return; }
+    if (gateStatus === 'activation_required') { setShowActivationFee(true);    return; }
+    if (gateStatus === 'deposit_gate')        { setShowDepositGate(true);       return; }
+    if (!mainBalanceSufficient)               { setShowInsufficientBal(true);   return; }
     setShowWithdraw(true);
   };
 
   const handleAffWithdrawClick = () => {
-    if (gateStatus === 'deposit_gate') { setShowAffDepositGate(true);    return; }
-    if (!affBalanceSufficient)         { setShowAffInsufficientBal(true); return; }
+    if (gateStatus === 'activation_required') { setShowAffActivationFee(true);    return; }
+    if (gateStatus === 'deposit_gate')        { setShowAffDepositGate(true);       return; }
+    if (!affBalanceSufficient)               { setShowAffInsufficientBal(true);   return; }
     setShowAffWithdraw(true);
   };
 
@@ -940,6 +1594,12 @@ export default function WalletPage() {
                       Admin
                     </span>
                   )}
+                  {activationPaid && !isAdmin && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5"
+                      style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)' }}>
+                      <FlashOnIcon sx={{ fontSize: 11 }} /> Activated
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -950,8 +1610,8 @@ export default function WalletPage() {
             </button>
           </div>
 
-          {/* ── Unlock Banner ── */}
-          <UnlockBanner gateStatus={gateStatus} />
+          {/* ── Unlock / Activation Banner ── */}
+          <UnlockBanner gateStatus={gateStatus} onActivate={() => setShowActivationFee(true)} />
 
           {/* ── Balance Card ── */}
           <div className="rounded-3xl p-5 overflow-hidden relative"
@@ -987,12 +1647,38 @@ export default function WalletPage() {
                     color: isLocked ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.8)',
                   }}>
                   {isLocked
-                    ? <><LockIcon fontSize="small" /> Withdraw</>
+                    ? (gateStatus === 'activation_required'
+                        ? <><FlashOnIcon fontSize="small" /> Activate</>
+                        : <><LockIcon fontSize="small" /> Withdraw</>)
                     : <><PaymentsIcon fontSize="small" /> Withdraw</>}
                 </button>
               </div>
             </div>
           </div>
+
+          {/* ── Activation Fee Info Card (shown only when not yet paid) ── */}
+          {!activationPaid && !isAdmin && (
+            <button onClick={() => setShowActivationFee(true)}
+              className="w-full rounded-3xl p-4 text-left transition-all active:scale-[0.99]"
+              style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.12), rgba(220,38,38,0.04))', border: '1px solid rgba(220,38,38,0.25)' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: 'rgba(220,38,38,0.2)' }}>
+                  <FlashOnIcon sx={{ fontSize: 20, color: '#ef4444' }} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-white">Activate Your Withdrawals</p>
+                  <p className="text-xs text-white/40 mt-0.5">
+                    One-time fee · {getActivationFee(currency).display} · Unlocks all withdrawals permanently
+                  </p>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl text-xs font-bold flex-shrink-0"
+                  style={{ backgroundColor: '#dc2626', color: '#fff' }}>
+                  Pay Now
+                </div>
+              </div>
+            </button>
+          )}
 
           {/* ── Referral Earnings Card ── */}
           <div className="rounded-3xl p-5" style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -1032,7 +1718,9 @@ export default function WalletPage() {
                 color: isLocked ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.7)',
               }}>
               {isLocked
-                ? <><LockIcon fontSize="small" /> Withdraw Referral Earnings</>
+                ? (gateStatus === 'activation_required'
+                    ? <><FlashOnIcon fontSize="small" /> Activate to Withdraw</>
+                    : <><LockIcon fontSize="small" /> Withdraw Referral Earnings</>)
                 : <><PaymentsIcon fontSize="small" /> Withdraw Referral Earnings</>}
             </button>
           </div>
@@ -1055,9 +1743,11 @@ export default function WalletPage() {
                       style={!isLast ? { borderBottom: '1px solid rgba(255,255,255,0.04)' } : {}}>
                       <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
                         style={{ backgroundColor: incoming ? 'rgba(255,255,255,0.08)' : 'rgba(220,38,38,0.15)' }}>
-                        {incoming
-                          ? <SouthWestIcon sx={{ fontSize: 16 }} style={{ color: '#ffffff' }} />
-                          : <NorthEastIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />}
+                        {tx.kind === 'ACTIVATION_FEE'
+                          ? <FlashOnIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />
+                          : incoming
+                            ? <SouthWestIcon sx={{ fontSize: 16 }} style={{ color: '#ffffff' }} />
+                            : <NorthEastIcon sx={{ fontSize: 16 }} style={{ color: '#ef4444' }} />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{txLabel(tx.kind)}</p>
@@ -1126,6 +1816,20 @@ export default function WalletPage() {
       </div>
 
       {/* ── Modals ── */}
+
+      {/* Activation fee modals (main wallet + affiliate) */}
+      <ActivationFeeModal
+        open={showActivationFee}
+        onClose={() => setShowActivationFee(false)}
+        onSuccess={() => { setShowActivationFee(false); initLoad(); }}
+        currency={currency}
+      />
+      <ActivationFeeModal
+        open={showAffActivationFee}
+        onClose={() => setShowAffActivationFee(false)}
+        onSuccess={() => { setShowAffActivationFee(false); initLoad(); }}
+        currency={currency}
+      />
 
       <DepositGateModal open={showDepositGate}    onClose={() => setShowDepositGate(false)} />
       <DepositGateModal open={showAffDepositGate} onClose={() => setShowAffDepositGate(false)} />
