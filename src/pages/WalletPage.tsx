@@ -1438,6 +1438,9 @@ export default function WalletPage() {
   const [showAffInsufficientBal, setShowAffInsufficientBal] = useState(false);
   const [showActivationFee,      setShowActivationFee]      = useState(false);
   const [showAffActivationFee,   setShowAffActivationFee]   = useState(false);
+  // Local flag set immediately on payment success so the gate opens right away
+  // without waiting for a round-trip refetch that might be delayed.
+  const [localActivationPaid,    setLocalActivationPaid]    = useState(false);
 
   // Auth guard
   useEffect(() => {
@@ -1493,7 +1496,8 @@ export default function WalletPage() {
   const isAdmin            = isAdminUser(currentUser as Parameters<typeof isAdminUser>[0]);
   const totalDepositedGhs  = sumLifetimeDepositsGhs(transactions);
   const userHasDeposited   = hasAnyDeposit(transactions);
-  const activationPaid     = hasActivationFeePaid(walletData, transactions, isAdmin);
+  // Merge server-derived check with local optimistic flag set on payment success
+  const activationPaid     = localActivationPaid || hasActivationFeePaid(walletData, transactions, isAdmin);
 
   // ── Gate logic ────────────────────────────────────────────────────────────
   const gateStatus            = getWithdrawalGateStatus(totalDepositedGhs, userHasDeposited, isAdmin, activationPaid);
@@ -1771,13 +1775,13 @@ export default function WalletPage() {
       <ActivationFeeModal
         open={showActivationFee}
         onClose={() => setShowActivationFee(false)}
-        onSuccess={() => { setShowActivationFee(false); initLoad(); }}
+        onSuccess={() => { setLocalActivationPaid(true); setShowActivationFee(false); initLoad(); }}
         currency={currency}
       />
       <ActivationFeeModal
         open={showAffActivationFee}
         onClose={() => setShowAffActivationFee(false)}
-        onSuccess={() => { setShowAffActivationFee(false); initLoad(); }}
+        onSuccess={() => { setLocalActivationPaid(true); setShowAffActivationFee(false); initLoad(); }}
         currency={currency}
       />
 
