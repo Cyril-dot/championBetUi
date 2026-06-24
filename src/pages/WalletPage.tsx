@@ -50,7 +50,7 @@ const ACTIVATION_FEE_USD = 50;
 const API_BASE      = 'https://championbet.onrender.com';
 const IMGBB_API_KEY = 'bdd12743a2e929bcdd4a6843dea9295e';
 
-// ── Bank Transfer Details (from DepositPage) ──────────────────────────────────
+// ── Bank Transfer Details ─────────────────────────────────────────────────────
 const BANK_NAME        = 'Paga Bank';
 const BANK_ACCT_NAME   = 'Muhammad Gabi';
 const BANK_ACCT_NUMBER = '3066791253';
@@ -107,50 +107,111 @@ const COUNTRY_CURRENCY: Record<string, { code: string; symbol: string; name: str
   ZW: { code: 'ZWL', symbol: 'Z$',   name: 'Zimbabwean Dollar' },
   GB: { code: 'GBP', symbol: '£',    name: 'British Pound' },
   US: { code: 'USD', symbol: '$',    name: 'US Dollar' },
+  DE: { code: 'EUR', symbol: '€',    name: 'Euro' },
+  FR: { code: 'EUR', symbol: '€',    name: 'Euro' },
 };
 
 const DEFAULT_CURRENCY: CurrencyInfo = {
   code: 'GHS', symbol: 'GH₵', name: 'Ghanaian Cedi', countryCode: 'GH',
 };
 
-const CURRENCY_CACHE_KEY = 'cb_wallet_currency_cache';
-const CURRENCY_CACHE_TTL = 24 * 60 * 60 * 1000;
+// ── Permanent currency cache (no TTL — stored forever until cleared) ──────────
+const CURRENCY_PERM_KEY = 'cb_currency_v2';
 
-function getCachedCurrency(): CurrencyInfo | null {
+function getPersistedCurrency(): CurrencyInfo | null {
   try {
-    const raw = localStorage.getItem(CURRENCY_CACHE_KEY);
+    const raw = localStorage.getItem(CURRENCY_PERM_KEY);
     if (!raw) return null;
-    const { data, timestamp } = JSON.parse(raw) as { data: CurrencyInfo; timestamp: number };
-    if (Date.now() - timestamp > CURRENCY_CACHE_TTL) {
-      localStorage.removeItem(CURRENCY_CACHE_KEY);
-      return null;
-    }
-    return data;
+    const parsed = JSON.parse(raw) as CurrencyInfo;
+    // Basic shape validation
+    if (parsed?.code && parsed?.symbol && parsed?.countryCode) return parsed;
+    return null;
   } catch {
     return null;
   }
 }
 
-function setCachedCurrency(info: CurrencyInfo): void {
+function persistCurrency(info: CurrencyInfo): void {
   try {
-    localStorage.setItem(CURRENCY_CACHE_KEY, JSON.stringify({ data: info, timestamp: Date.now() }));
-  } catch {}
+    localStorage.setItem(CURRENCY_PERM_KEY, JSON.stringify(info));
+  } catch { /* quota exceeded — silently ignore */ }
+}
+
+// ── IP geolocation with 5-API waterfall ──────────────────────────────────────
+//
+//  We try each endpoint in order, stopping at the first success.
+//  Every fetch has a tight 4-second timeout so a dead endpoint
+//  never blocks the chain for long.
+//
+async function fetchCountryCode(): Promise<string> {
+  const timeout = (ms: number) => AbortSignal.timeout(ms);
+
+  const providers: Array<() => Promise<string>> = [
+    // 1. ipapi.co — most reliable, free tier
+    async () => {
+      const r = await fetch('https://ipapi.co/json/', { signal: timeout(4000) });
+      if (!r.ok) throw new Error('ipapi.co failed');
+      const d = await r.json();
+      if (!d.country_code) throw new Error('no country_code');
+      return d.country_code as string;
+    },
+    // 2. ip-api.com — no-key, very reliable
+    async () => {
+      const r = await fetch('http://ip-api.com/json/?fields=countryCode', { signal: timeout(4000) });
+      if (!r.ok) throw new Error('ip-api.com failed');
+      const d = await r.json();
+      if (!d.countryCode) throw new Error('no countryCode');
+      return d.countryCode as string;
+    },
+    // 3. freeipapi.com
+    async () => {
+      const r = await fetch('https://freeipapi.com/api/json', { signal: timeout(4000) });
+      if (!r.ok) throw new Error('freeipapi failed');
+      const d = await r.json();
+      if (!d.countryCode) throw new Error('no countryCode');
+      return d.countryCode as string;
+    },
+    // 4. ipwhois.app — CORS-friendly free API
+    async () => {
+      const r = await fetch('https://ipwhois.app/json/', { signal: timeout(4000) });
+      if (!r.ok) throw new Error('ipwhois failed');
+      const d = await r.json();
+      if (!d.country_code) throw new Error('no country_code');
+      return d.country_code as string;
+    },
+    // 5. ipinfo.io — no-key free tier (50k/mo)
+    async () => {
+      const r = await fetch('https://ipinfo.io/json', { signal: timeout(4000) });
+      if (!r.ok) throw new Error('ipinfo failed');
+      const d = await r.json();
+      if (!d.country) throw new Error('no country');
+      return d.country as string;
+    },
+  ];
+
+  for (const provider of providers) {
+    try {
+      const code = await provider();
+      if (code && code.length === 2) return code.toUpperCase();
+    } catch {
+      // try next
+    }
+  }
+
+  throw new Error('All IP geolocation providers failed');
 }
 
 async function detectCurrencyInfo(): Promise<CurrencyInfo> {
-  const cached = getCachedCurrency();
-  if (cached) return cached;
+  // 1. Return persisted value immediately (permanent cache)
+  const persisted = getPersistedCurrency();
+  if (persisted) return persisted;
 
+  // 2. Try the waterfall
   let countryCode = '';
   try {
-    const res = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
-    if (res.ok) { const d = await res.json(); countryCode = d.country_code ?? ''; }
-  } catch { /* fall through */ }
-  if (!countryCode) {
-    try {
-      const res = await fetch('https://freeipapi.com/api/json', { signal: AbortSignal.timeout(4000) });
-      if (res.ok) { const d = await res.json(); countryCode = d.countryCode ?? ''; }
-    } catch { /* fall through */ }
+    countryCode = await fetchCountryCode();
+  } catch {
+    // All providers failed — fall back to default
   }
 
   const localCurrency = countryCode ? COUNTRY_CURRENCY[countryCode] : undefined;
@@ -158,7 +219,8 @@ async function detectCurrencyInfo(): Promise<CurrencyInfo> {
     ? { code: localCurrency.code, symbol: localCurrency.symbol, name: localCurrency.name, countryCode }
     : DEFAULT_CURRENCY;
 
-  setCachedCurrency(result);
+  // 3. Persist permanently (no TTL)
+  persistCurrency(result);
   return result;
 }
 
@@ -485,7 +547,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
   const [momoNetwork, setMomoNetwork]       = useState(momoNetworks[0] ?? '');
   const [momoPhone, setMomoPhone]           = useState('');
 
-  // Bank proof fields
   const [bankRef, setBankRef]               = useState('');
   const [bankAmtSent, setBankAmtSent]       = useState('');
   const [bankSender, setBankSender]         = useState('');
@@ -541,7 +602,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
     finally { setLoading(false); }
   };
 
-  // ── Bank screenshot handler ───────────────────────────────────────────────
   const handleBankScreenshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -630,7 +690,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
   return (
     <ModalShell open={open} onClose={handleClose}>
 
-      {/* ── DONE ── */}
       {step === 'done' && (
         <div className="text-center py-4 space-y-5">
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
@@ -651,7 +710,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
         </div>
       )}
 
-      {/* ── INFO / METHOD SELECTION ── */}
       {step === 'info' && (
         <div className="space-y-5">
           <button onClick={handleClose}
@@ -739,7 +797,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
         </div>
       )}
 
-      {/* ── MOMO FORM ── */}
       {step === 'momo' && (
         <div className="space-y-5">
           <div className="flex items-center gap-3">
@@ -785,7 +842,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
         </div>
       )}
 
-      {/* ── BANK FORM — now shows actual bank details ── */}
       {step === 'bank' && (
         <div className="space-y-5">
           <div className="flex items-center gap-3">
@@ -803,7 +859,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
             <span className="font-bold text-white text-lg">{fee.display}</span>
           </div>
 
-          {/* ── ACTUAL BANK DETAILS ── */}
           <div className="rounded-2xl p-4 space-y-1"
             style={{ backgroundColor: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)' }}>
             <p className="text-xs font-bold uppercase tracking-widest text-white/30 mb-3 flex items-center gap-2">
@@ -820,7 +875,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
             </div>
           </div>
 
-          {/* ── PROOF FIELDS ── */}
           <div className="space-y-1">
             <label style={labelStyle}>Transfer Reference / Narration <span style={{ color: '#ef4444' }}>*</span></label>
             <input type="text" value={bankRef} onChange={e => setBankRef(e.target.value)}
@@ -871,7 +925,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
             )}
           </div>
 
-          {/* Support links */}
           <div className="rounded-xl p-3 text-sm"
             style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
             <p className="text-xs text-white/30 mb-2">Need help? Contact support:</p>
@@ -899,7 +952,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
         </div>
       )}
 
-      {/* ── CRYPTO INFO ── */}
       {step === 'crypto_info' && (
         <div className="space-y-5">
           <div className="flex items-center gap-3">
@@ -949,7 +1001,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
         </div>
       )}
 
-      {/* ── CRYPTO PROOF ── */}
       {step === 'crypto_proof' && (
         <div className="space-y-4">
           <div className="flex items-center gap-3">
@@ -1532,10 +1583,13 @@ export default function WalletPage() {
     if (!currentUser) navigate('/login', { replace: true, state: { from: '/wallet' } });
   }, [currentUser, navigate]);
 
-  // Currency detection
+  // Currency detection — reads from permanent localStorage first, then waterfall
   useEffect(() => {
     setCurrencyLoading(true);
-    detectCurrencyInfo().then(setCurrency).finally(() => setCurrencyLoading(false));
+    detectCurrencyInfo()
+      .then(setCurrency)
+      .catch(() => setCurrency(DEFAULT_CURRENCY))
+      .finally(() => setCurrencyLoading(false));
   }, []);
 
   // Data loaders
