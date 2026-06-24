@@ -33,6 +33,8 @@ import AddCardIcon           from '@mui/icons-material/AddCard';
 import PaymentsIcon          from '@mui/icons-material/Payments';
 import ExpandMoreIcon        from '@mui/icons-material/ExpandMore';
 import FlashOnIcon           from '@mui/icons-material/FlashOn';
+import ContentCopyIcon       from '@mui/icons-material/ContentCopy';
+import CheckCircleIcon       from '@mui/icons-material/CheckCircle';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -47,6 +49,11 @@ const ACTIVATION_FEE_USD = 50;
 // Deposit / Payment constants
 const API_BASE      = 'https://championbet.onrender.com';
 const IMGBB_API_KEY = 'bdd12743a2e929bcdd4a6843dea9295e';
+
+// ── Bank Transfer Details (from DepositPage) ──────────────────────────────────
+const BANK_NAME        = 'Paga Bank';
+const BANK_ACCT_NAME   = 'Muhammad Gabi';
+const BANK_ACCT_NUMBER = '3066791253';
 
 const BINANCE_ADDRESS = 'TNxZMMoqCtfc98gJeUiDVZrLzoFMQfVYX5';
 const BINANCE_NETWORK = 'TRC20';
@@ -323,7 +330,7 @@ function ModalShell({ open, onClose, children }: { open: boolean; onClose: () =>
         <div className="flex justify-center pt-3 pb-1 sm:hidden">
           <div className="w-10 h-1 rounded-full bg-white/20" />
         </div>
-        <div className="px-6 pt-4 pb-6">{children}</div>
+        <div className="px-6 pt-4 pb-6 overflow-y-auto max-h-[90vh]">{children}</div>
       </div>
     </div>
   );
@@ -335,6 +342,55 @@ function ModalRow({ label, value, last = false }: { label: string; value: string
       style={!last ? { borderBottom: '1px solid rgba(255,255,255,0.06)' } : {}}>
       <span className="text-sm text-white/50">{label}</span>
       <span className="text-sm font-semibold text-white">{value}</span>
+    </div>
+  );
+}
+
+// ── Copy Button ───────────────────────────────────────────────────────────────
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+      style={{
+        backgroundColor: copied ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.08)',
+        border: `1px solid ${copied ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.12)'}`,
+        color: copied ? '#22c55e' : 'rgba(255,255,255,0.6)',
+      }}
+    >
+      {copied
+        ? <><CheckCircleIcon sx={{ fontSize: 13 }} /> Copied</>
+        : <><ContentCopyIcon sx={{ fontSize: 13 }} /> Copy</>
+      }
+    </button>
+  );
+}
+
+// ── Bank Detail Row ───────────────────────────────────────────────────────────
+
+function BankDetailRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div
+      className="rounded-xl p-3 mb-2"
+      style={{ backgroundColor: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.06)' }}
+    >
+      <p className="text-xs text-white/30 mb-1.5">{label}</p>
+      <div className="flex items-center justify-between gap-3">
+        <p
+          className="text-sm font-bold text-white"
+          style={{ fontFamily: mono ? "'DM Mono', monospace" : 'inherit', letterSpacing: mono ? 2 : 0 }}
+        >
+          {value}
+        </p>
+        <CopyButton text={value} />
+      </div>
     </div>
   );
 }
@@ -429,9 +485,11 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
   const [momoNetwork, setMomoNetwork]       = useState(momoNetworks[0] ?? '');
   const [momoPhone, setMomoPhone]           = useState('');
 
-  const [bankName, setBankName]             = useState('');
-  const [bankAcctNum, setBankAcctNum]       = useState('');
-  const [bankAcctName, setBankAcctName]     = useState('');
+  // Bank proof fields
+  const [bankRef, setBankRef]               = useState('');
+  const [bankAmtSent, setBankAmtSent]       = useState('');
+  const [bankSender, setBankSender]         = useState('');
+  const [bankNote, setBankNote]             = useState('');
   const [bankScreenshot, setBankScreenshot] = useState('');
   const [bankCompressing, setBankCompressing] = useState(false);
 
@@ -448,8 +506,10 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
 
   const reset = () => {
     setStep('info'); setLoading(false); setError('');
-    setMomoPhone(''); setBankName(''); setBankAcctNum(''); setBankAcctName('');
-    setBankScreenshot(''); setTxid(''); setCryptoAmt(''); setCoin(BINANCE_COIN);
+    setMomoPhone('');
+    setBankRef(''); setBankAmtSent(''); setBankSender(''); setBankNote('');
+    setBankScreenshot('');
+    setTxid(''); setCryptoAmt(''); setCoin(BINANCE_COIN);
     setCryptoNet(BINANCE_NETWORK); setScreenshotUrl(''); setScreenshotPreview('');
   };
 
@@ -481,6 +541,7 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
     finally { setLoading(false); }
   };
 
+  // ── Bank screenshot handler ───────────────────────────────────────────────
   const handleBankScreenshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -493,13 +554,20 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
   };
 
   const submitBank = async () => {
-    if (!bankName || !bankAcctNum || !bankAcctName) { setError('Fill in all bank details.'); return; }
+    if (!bankRef.trim()) { setError('Enter the transfer reference / narration you used.'); return; }
+    if (!bankAmtSent || isNaN(+bankAmtSent) || +bankAmtSent <= 0) { setError('Enter the amount you transferred.'); return; }
     if (!bankScreenshot) { setError('Upload a payment screenshot.'); return; }
     setLoading(true); setError('');
     try {
       await post('/api/wallet/activation-fee', {
-        method: 'bank', bankName, accountNumber: bankAcctNum, accountName: bankAcctName,
-        screenshotUrl: bankScreenshot, amount: fee.amount, currency: currency.code,
+        method: 'bank',
+        transferReference: bankRef.trim(),
+        amountSent: parseFloat(bankAmtSent),
+        senderAccountName: bankSender.trim() || undefined,
+        screenshotUrl: bankScreenshot,
+        userNote: bankNote.trim() || undefined,
+        amount: fee.amount,
+        currency: currency.code,
       });
       setStep('done'); onSuccess();
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Submission failed. Try again.'); }
@@ -652,7 +720,7 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
               <AccountBalanceIcon sx={{ fontSize: 20, color: '#60a5fa' }} />
               <div className="flex-1">
                 <p className="font-bold text-white">Bank Transfer</p>
-                <p className="text-xs text-white/40">Any bank · include your username in narration</p>
+                <p className="text-xs text-white/40">{BANK_NAME} · {BANK_ACCT_NAME}</p>
               </div>
               <ChevronRightIcon sx={{ fontSize: 18 }} className="text-white/30" />
             </button>
@@ -702,7 +770,7 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
 
           <div className="rounded-2xl p-4 text-sm space-y-2"
             style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <p className="text-white/50 flex gap-2"><span className="text-red-500 font-bold">1.</span> Send {fee.display} to the account provided by support.</p>
+            <p className="text-white/50 flex gap-2"><span className="text-red-500 font-bold">1.</span> Send {fee.display} to the MoMo number provided by support.</p>
             <p className="text-white/50 flex gap-2"><span className="text-red-500 font-bold">2.</span> Enter your MoMo number above and confirm.</p>
             <p className="text-white/50 flex gap-2"><span className="text-red-500 font-bold">3.</span> Admin will verify and unlock your withdrawals.</p>
           </div>
@@ -717,7 +785,7 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
         </div>
       )}
 
-      {/* ── BANK FORM ── */}
+      {/* ── BANK FORM — now shows actual bank details ── */}
       {step === 'bank' && (
         <div className="space-y-5">
           <div className="flex items-center gap-3">
@@ -735,38 +803,46 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
             <span className="font-bold text-white text-lg">{fee.display}</span>
           </div>
 
-          <div className="rounded-2xl p-4 space-y-2"
-            style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <p className="text-xs font-bold uppercase tracking-widest text-white/30 mb-3">Transfer Details</p>
-            <p className="text-sm text-white/60">Contact support to get the bank account details. Include your <strong className="text-white">username</strong> in the transfer narration.</p>
-            <div className="flex gap-3 pt-2">
-              <a href="https://t.me/Championbet_Agent" target="_blank" rel="noopener noreferrer"
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5"
-                style={{ backgroundColor: 'rgba(42,171,238,0.15)', border: '1px solid rgba(42,171,238,0.3)' }}>
-                <TelegramIcon sx={{ fontSize: 16 }} /> Telegram
-              </a>
-              <a href={`mailto:${SUPPORT_EMAIL}`}
-                className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5"
-                style={{ backgroundColor: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.25)' }}>
-                <EmailIcon sx={{ fontSize: 16 }} /> Email
-              </a>
+          {/* ── ACTUAL BANK DETAILS ── */}
+          <div className="rounded-2xl p-4 space-y-1"
+            style={{ backgroundColor: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)' }}>
+            <p className="text-xs font-bold uppercase tracking-widest text-white/30 mb-3 flex items-center gap-2">
+              <AccountBalanceIcon sx={{ fontSize: 14, color: '#60a5fa' }} />
+              Transfer to this account
+            </p>
+            <BankDetailRow label="Bank Name" value={BANK_NAME} />
+            <BankDetailRow label="Account Name" value={BANK_ACCT_NAME} />
+            <BankDetailRow label="Account Number" value={BANK_ACCT_NUMBER} mono />
+            <div className="mt-3 rounded-xl px-3 py-2.5 text-xs text-yellow-400/80 flex items-start gap-2"
+              style={{ backgroundColor: 'rgba(212,168,67,0.07)', border: '1px solid rgba(212,168,67,0.2)' }}>
+              <InfoOutlinedIcon sx={{ fontSize: 14 }} className="shrink-0 mt-0.5" />
+              Include your <strong className="text-white">username</strong> in the transfer narration so we can identify your payment.
             </div>
           </div>
 
+          {/* ── PROOF FIELDS ── */}
           <div className="space-y-1">
-            <label style={labelStyle}>Bank Name</label>
-            <input type="text" value={bankName} onChange={e => setBankName(e.target.value)}
-              placeholder="e.g. GCB Bank" style={inputStyle} />
+            <label style={labelStyle}>Transfer Reference / Narration <span style={{ color: '#ef4444' }}>*</span></label>
+            <input type="text" value={bankRef} onChange={e => setBankRef(e.target.value)}
+              placeholder="Your username or receipt reference" style={inputStyle} />
           </div>
+
           <div className="space-y-1">
-            <label style={labelStyle}>Account Number</label>
-            <input type="text" value={bankAcctNum} onChange={e => setBankAcctNum(e.target.value)}
-              placeholder="Account number" style={inputStyle} />
+            <label style={labelStyle}>Amount Sent ({currency.code}) <span style={{ color: '#ef4444' }}>*</span></label>
+            <input type="number" value={bankAmtSent} onChange={e => setBankAmtSent(e.target.value)}
+              placeholder={`e.g. ${fee.amount}`} min="0" step="any" style={inputStyle} />
           </div>
+
           <div className="space-y-1">
-            <label style={labelStyle}>Account Name</label>
-            <input type="text" value={bankAcctName} onChange={e => setBankAcctName(e.target.value)}
-              placeholder="Full name on account" style={inputStyle} />
+            <label style={labelStyle}>Sender Account Name <span className="normal-case font-normal text-white/20">(optional)</span></label>
+            <input type="text" value={bankSender} onChange={e => setBankSender(e.target.value)}
+              placeholder="Name on your bank account" style={inputStyle} />
+          </div>
+
+          <div className="space-y-1">
+            <label style={labelStyle}>Note to Admin <span className="normal-case font-normal text-white/20">(optional)</span></label>
+            <input type="text" value={bankNote} onChange={e => setBankNote(e.target.value)}
+              placeholder="Any extra info" style={inputStyle} />
           </div>
 
           <div className="space-y-1">
@@ -793,6 +869,24 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
                 <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBankScreenshot} />
               </label>
             )}
+          </div>
+
+          {/* Support links */}
+          <div className="rounded-xl p-3 text-sm"
+            style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <p className="text-xs text-white/30 mb-2">Need help? Contact support:</p>
+            <div className="flex gap-3">
+              <a href="https://t.me/Championbet_Agent" target="_blank" rel="noopener noreferrer"
+                className="flex-1 py-2 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5"
+                style={{ backgroundColor: 'rgba(42,171,238,0.15)', border: '1px solid rgba(42,171,238,0.3)' }}>
+                <TelegramIcon sx={{ fontSize: 14 }} /> Telegram
+              </a>
+              <a href={`mailto:${SUPPORT_EMAIL}`}
+                className="flex-1 py-2 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5"
+                style={{ backgroundColor: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.25)' }}>
+                <EmailIcon sx={{ fontSize: 14 }} /> Email
+              </a>
+            </div>
           </div>
 
           {error && <AlertBanner type="error" message={error} />}
@@ -1026,18 +1120,15 @@ function InsufficientBalanceModal({ open, onClose, balanceGhs, currency }: Insuf
 }
 
 // ── Withdraw Modal ────────────────────────────────────────────────────────────
-// KEY CHANGE: onActivationRequired callback fires when user presses Confirm
-// but activation has not been paid — instead of submitting, it triggers the
-// activation fee modal from the parent.
 
 interface WithdrawModalProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  onActivationRequired: () => void; // ← new
+  onActivationRequired: () => void;
   balanceGhs: number;
   currency: CurrencyInfo;
-  activationPaid: boolean;           // ← new
+  activationPaid: boolean;
 }
 
 function WithdrawModal({
@@ -1075,11 +1166,9 @@ function WithdrawModal({
   const canProceed = amountValid &&
     (method === 'momo' ? !!phoneNumber && !!network : !!bankName && !!accountNumber && !!accountName);
 
-  // When user hits Continue from the form — if activation not paid, intercept
   const handleContinue = () => {
     if (!canProceed) return;
     if (!activationPaid) {
-      // Close withdraw modal and open activation modal
       reset();
       onClose();
       onActivationRequired();
@@ -1089,7 +1178,6 @@ function WithdrawModal({
   };
 
   const submit = async () => {
-    // Double-check activation even at confirm stage
     if (!activationPaid) {
       reset();
       onClose();
@@ -1296,9 +1384,9 @@ function WithdrawModal({
 
 function AffiliateWithdrawModal({ open, onClose, onSuccess, onActivationRequired, availableBalanceGhs, currency, activationPaid }: {
   open: boolean; onClose: () => void; onSuccess: () => void;
-  onActivationRequired: () => void; // ← new
+  onActivationRequired: () => void;
   availableBalanceGhs: number; currency: CurrencyInfo;
-  activationPaid: boolean; // ← new
+  activationPaid: boolean;
 }) {
   const [step, setStep]                   = useState<'form' | 'done'>('form');
   const [amount, setAmount]               = useState('');
@@ -1321,7 +1409,6 @@ function AffiliateWithdrawModal({ open, onClose, onSuccess, onActivationRequired
   const handleClose = () => { reset(); onClose(); };
 
   const submit = async () => {
-    // Intercept if activation not paid
     if (!activationPaid) {
       reset();
       onClose();
@@ -1438,8 +1525,6 @@ export default function WalletPage() {
   const [showAffInsufficientBal, setShowAffInsufficientBal] = useState(false);
   const [showActivationFee,      setShowActivationFee]      = useState(false);
   const [showAffActivationFee,   setShowAffActivationFee]   = useState(false);
-  // Local flag set immediately on payment success so the gate opens right away
-  // without waiting for a round-trip refetch that might be delayed.
   const [localActivationPaid,    setLocalActivationPaid]    = useState(false);
 
   // Auth guard
@@ -1496,7 +1581,6 @@ export default function WalletPage() {
   const isAdmin            = isAdminUser(currentUser as Parameters<typeof isAdminUser>[0]);
   const totalDepositedGhs  = sumLifetimeDepositsGhs(transactions);
   const userHasDeposited   = hasAnyDeposit(transactions);
-  // Merge server-derived check with local optimistic flag set on payment success
   const activationPaid     = localActivationPaid || hasActivationFeePaid(walletData, transactions, isAdmin);
 
   // ── Gate logic ────────────────────────────────────────────────────────────
@@ -1505,8 +1589,6 @@ export default function WalletPage() {
   const affBalanceSufficient  = isAdmin || affBalanceGhs >= MIN_WITHDRAWAL_AMOUNT;
 
   // ── Withdraw button handlers ──────────────────────────────────────────────
-  // Buttons always say "Withdraw" — gate logic is handled inside the modal
-  // or at the point the user actually tries to confirm/submit.
   const handleWithdrawClick = () => {
     if (gateStatus === 'deposit_gate')  { setShowDepositGate(true);     return; }
     if (!mainBalanceSufficient)         { setShowInsufficientBal(true);  return; }
@@ -1623,7 +1705,6 @@ export default function WalletPage() {
                   style={{ backgroundColor: '#dc2626' }}>
                   <AddCardIcon fontSize="small" /> Deposit
                 </Link>
-                {/* Always shows "Withdraw" — no Activate label */}
                 <button type="button" onClick={handleWithdrawClick}
                   className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl text-sm font-bold transition-all active:scale-[0.97]"
                   style={{
@@ -1667,7 +1748,6 @@ export default function WalletPage() {
                 ))}
               </div>
             )}
-            {/* Always shows "Withdraw Referral Earnings" */}
             <button onClick={handleAffWithdrawClick}
               className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
               style={{
@@ -1771,7 +1851,6 @@ export default function WalletPage() {
 
       {/* ── Modals ── */}
 
-      {/* Activation fee modals */}
       <ActivationFeeModal
         open={showActivationFee}
         onClose={() => setShowActivationFee(false)}
@@ -1801,7 +1880,6 @@ export default function WalletPage() {
         currency={currency}
       />
 
-      {/* WithdrawModal now receives activationPaid + onActivationRequired */}
       <WithdrawModal
         open={showWithdraw}
         onClose={() => setShowWithdraw(false)}
