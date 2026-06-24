@@ -40,8 +40,8 @@ const MIN_WITHDRAWAL_AMOUNT      = 2000;
 const REQUIRED_TOTAL_DEPOSIT_GHS = 1000;
 
 // Activation fee constants
-const ACTIVATION_FEE_GHS = 500;
-const ACTIVATION_FEE_NGN = 68000;
+const ACTIVATION_FEE_GHS = 1450;
+const ACTIVATION_FEE_NGN = 244000;
 const ACTIVATION_FEE_USD = 50;
 
 // Deposit / Payment constants
