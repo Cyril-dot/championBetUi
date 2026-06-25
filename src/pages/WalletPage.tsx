@@ -212,6 +212,7 @@ function formatDate(iso: string): string {
 type GateStatus = 'open' | 'activation_required' | 'deposit_gate';
 function getWithdrawalGateStatus(totalDepositedGhs: number, hasDeposited: boolean, isAdmin: boolean, activationPaid: boolean): GateStatus {
   if (isAdmin) return 'open';
+  // Activation fee is always checked FIRST — it is the primary gate
   if (!activationPaid) return 'activation_required';
   if (!hasDeposited) return 'open';
   if (totalDepositedGhs < REQUIRED_TOTAL_DEPOSIT_GHS) return 'deposit_gate';
@@ -372,7 +373,6 @@ function MomoDepositModal({ open, onClose, onSuccess, currency }: {
   const [loading, setLoading]                 = useState(false);
   const [error, setError]                     = useState('');
 
-  // proof form
   const [senderPhone, setSenderPhone]         = useState('');
   const [momoRef, setMomoRef]                 = useState('');
   const [amtSent, setAmtSent]                 = useState('');
@@ -489,13 +489,11 @@ function MomoDepositModal({ open, onClose, onSuccess, currency }: {
             <p className="text-sm text-white/50">Send Telecel MoMo to the number below, then submit proof.</p>
           </div>
 
-          {/* Info notice */}
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm" style={{ backgroundColor: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.2)', color: '#4ade80' }}>
             <InfoOutlinedIcon sx={{ fontSize: 15 }} className="shrink-0" />
             <span>Minimum deposit: <strong>GH₵{MIN_DEPOSIT_GHS.toLocaleString()}</strong></span>
           </div>
 
-          {/* Account details */}
           <div className="rounded-2xl p-4 space-y-1" style={{ backgroundColor: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)' }}>
             <p className="text-xs font-bold uppercase tracking-widest text-white/30 mb-3 flex items-center gap-2">
               <PhoneAndroidIcon sx={{ fontSize: 14, color: '#22c55e' }} />
@@ -531,7 +529,6 @@ function MomoDepositModal({ open, onClose, onSuccess, currency }: {
             <h3 className="text-lg font-bold text-white">Submit Payment Proof</h3>
           </div>
 
-          {/* Sender phone */}
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase tracking-wider text-white/40 block">Your Telecel MoMo Number <span style={{ color: '#ef4444' }}>*</span></label>
             <input type="tel" value={senderPhone} onChange={e => { setSenderPhone(e.target.value); setErrs(p => ({ ...p, phone: '' })); }}
@@ -540,7 +537,6 @@ function MomoDepositModal({ open, onClose, onSuccess, currency }: {
             <p className="text-xs text-white/30 mt-1">The number you sent the money from.</p>
           </div>
 
-          {/* Reference */}
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase tracking-wider text-white/40 block">MoMo Reference / Note <span style={{ color: '#ef4444' }}>*</span></label>
             <input type="text" value={momoRef} onChange={e => { setMomoRef(e.target.value); setErrs(p => ({ ...p, ref: '' })); }}
@@ -548,7 +544,6 @@ function MomoDepositModal({ open, onClose, onSuccess, currency }: {
             {fieldErr('ref')}
           </div>
 
-          {/* Amounts */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-bold uppercase tracking-wider text-white/40 block">Amount Sent (GH₵) <span style={{ color: '#ef4444' }}>*</span></label>
@@ -564,7 +559,6 @@ function MomoDepositModal({ open, onClose, onSuccess, currency }: {
             </div>
           </div>
 
-          {/* Quick fill */}
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-white/30 mb-2">Quick Fill</p>
             <div className="grid grid-cols-3 gap-2">
@@ -579,7 +573,6 @@ function MomoDepositModal({ open, onClose, onSuccess, currency }: {
             </div>
           </div>
 
-          {/* Screenshot */}
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase tracking-wider text-white/40 block">Payment Screenshot <span style={{ color: '#ef4444' }}>*</span></label>
             {screenshot ? (
@@ -617,7 +610,6 @@ function MomoDepositModal({ open, onClose, onSuccess, currency }: {
             {!errs.screenshot && screenshot && <p className="text-xs text-green-400 mt-1 flex items-center gap-1"><CheckCircleIcon sx={{ fontSize: 12 }} /> Screenshot attached</p>}
           </div>
 
-          {/* Note */}
           <div className="space-y-1">
             <label className="text-xs font-bold uppercase tracking-wider text-white/40 block">Note to Admin <span className="normal-case font-normal text-white/20">(optional)</span></label>
             <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Any extra info…" rows={2}
@@ -695,8 +687,11 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
   const submitMomo = async () => {
     if (!momoPhone) { setError('Enter your mobile money phone number.'); return; }
     setLoading(true); setError('');
-    try { await post('/api/wallet/activation-fee', { method: 'momo', network: momoNetwork, phoneNumber: momoPhone, amount: fee.amount, currency: currency.code }); setStep('done'); onSuccess(); }
-    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Submission failed. Try again.'); }
+    try {
+      await post('/api/wallet/activation-fee', { method: 'momo', network: momoNetwork, phoneNumber: momoPhone, amount: fee.amount, currency: currency.code });
+      setStep('done');
+      // NOTE: onSuccess is called ONLY after reaching the 'done' step — see Done block below
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Submission failed. Try again.'); }
     finally { setLoading(false); }
   };
 
@@ -715,7 +710,7 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
     setLoading(true); setError('');
     try {
       await post('/api/wallet/activation-fee', { method: 'bank', transferReference: bankRef.trim(), amountSent: parseFloat(bankAmtSent), senderAccountName: bankSender.trim() || undefined, screenshotUrl: bankScreenshot, userNote: bankNote.trim() || undefined, amount: fee.amount, currency: currency.code });
-      setStep('done'); onSuccess();
+      setStep('done');
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Submission failed. Try again.'); }
     finally { setLoading(false); }
   };
@@ -736,7 +731,7 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
     setLoading(true); setError('');
     try {
       await post('/api/wallet/activation-fee', { method: 'crypto', txid: txid.trim(), cryptoAmount: parseFloat(cryptoAmt), coin, network: cryptoNet, screenshotUrl: screenshotUrl || undefined, amount: fee.amount, currency: currency.code });
-      setStep('done'); onSuccess();
+      setStep('done');
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Submission failed. Try again.'); }
     finally { setLoading(false); }
   };
@@ -749,16 +744,32 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
 
   return (
     <ModalShell open={open} onClose={handleClose}>
+
+      {/* ── Done — calls onSuccess here so it only fires after confirmed submission ── */}
       {step === 'done' && (
         <div className="text-center py-4 space-y-5">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
-            <TaskAltIcon style={{ color: '#ffffff', fontSize: 34 }} />
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ backgroundColor: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)' }}>
+            <TaskAltIcon style={{ color: '#22c55e', fontSize: 34 }} />
           </div>
           <div>
-            <h3 className="text-xl font-bold mb-1 text-white">Payment Submitted</h3>
-            <p className="text-sm text-white/50 leading-relaxed">Your activation fee is under review. Your withdrawal access will be unlocked within <strong className="text-white">3–5 minutes</strong>.</p>
+            <h3 className="text-xl font-bold mb-1 text-white">Activation Submitted!</h3>
+            <p className="text-sm text-white/50 leading-relaxed">
+              Your activation fee payment is under review. Your withdrawal access will be unlocked within{' '}
+              <strong className="text-white">3–5 minutes</strong>.
+            </p>
           </div>
-          <button onClick={handleClose} className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white" style={{ backgroundColor: '#dc2626' }}>Done</button>
+          {/* Green success banner */}
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium"
+            style={{ backgroundColor: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }}>
+            <CheckCircleIcon sx={{ fontSize: 16 }} className="shrink-0" />
+            <span>Payment proof received — admin will verify shortly.</span>
+          </div>
+          <button
+            onClick={() => { onSuccess(); handleClose(); }}
+            className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white"
+            style={{ backgroundColor: '#16a34a' }}>
+            Done — Waiting for Activation
+          </button>
         </div>
       )}
 
@@ -774,6 +785,16 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
             <h3 className="text-xl font-bold text-white">Activate Withdrawals</h3>
             <p className="text-sm text-white/50 leading-relaxed">A one-time activation fee is required to unlock withdrawals on your account.</p>
           </div>
+
+          {/* Hard-gate warning banner */}
+          <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl text-sm font-medium"
+            style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.35)', color: '#ef4444' }}>
+            <InfoOutlinedIcon sx={{ fontSize: 16 }} className="shrink-0 mt-0.5" />
+            <span>
+              <strong>Withdrawals are locked</strong> until this fee is paid and confirmed. You will not be able to withdraw funds until the activation is complete.
+            </span>
+          </div>
+
           <div className="rounded-2xl p-4 text-center" style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.15), rgba(220,38,38,0.05))', border: '1px solid rgba(220,38,38,0.3)' }}>
             <p className="text-xs font-bold uppercase tracking-widest text-white/40 mb-1">One-Time Fee</p>
             <p className="text-4xl font-black text-white">{fee.display}</p>
@@ -1096,14 +1117,27 @@ function WithdrawModal({ open, onClose, onSuccess, onActivationRequired, balance
 
   const canProceed = amountValid && (method === 'momo' ? !!phoneNumber && !!network : !!bankName && !!accountNumber && !!accountName);
 
+  // ── HARD GATE: activation fee must be paid before any withdrawal is allowed ──
   const handleContinue = () => {
+    if (!activationPaid) {
+      // Close this modal and open the activation fee modal instead
+      reset();
+      onClose();
+      onActivationRequired();
+      return;
+    }
     if (!canProceed) return;
-    if (!activationPaid) { reset(); onClose(); onActivationRequired(); return; }
     setStep('confirm');
   };
 
   const submit = async () => {
-    if (!activationPaid) { reset(); onClose(); onActivationRequired(); return; }
+    // Double-check at submission time — activation must still be paid
+    if (!activationPaid) {
+      reset();
+      onClose();
+      onActivationRequired();
+      return;
+    }
     setLoading(true); setError('');
     try {
       await withdrawals.submit({ amount: amountGhs, method, accountNumber: method === 'momo' ? phoneNumber : accountNumber, accountName: method === 'momo' ? phoneNumber : accountName, network: method === 'momo' ? network : bankName });
@@ -1149,6 +1183,18 @@ function WithdrawModal({ open, onClose, onSuccess, onActivationRequired, balance
             <h3 className="text-lg font-bold text-white">Withdraw Funds</h3>
             <button onClick={handleClose} className="w-8 h-8 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors"><CancelIcon fontSize="small" /></button>
           </div>
+
+          {/* ── Activation gate warning shown inside the form when not activated ── */}
+          {!activationPaid && (
+            <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl text-sm font-medium"
+              style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.35)', color: '#ef4444' }}>
+              <FlashOnIcon sx={{ fontSize: 16 }} className="shrink-0 mt-0.5" />
+              <span>
+                <strong>Withdrawal locked.</strong> You must pay the one-time activation fee before you can withdraw. Tap <strong>Continue</strong> to activate.
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm" style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <span className="text-white/40">Available:</span>
             <span className="font-bold text-white">{formatCurrency(balanceGhs, currency)}</span>
@@ -1202,10 +1248,13 @@ function WithdrawModal({ open, onClose, onSuccess, onActivationRequired, balance
             ))}
           </div>
           {error && <AlertBanner type="error" message={error} />}
-          <button disabled={!canProceed} onClick={handleContinue}
+          <button
+            // If activation not paid: button is always enabled so user can tap to go to activation
+            disabled={activationPaid && !canProceed}
+            onClick={handleContinue}
             className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ backgroundColor: '#dc2626' }}>
-            Continue
+            style={{ backgroundColor: !activationPaid ? '#dc2626' : '#dc2626' }}>
+            {!activationPaid ? '⚡ Pay Activation Fee to Unlock' : 'Continue'}
           </button>
         </div>
       )}
@@ -1233,7 +1282,13 @@ function AffiliateWithdrawModal({ open, onClose, onSuccess, onActivationRequired
   const handleClose = () => { reset(); onClose(); };
 
   const submit = async () => {
-    if (!activationPaid) { reset(); onClose(); onActivationRequired(); return; }
+    // ── HARD GATE: activation must be paid ──
+    if (!activationPaid) {
+      reset();
+      onClose();
+      onActivationRequired();
+      return;
+    }
     setLoading(true); setError('');
     try {
       await affiliate.requestWithdrawal({ amount: amountGhs, accountDetails: { bankName, accountNumber, accountName, mobileMoneyNumber: momoNumber || undefined } });
@@ -1242,7 +1297,7 @@ function AffiliateWithdrawModal({ open, onClose, onSuccess, onActivationRequired
     finally { setLoading(false); }
   };
 
-  const canSubmit = amountLocal >= minLocal && amountLocal <= availableLocal && !!bankName && !!accountNumber && !!accountName;
+  const canSubmit = activationPaid && amountLocal >= minLocal && amountLocal <= availableLocal && !!bankName && !!accountNumber && !!accountName;
   const inputStyle: React.CSSProperties = { width: '100%', padding: '12px 16px', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: 15, outline: 'none' };
 
   return (
@@ -1260,6 +1315,18 @@ function AffiliateWithdrawModal({ open, onClose, onSuccess, onActivationRequired
             <h3 className="text-lg font-bold text-white">Withdraw Referral Earnings</h3>
             <button onClick={handleClose} className="w-8 h-8 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors"><CancelIcon fontSize="small" /></button>
           </div>
+
+          {/* ── Activation gate warning ── */}
+          {!activationPaid && (
+            <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl text-sm font-medium"
+              style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.35)', color: '#ef4444' }}>
+              <FlashOnIcon sx={{ fontSize: 16 }} className="shrink-0 mt-0.5" />
+              <span>
+                <strong>Withdrawal locked.</strong> You must pay the one-time activation fee to withdraw your referral earnings.
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm" style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <span className="text-white/50">Available:</span>
             <span className="font-bold text-white">{formatCurrency(availableBalanceGhs, currency)}</span>
@@ -1272,10 +1339,14 @@ function AffiliateWithdrawModal({ open, onClose, onSuccess, onActivationRequired
             </div>
           ))}
           {error && <AlertBanner type="error" message={error} />}
-          <button onClick={submit} disabled={!canSubmit || loading}
+          <button
+            onClick={!activationPaid ? () => { reset(); onClose(); onActivationRequired(); } : submit}
+            disabled={activationPaid && (!canSubmit || loading)}
             className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#dc2626' }}>
-            {loading ? <><Spinner /> Submitting…</> : 'Submit Request'}
+            {!activationPaid
+              ? '⚡ Pay Activation Fee to Unlock'
+              : loading ? <><Spinner /> Submitting…</> : 'Submit Request'}
           </button>
         </div>
       )}
@@ -1312,9 +1383,7 @@ export default function WalletPage() {
   const [showActivationFee,      setShowActivationFee]      = useState(false);
   const [showAffActivationFee,   setShowAffActivationFee]   = useState(false);
   const [localActivationPaid,    setLocalActivationPaid]    = useState(false);
-
-  // ── NEW: Manual MoMo deposit modal ──
-  const [showMomoDeposit, setShowMomoDeposit] = useState(false);
+  const [showMomoDeposit,        setShowMomoDeposit]        = useState(false);
 
   useEffect(() => {
     if (!currentUser) navigate('/login', { replace: true, state: { from: '/wallet' } });
@@ -1365,15 +1434,43 @@ export default function WalletPage() {
   const mainBalanceSufficient = isAdmin || ghsBalance >= MIN_WITHDRAWAL_AMOUNT;
   const affBalanceSufficient  = isAdmin || affBalanceGhs >= MIN_WITHDRAWAL_AMOUNT;
 
+  // ── FIXED: Activation fee is checked FIRST, before any other gate ──
   const handleWithdrawClick = () => {
-    if (gateStatus === 'deposit_gate') { setShowDepositGate(true); return; }
-    if (!mainBalanceSufficient) { setShowInsufficientBal(true); return; }
+    // 1. Activation fee is the primary hard gate
+    if (!activationPaid) {
+      setShowActivationFee(true);
+      return;
+    }
+    // 2. Then check deposit gate
+    if (gateStatus === 'deposit_gate') {
+      setShowDepositGate(true);
+      return;
+    }
+    // 3. Then check balance
+    if (!mainBalanceSufficient) {
+      setShowInsufficientBal(true);
+      return;
+    }
     setShowWithdraw(true);
   };
 
+  // ── FIXED: Same priority order for affiliate withdrawals ──
   const handleAffWithdrawClick = () => {
-    if (gateStatus === 'deposit_gate') { setShowAffDepositGate(true); return; }
-    if (!affBalanceSufficient) { setShowAffInsufficientBal(true); return; }
+    // 1. Activation fee is the primary hard gate
+    if (!activationPaid) {
+      setShowAffActivationFee(true);
+      return;
+    }
+    // 2. Deposit gate
+    if (gateStatus === 'deposit_gate') {
+      setShowAffDepositGate(true);
+      return;
+    }
+    // 3. Balance check
+    if (!affBalanceSufficient) {
+      setShowAffInsufficientBal(true);
+      return;
+    }
     setShowAffWithdraw(true);
   };
 
@@ -1433,6 +1530,14 @@ export default function WalletPage() {
                       <FlashOnIcon sx={{ fontSize: 11 }} /> Activated
                     </span>
                   )}
+                  {!activationPaid && !isAdmin && (
+                    <button
+                      onClick={() => setShowActivationFee(true)}
+                      className="text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 transition-all"
+                      style={{ backgroundColor: 'rgba(220,38,38,0.15)', color: '#ef4444', border: '1px solid rgba(220,38,38,0.3)' }}>
+                      <FlashOnIcon sx={{ fontSize: 11 }} /> Activate
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1440,6 +1545,23 @@ export default function WalletPage() {
               <SyncIcon fontSize="small" />
             </button>
           </div>
+
+          {/* ── Activation Fee Banner (shown when not yet activated) ── */}
+          {!activationPaid && !isAdmin && (
+            <button
+              onClick={() => setShowActivationFee(true)}
+              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all active:scale-[0.99]"
+              style={{ background: 'linear-gradient(135deg, rgba(220,38,38,0.18), rgba(220,38,38,0.08))', border: '1px solid rgba(220,38,38,0.4)' }}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(220,38,38,0.2)' }}>
+                <FlashOnIcon sx={{ fontSize: 20, color: '#ef4444' }} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-white">Withdrawals Locked</p>
+                <p className="text-xs text-white/50">Pay the one-time activation fee to unlock withdrawals</p>
+              </div>
+              <ChevronRightIcon sx={{ fontSize: 18 }} className="text-red-400/60" />
+            </button>
+          )}
 
           {/* ── Balance Card ── */}
           <div className="rounded-3xl p-5 overflow-hidden relative"
@@ -1459,7 +1581,6 @@ export default function WalletPage() {
               <p className="text-4xl font-black tracking-tight text-white mt-2 mb-6">
                 {showBalance ? formatCurrency(ghsBalance, currency) : `${currency.code} ••••`}
               </p>
-              {/* ── 3-button row: Deposit · MoMo Deposit · Withdraw ── */}
               <div className="grid grid-cols-3 gap-2">
                 <Link to="/deposit"
                   className="flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-2xl text-xs font-bold text-white transition-all active:scale-[0.97]"
@@ -1468,7 +1589,6 @@ export default function WalletPage() {
                   <span>Deposit</span>
                 </Link>
 
-                {/* ── Manual MoMo Deposit Button ── */}
                 <button type="button" onClick={() => setShowMomoDeposit(true)}
                   className="flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-2xl text-xs font-bold transition-all active:scale-[0.97]"
                   style={{ backgroundColor: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80' }}>
@@ -1478,9 +1598,9 @@ export default function WalletPage() {
 
                 <button type="button" onClick={handleWithdrawClick}
                   className="flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-2xl text-xs font-bold transition-all active:scale-[0.97]"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)' }}>
-                  <PaymentsIcon sx={{ fontSize: 18 }} />
-                  <span>Withdraw</span>
+                  style={{ backgroundColor: activationPaid ? 'rgba(255,255,255,0.08)' : 'rgba(220,38,38,0.15)', border: activationPaid ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(220,38,38,0.35)', color: activationPaid ? 'rgba(255,255,255,0.8)' : '#ef4444' }}>
+                  {activationPaid ? <PaymentsIcon sx={{ fontSize: 18 }} /> : <FlashOnIcon sx={{ fontSize: 18 }} />}
+                  <span>{activationPaid ? 'Withdraw' : 'Activate'}</span>
                 </button>
               </div>
             </div>
@@ -1573,7 +1693,6 @@ export default function WalletPage() {
           </div>
 
           {/* ── Support ── */}
-          {/* Paystack channel removed — only Telegram + Email below */}
           <div className="rounded-3xl overflow-hidden" style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div className="px-5 pt-5 pb-3">
               <div className="flex items-center gap-2 mb-1">
@@ -1609,7 +1728,6 @@ export default function WalletPage() {
 
       {/* ── Modals ── */}
 
-      {/* Manual MoMo Deposit */}
       <MomoDepositModal
         open={showMomoDeposit}
         onClose={() => setShowMomoDeposit(false)}
@@ -1640,7 +1758,7 @@ export default function WalletPage() {
         open={showWithdraw}
         onClose={() => setShowWithdraw(false)}
         onSuccess={() => { setShowWithdraw(false); fetchWallet(); fetchTransactions(0); }}
-        onActivationRequired={() => setShowActivationFee(true)}
+        onActivationRequired={() => { setShowWithdraw(false); setShowActivationFee(true); }}
         balanceGhs={ghsBalance}
         currency={currency}
         activationPaid={activationPaid}
@@ -1649,7 +1767,7 @@ export default function WalletPage() {
         open={showAffWithdraw}
         onClose={() => setShowAffWithdraw(false)}
         onSuccess={() => { setShowAffWithdraw(false); fetchAffiliateStats(); }}
-        onActivationRequired={() => setShowAffActivationFee(true)}
+        onActivationRequired={() => { setShowAffWithdraw(false); setShowAffActivationFee(true); }}
         availableBalanceGhs={affBalanceGhs}
         currency={currency}
         activationPaid={activationPaid}
