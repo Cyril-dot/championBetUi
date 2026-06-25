@@ -1315,8 +1315,13 @@ export default function WalletPage() {
   const gateStatus        = getWithdrawalGateStatus(totalDepositedGhs, userHasDeposited, isAdmin, activationPaid);
   const mainBalanceSufficient = isAdmin || ghsBalance >= MIN_WITHDRAWAL_AMOUNT;
 
+  // ── KEY CHANGE: activation UI is only shown after the user has made their first deposit ──
+  const showActivationUI  = userHasDeposited && !activationPaid && !isAdmin;
+
   const handleWithdrawClick = () => {
-    if (!activationPaid) {
+    // If user hasn't deposited yet, just open the withdraw modal normally
+    // (they'll be guided to deposit first via other flows)
+    if (!activationPaid && userHasDeposited) {
       setShowActivationFee(true);
       return;
     }
@@ -1382,12 +1387,14 @@ export default function WalletPage() {
                   {isAdmin && (
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(139,92,246,0.15)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.3)' }}>Admin</span>
                   )}
-                  {activationPaid && !isAdmin && (
+                  {/* "Activated" badge — only show after first deposit and once paid */}
+                  {activationPaid && !isAdmin && userHasDeposited && (
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)' }}>
                       <FlashOnIcon sx={{ fontSize: 11 }} /> Activated
                     </span>
                   )}
-                  {!activationPaid && !isAdmin && (
+                  {/* "Activate" badge — only show after first deposit and not yet paid */}
+                  {showActivationUI && (
                     <button
                       onClick={() => setShowActivationFee(true)}
                       className="text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-0.5 transition-all"
@@ -1403,8 +1410,8 @@ export default function WalletPage() {
             </button>
           </div>
 
-          {/* ── Activation Fee Banner ── */}
-          {!activationPaid && !isAdmin && (
+          {/* ── Activation Fee Banner — only shown after first deposit ── */}
+          {showActivationUI && (
             <button
               onClick={() => setShowActivationFee(true)}
               className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all active:scale-[0.99]"
@@ -1455,9 +1462,22 @@ export default function WalletPage() {
 
                 <button type="button" onClick={handleWithdrawClick}
                   className="flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-2xl text-xs font-bold transition-all active:scale-[0.97]"
-                  style={{ backgroundColor: activationPaid ? 'rgba(255,255,255,0.08)' : 'rgba(220,38,38,0.15)', border: activationPaid ? '1px solid rgba(255,255,255,0.15)' : '1px solid rgba(220,38,38,0.35)', color: activationPaid ? 'rgba(255,255,255,0.8)' : '#ef4444' }}>
-                  {activationPaid ? <PaymentsIcon sx={{ fontSize: 18 }} /> : <FlashOnIcon sx={{ fontSize: 18 }} />}
-                  <span>{activationPaid ? 'Withdraw' : 'Activate'}</span>
+                  style={{
+                    // Show locked style only when user has deposited but activation not paid
+                    backgroundColor: (showActivationUI)
+                      ? 'rgba(220,38,38,0.15)'
+                      : 'rgba(255,255,255,0.08)',
+                    border: (showActivationUI)
+                      ? '1px solid rgba(220,38,38,0.35)'
+                      : '1px solid rgba(255,255,255,0.15)',
+                    color: (showActivationUI)
+                      ? '#ef4444'
+                      : 'rgba(255,255,255,0.8)',
+                  }}>
+                  {showActivationUI
+                    ? <FlashOnIcon sx={{ fontSize: 18 }} />
+                    : <PaymentsIcon sx={{ fontSize: 18 }} />}
+                  <span>{showActivationUI ? 'Activate' : 'Withdraw'}</span>
                 </button>
               </div>
             </div>
