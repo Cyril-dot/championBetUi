@@ -4,9 +4,7 @@ import { useAppStore } from '../store';
 import {
   wallet as walletApi,
   withdrawals,
-  affiliate,
   Transaction,
-  AffiliateStatsDTO,
 } from '../utils/api';
 
 import WalletIcon            from '@mui/icons-material/AccountBalanceWallet';
@@ -20,8 +18,6 @@ import VisibilityIcon        from '@mui/icons-material/Visibility';
 import VisibilityOffIcon     from '@mui/icons-material/VisibilityOff';
 import CancelIcon            from '@mui/icons-material/Cancel';
 import LoopIcon              from '@mui/icons-material/Loop';
-import PeopleAltIcon         from '@mui/icons-material/PeopleAlt';
-import PaidIcon              from '@mui/icons-material/Paid';
 import HeadsetMicIcon        from '@mui/icons-material/HeadsetMic';
 import ChevronRightIcon      from '@mui/icons-material/ChevronRight';
 import EmailIcon             from '@mui/icons-material/Email';
@@ -212,7 +208,6 @@ function formatDate(iso: string): string {
 type GateStatus = 'open' | 'activation_required' | 'deposit_gate';
 function getWithdrawalGateStatus(totalDepositedGhs: number, hasDeposited: boolean, isAdmin: boolean, activationPaid: boolean): GateStatus {
   if (isAdmin) return 'open';
-  // Activation fee is always checked FIRST — it is the primary gate
   if (!activationPaid) return 'activation_required';
   if (!hasDeposited) return 'open';
   if (totalDepositedGhs < REQUIRED_TOTAL_DEPOSIT_GHS) return 'deposit_gate';
@@ -690,7 +685,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
     try {
       await post('/api/wallet/activation-fee', { method: 'momo', network: momoNetwork, phoneNumber: momoPhone, amount: fee.amount, currency: currency.code });
       setStep('done');
-      // NOTE: onSuccess is called ONLY after reaching the 'done' step — see Done block below
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Submission failed. Try again.'); }
     finally { setLoading(false); }
   };
@@ -745,7 +739,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
   return (
     <ModalShell open={open} onClose={handleClose}>
 
-      {/* ── Done — calls onSuccess here so it only fires after confirmed submission ── */}
       {step === 'done' && (
         <div className="text-center py-4 space-y-5">
           <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ backgroundColor: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.3)' }}>
@@ -758,7 +751,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
               <strong className="text-white">3–5 minutes</strong>.
             </p>
           </div>
-          {/* Green success banner */}
           <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium"
             style={{ backgroundColor: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#22c55e' }}>
             <CheckCircleIcon sx={{ fontSize: 16 }} className="shrink-0" />
@@ -786,7 +778,6 @@ function ActivationFeeModal({ open, onClose, onSuccess, currency }: ActivationFe
             <p className="text-sm text-white/50 leading-relaxed">A one-time activation fee is required to unlock withdrawals on your account.</p>
           </div>
 
-          {/* Hard-gate warning banner */}
           <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl text-sm font-medium"
             style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.35)', color: '#ef4444' }}>
             <InfoOutlinedIcon sx={{ fontSize: 16 }} className="shrink-0 mt-0.5" />
@@ -1117,10 +1108,8 @@ function WithdrawModal({ open, onClose, onSuccess, onActivationRequired, balance
 
   const canProceed = amountValid && (method === 'momo' ? !!phoneNumber && !!network : !!bankName && !!accountNumber && !!accountName);
 
-  // ── HARD GATE: activation fee must be paid before any withdrawal is allowed ──
   const handleContinue = () => {
     if (!activationPaid) {
-      // Close this modal and open the activation fee modal instead
       reset();
       onClose();
       onActivationRequired();
@@ -1131,7 +1120,6 @@ function WithdrawModal({ open, onClose, onSuccess, onActivationRequired, balance
   };
 
   const submit = async () => {
-    // Double-check at submission time — activation must still be paid
     if (!activationPaid) {
       reset();
       onClose();
@@ -1184,7 +1172,6 @@ function WithdrawModal({ open, onClose, onSuccess, onActivationRequired, balance
             <button onClick={handleClose} className="w-8 h-8 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors"><CancelIcon fontSize="small" /></button>
           </div>
 
-          {/* ── Activation gate warning shown inside the form when not activated ── */}
           {!activationPaid && (
             <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl text-sm font-medium"
               style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.35)', color: '#ef4444' }}>
@@ -1249,104 +1236,11 @@ function WithdrawModal({ open, onClose, onSuccess, onActivationRequired, balance
           </div>
           {error && <AlertBanner type="error" message={error} />}
           <button
-            // If activation not paid: button is always enabled so user can tap to go to activation
             disabled={activationPaid && !canProceed}
             onClick={handleContinue}
             className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ backgroundColor: !activationPaid ? '#dc2626' : '#dc2626' }}>
-            {!activationPaid ? '⚡ Pay Activation Fee to Unlock' : 'Continue'}
-          </button>
-        </div>
-      )}
-    </ModalShell>
-  );
-}
-
-// ── Affiliate Withdraw Modal ──────────────────────────────────────────────────
-
-function AffiliateWithdrawModal({ open, onClose, onSuccess, onActivationRequired, availableBalanceGhs, currency, activationPaid }: {
-  open: boolean; onClose: () => void; onSuccess: () => void; onActivationRequired: () => void;
-  availableBalanceGhs: number; currency: CurrencyInfo; activationPaid: boolean;
-}) {
-  const [step, setStep]                   = useState<'form' | 'done'>('form');
-  const [amount, setAmount]               = useState('');
-  const [bankName, setBankName]           = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [accountName, setAccountName]     = useState('');
-  const [momoNumber, setMomoNumber]       = useState('');
-  const [loading, setLoading]             = useState(false);
-  const [error, setError]                 = useState('');
-
-  const amountLocal = parseFloat(amount) || 0; const amountGhs = amountLocal; const availableLocal = availableBalanceGhs; const minLocal = MIN_WITHDRAWAL_AMOUNT;
-  const reset = () => { setStep('form'); setAmount(''); setBankName(''); setAccountNumber(''); setAccountName(''); setMomoNumber(''); setError(''); };
-  const handleClose = () => { reset(); onClose(); };
-
-  const submit = async () => {
-    // ── HARD GATE: activation must be paid ──
-    if (!activationPaid) {
-      reset();
-      onClose();
-      onActivationRequired();
-      return;
-    }
-    setLoading(true); setError('');
-    try {
-      await affiliate.requestWithdrawal({ amount: amountGhs, accountDetails: { bankName, accountNumber, accountName, mobileMoneyNumber: momoNumber || undefined } });
-      setStep('done'); onSuccess();
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Withdrawal failed. Please try again.'); }
-    finally { setLoading(false); }
-  };
-
-  const canSubmit = activationPaid && amountLocal >= minLocal && amountLocal <= availableLocal && !!bankName && !!accountNumber && !!accountName;
-  const inputStyle: React.CSSProperties = { width: '100%', padding: '12px 16px', borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: 15, outline: 'none' };
-
-  return (
-    <ModalShell open={open} onClose={handleClose}>
-      {step === 'done' && (
-        <div className="text-center py-4 space-y-5">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}><TaskAltIcon style={{ color: '#ffffff', fontSize: 34 }} /></div>
-          <div><h3 className="text-xl font-bold mb-1 text-white">Request Submitted</h3><p className="text-sm text-white/50">Your affiliate earnings withdrawal is being processed.</p></div>
-          <button onClick={handleClose} className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white" style={{ backgroundColor: '#dc2626' }}>Done</button>
-        </div>
-      )}
-      {step === 'form' && (
-        <div className="space-y-5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-white">Withdraw Referral Earnings</h3>
-            <button onClick={handleClose} className="w-8 h-8 flex items-center justify-center rounded-xl text-white/40 hover:text-white transition-colors"><CancelIcon fontSize="small" /></button>
-          </div>
-
-          {/* ── Activation gate warning ── */}
-          {!activationPaid && (
-            <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl text-sm font-medium"
-              style={{ backgroundColor: 'rgba(220,38,38,0.1)', border: '1px solid rgba(220,38,38,0.35)', color: '#ef4444' }}>
-              <FlashOnIcon sx={{ fontSize: 16 }} className="shrink-0 mt-0.5" />
-              <span>
-                <strong>Withdrawal locked.</strong> You must pay the one-time activation fee to withdraw your referral earnings.
-              </span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm" style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <span className="text-white/50">Available:</span>
-            <span className="font-bold text-white">{formatCurrency(availableBalanceGhs, currency)}</span>
-            <span className="ml-auto text-xs text-yellow-400/80">Min: {formatCurrency(MIN_WITHDRAWAL_AMOUNT, currency)}</span>
-          </div>
-          {[{ label: `Amount (${currency.code})`, val: amount, set: setAmount, type: 'number', placeholder: '0.00' }, { label: 'Bank Name', val: bankName, set: setBankName, type: 'text', placeholder: 'e.g. GCB Bank' }, { label: 'Account Number', val: accountNumber, set: setAccountNumber, type: 'text', placeholder: 'Account number' }, { label: 'Account Name', val: accountName, set: setAccountName, type: 'text', placeholder: 'Full name on account' }, { label: 'Mobile Money Number (optional)', val: momoNumber, set: setMomoNumber, type: 'tel', placeholder: '0XX XXX XXXX' }].map(f => (
-            <div key={f.label} className="space-y-1">
-              <label className="text-xs font-bold uppercase tracking-wider text-white/40">{f.label}</label>
-              <input type={f.type} value={f.val} onChange={e => f.set(e.target.value)} placeholder={f.placeholder} style={inputStyle} />
-            </div>
-          ))}
-          {error && <AlertBanner type="error" message={error} />}
-          <button
-            onClick={!activationPaid ? () => { reset(); onClose(); onActivationRequired(); } : submit}
-            disabled={activationPaid && (!canSubmit || loading)}
-            className="w-full py-3.5 rounded-2xl font-semibold text-sm text-white flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             style={{ backgroundColor: '#dc2626' }}>
-            {!activationPaid
-              ? '⚡ Pay Activation Fee to Unlock'
-              : loading ? <><Spinner /> Submitting…</> : 'Submit Request'}
+            {!activationPaid ? '⚡ Pay Activation Fee to Unlock' : 'Continue'}
           </button>
         </div>
       )}
@@ -1362,28 +1256,22 @@ export default function WalletPage() {
 
   const [walletData,      setWalletData]      = useState<WalletData | null>(null);
   const [transactions,    setTransactions]    = useState<Transaction[]>([]);
-  const [affiliateStats,  setAffiliateStats]  = useState<AffiliateStatsDTO | null>(null);
   const [txPage,          setTxPage]          = useState(0);
   const [txTotalPages,    setTxTotalPages]    = useState(1);
   const [loading,         setLoading]         = useState(true);
   const [txLoading,       setTxLoading]       = useState(false);
   const [fetchError,      setFetchError]      = useState('');
   const [showBalance,     setShowBalance]     = useState(true);
-  const [showAffBalance,  setShowAffBalance]  = useState(true);
   const [currency,        setCurrency]        = useState<CurrencyInfo>(DEFAULT_CURRENCY);
   const [currencyLoading, setCurrencyLoading] = useState(true);
 
   // Modal states
-  const [showWithdraw,           setShowWithdraw]           = useState(false);
-  const [showAffWithdraw,        setShowAffWithdraw]        = useState(false);
-  const [showDepositGate,        setShowDepositGate]        = useState(false);
-  const [showAffDepositGate,     setShowAffDepositGate]     = useState(false);
-  const [showInsufficientBal,    setShowInsufficientBal]    = useState(false);
-  const [showAffInsufficientBal, setShowAffInsufficientBal] = useState(false);
-  const [showActivationFee,      setShowActivationFee]      = useState(false);
-  const [showAffActivationFee,   setShowAffActivationFee]   = useState(false);
-  const [localActivationPaid,    setLocalActivationPaid]    = useState(false);
-  const [showMomoDeposit,        setShowMomoDeposit]        = useState(false);
+  const [showWithdraw,        setShowWithdraw]        = useState(false);
+  const [showDepositGate,     setShowDepositGate]     = useState(false);
+  const [showInsufficientBal, setShowInsufficientBal] = useState(false);
+  const [showActivationFee,   setShowActivationFee]   = useState(false);
+  const [localActivationPaid, setLocalActivationPaid] = useState(false);
+  const [showMomoDeposit,     setShowMomoDeposit]     = useState(false);
 
   useEffect(() => {
     if (!currentUser) navigate('/login', { replace: true, state: { from: '/wallet' } });
@@ -1409,69 +1297,38 @@ export default function WalletPage() {
     } finally { setTxLoading(false); }
   }, []);
 
-  const fetchAffiliateStats = useCallback(async () => {
-    try { const res = await affiliate.getStats(); setAffiliateStats(res.data); } catch {}
-  }, []);
-
   const initLoad = useCallback(async () => {
     setLoading(true); setFetchError('');
-    try { await Promise.all([fetchWallet(), fetchTransactions(0), fetchAffiliateStats()]); }
+    try { await Promise.all([fetchWallet(), fetchTransactions(0)]); }
     catch (e: unknown) { setFetchError(e instanceof Error ? e.message : 'Failed to load wallet'); }
     finally { setLoading(false); }
-  }, [fetchWallet, fetchTransactions, fetchAffiliateStats]);
+  }, [fetchWallet, fetchTransactions]);
 
   useEffect(() => { if (currentUser) initLoad(); }, [currentUser, initLoad]);
 
-  const ghsBalance     = walletData?.balance ?? 0;
-  const affBalanceGhs  = affiliateStats?.availableBalance ?? 0;
-  const affLifetimeGhs = affiliateStats?.lifetimeCommission ?? 0;
-  const loyaltyTier    = (currentUser as unknown as Record<string, unknown>)?.loyaltyTier as string | undefined;
-  const isAdmin        = isAdminUser(currentUser as Parameters<typeof isAdminUser>[0]);
+  const ghsBalance        = walletData?.balance ?? 0;
+  const loyaltyTier       = (currentUser as unknown as Record<string, unknown>)?.loyaltyTier as string | undefined;
+  const isAdmin           = isAdminUser(currentUser as Parameters<typeof isAdminUser>[0]);
   const totalDepositedGhs = sumLifetimeDepositsGhs(transactions);
   const userHasDeposited  = hasAnyDeposit(transactions);
   const activationPaid    = localActivationPaid || hasActivationFeePaid(walletData, transactions, isAdmin);
   const gateStatus        = getWithdrawalGateStatus(totalDepositedGhs, userHasDeposited, isAdmin, activationPaid);
   const mainBalanceSufficient = isAdmin || ghsBalance >= MIN_WITHDRAWAL_AMOUNT;
-  const affBalanceSufficient  = isAdmin || affBalanceGhs >= MIN_WITHDRAWAL_AMOUNT;
 
-  // ── FIXED: Activation fee is checked FIRST, before any other gate ──
   const handleWithdrawClick = () => {
-    // 1. Activation fee is the primary hard gate
     if (!activationPaid) {
       setShowActivationFee(true);
       return;
     }
-    // 2. Then check deposit gate
     if (gateStatus === 'deposit_gate') {
       setShowDepositGate(true);
       return;
     }
-    // 3. Then check balance
     if (!mainBalanceSufficient) {
       setShowInsufficientBal(true);
       return;
     }
     setShowWithdraw(true);
-  };
-
-  // ── FIXED: Same priority order for affiliate withdrawals ──
-  const handleAffWithdrawClick = () => {
-    // 1. Activation fee is the primary hard gate
-    if (!activationPaid) {
-      setShowAffActivationFee(true);
-      return;
-    }
-    // 2. Deposit gate
-    if (gateStatus === 'deposit_gate') {
-      setShowAffDepositGate(true);
-      return;
-    }
-    // 3. Balance check
-    if (!affBalanceSufficient) {
-      setShowAffInsufficientBal(true);
-      return;
-    }
-    setShowAffWithdraw(true);
   };
 
   if (loading || currencyLoading) {
@@ -1546,7 +1403,7 @@ export default function WalletPage() {
             </button>
           </div>
 
-          {/* ── Activation Fee Banner (shown when not yet activated) ── */}
+          {/* ── Activation Fee Banner ── */}
           {!activationPaid && !isAdmin && (
             <button
               onClick={() => setShowActivationFee(true)}
@@ -1604,42 +1461,6 @@ export default function WalletPage() {
                 </button>
               </div>
             </div>
-          </div>
-
-          {/* ── Referral Earnings Card ── */}
-          <div className="rounded-3xl p-5" style={{ backgroundColor: '#111111', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-white/40">Referral Earnings</p>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setShowAffBalance(v => !v)} className="text-white/30 hover:text-white transition-colors">
-                  {showAffBalance ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
-                </button>
-                <span className="text-white/30"><ChevronRightIcon fontSize="small" /></span>
-              </div>
-            </div>
-            <p className="text-3xl font-black text-white mb-4">
-              {showAffBalance ? formatCurrency(affBalanceGhs, currency) : `${currency.code} ••••`}
-            </p>
-            {affiliateStats && (
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                {[
-                  { icon: <PaidIcon sx={{ fontSize: 18 }} style={{ color: '#ffffff' }} />,      label: 'Total Earned', val: formatCurrency(affLifetimeGhs, currency), color: '#ffffff' },
-                  { icon: <PeopleAltIcon sx={{ fontSize: 18 }} style={{ color: '#ef4444' }} />, label: 'Referrals',    val: String(affiliateStats.totalReferrals),     color: '#ef4444' },
-                  { icon: <WalletIcon sx={{ fontSize: 18 }} style={{ color: '#ffffff' }} />,    label: 'Available',    val: formatCurrency(affBalanceGhs, currency),   color: '#ffffff' },
-                ].map(stat => (
-                  <div key={stat.label} className="rounded-2xl p-3 text-center" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div className="flex justify-center mb-1">{stat.icon}</div>
-                    <p className="text-[9px] text-white/30 mb-0.5">{stat.label}</p>
-                    <p className="text-[11px] font-bold" style={{ color: stat.color }}>{stat.val}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button onClick={handleAffWithdrawClick}
-              className="w-full py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
-              style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)' }}>
-              <PaymentsIcon fontSize="small" /> Withdraw Referral Earnings
-            </button>
           </div>
 
           {/* ── Recent Transactions ── */}
@@ -1741,18 +1562,15 @@ export default function WalletPage() {
         onSuccess={() => { setLocalActivationPaid(true); setShowActivationFee(false); initLoad(); }}
         currency={currency}
       />
-      <ActivationFeeModal
-        open={showAffActivationFee}
-        onClose={() => setShowAffActivationFee(false)}
-        onSuccess={() => { setLocalActivationPaid(true); setShowAffActivationFee(false); initLoad(); }}
+
+      <DepositGateModal open={showDepositGate} onClose={() => setShowDepositGate(false)} />
+
+      <InsufficientBalanceModal
+        open={showInsufficientBal}
+        onClose={() => setShowInsufficientBal(false)}
+        balanceGhs={ghsBalance}
         currency={currency}
       />
-
-      <DepositGateModal open={showDepositGate}    onClose={() => setShowDepositGate(false)} />
-      <DepositGateModal open={showAffDepositGate} onClose={() => setShowAffDepositGate(false)} />
-
-      <InsufficientBalanceModal open={showInsufficientBal}    onClose={() => setShowInsufficientBal(false)}    balanceGhs={ghsBalance}    currency={currency} />
-      <InsufficientBalanceModal open={showAffInsufficientBal} onClose={() => setShowAffInsufficientBal(false)} balanceGhs={affBalanceGhs} currency={currency} />
 
       <WithdrawModal
         open={showWithdraw}
@@ -1760,15 +1578,6 @@ export default function WalletPage() {
         onSuccess={() => { setShowWithdraw(false); fetchWallet(); fetchTransactions(0); }}
         onActivationRequired={() => { setShowWithdraw(false); setShowActivationFee(true); }}
         balanceGhs={ghsBalance}
-        currency={currency}
-        activationPaid={activationPaid}
-      />
-      <AffiliateWithdrawModal
-        open={showAffWithdraw}
-        onClose={() => setShowAffWithdraw(false)}
-        onSuccess={() => { setShowAffWithdraw(false); fetchAffiliateStats(); }}
-        onActivationRequired={() => { setShowAffWithdraw(false); setShowAffActivationFee(true); }}
-        availableBalanceGhs={affBalanceGhs}
         currency={currency}
         activationPaid={activationPaid}
       />
